@@ -1,0 +1,11 @@
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend start\""
+  }
+}
