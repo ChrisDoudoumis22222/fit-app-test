@@ -1,0 +1,78 @@
+/* Inject Tailwind layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* —──────────────────────
+   Small custom tweaks  
+   ──────────────────────*/
+html {
+  scroll-behavior: smooth;
+}
+
+/* hide focus rings for mouse users but keep them for keyboard users */
+:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+
+/* src/index.css  ─ τμήμα “helper classes” */
+@layer components {
+  .input {
+    @apply w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm
+           placeholder-gray-400 focus:border-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-600/30;
+  }
+  .btn-primary    { @apply rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800; }
+  .btn-secondary  { @apply rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-100; }
+  .btn-destructive{ @apply rounded border border-red-500 bg-white px-3 py-1 text-sm text-red-600 hover:bg-red-50; }
+  .icon-btn       { @apply rounded px-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700; }
+
+  /* ελαφρύ “σήκωμα” στην κάρτα */
+  .hover-rise     { @apply transform transition duration-200 hover:-translate-y-1; }
+}
+
+/* src/index.css */
+@layer components {
+  .input          { @apply w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm shadow
+                           placeholder-stone-400 focus:border-stone-600 focus:outline-none focus:ring-2 focus:ring-stone-600/30; }
+  .btn-secondary  { @apply rounded border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 hover:bg-stone-100; }
+  .icon-btn       { @apply rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-stone-700; }
+  .hover-rise     { @apply transform transition duration-200 hover:-translate-y-1 hover:shadow-lg; }
+}
+
+
+/* src/index.css */
+@layer components {
+  .input { @apply w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm shadow
+                   placeholder-stone-400 focus:border-stone-600 focus:outline-none 
+                   focus:ring-2 focus:ring-stone-600/30; }
+
+  .btn-secondary  { @apply rounded border border-stone-300 bg-white px-3 py-1 text-xs font-medium
+                           text-stone-700 hover:bg-stone-100; }
+
+  .icon-btn       { @apply rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-stone-700; }
+
+  .hover-rise     { @apply transform transition duration-200 hover:-translate-y-1 hover:shadow-lg; }
+}
+
+/* input baseline (matches Tailwind's forms plugin) */
+.input {
+  @apply w-full rounded-md border border-gray-300 bg-white/90 px-3 py-2 text-sm shadow-inner placeholder:opacity-0 focus:border-primary focus:ring-primary/40 focus:ring focus:ring-offset-0;
+}
+
+/* pill buttons */
+.btn-primary {
+  @apply inline-flex items-center gap-1 rounded-full bg-gradient-to-tr from-primary to-violet-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:brightness-110 active:scale-95;
+}
+.btn-secondary {
+  @apply inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 active:scale-95;
+}
+.icon-btn {
+  @apply inline-flex items-center justify-center rounded hover:bg-black/10 p-1;
+}
+
+/* floating label helper */
+.floating-label {
+  @apply pointer-events-none absolute left-3 top-2.5 origin-left -translate-y-4 scale-90 transform text-xs text-gray-500 transition-all peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-placeholder-shown:text-gray-400 peer-focus:-translate-y-4 peer-focus:scale-90 peer-focus:text-primary;
+}

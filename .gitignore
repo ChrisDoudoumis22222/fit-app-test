@@ -5,3 +5,10 @@ dist/
 *.log 
 .DS_Store 
 .vscode/ 
+
+# Ignore history files
+history.*
+*.history
+*.hist
+*history.log
+*chat-history*

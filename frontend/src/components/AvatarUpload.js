@@ -1,85 +1,106 @@
-import React, { useState } from "react";
-import { supabase } from "../supabaseClient";
-import { useAuth } from "../AuthProvider";
+"use client"
 
-export default function AvatarUpload() {
-  const { profile } = useAuth();
-  const [msg, setMsg] = useState("");
-  const [uploading, setUploading] = useState(false);
+import { useState, useRef } from "react"
+import { supabase } from "../supabaseClient"
 
-  const onFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";                // reset so same file can be re-selected
+/**
+ * Avatar uploader χωρίς preview.
+ * Το κουμπί δείχνει:
+ *   • "Edit avatar"  ─ αν ο χρήστης έχει ήδη avatar
+ *   • "Change avatar" ─ αν δεν έχει avatar ακόμη
+ *   • "Uploading…"   ─ κατά τη μεταφορά αρχείου
+ */
+export default function AvatarUpload({ url, onUpload, bucket = "avatars" }) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState("")
+  const fileInputRef = useRef(null)
 
-    setMsg("");
-    setUploading(true);
+  /** true όταν το url δεν είναι κενό και δεν είναι placeholder svg */
+  const hasAvatar =
+    !!url && !url.startsWith("data:image/svg+xml") && !url.includes("Avatar%3C")
 
+  /* handle file → upload → publicUrl */
+  const uploadAvatar = async (e) => {
     try {
-      /* 1️⃣  build path   userId/timestamp.ext */
-      const ext = file.name.split(".").pop();
-      const path = `${profile.id}/${Date.now()}.${ext}`;
+      setUploading(true)
+      setError("")
 
-      /* 2️⃣  upload (INSERT only – no upsert) */
-      const { error: upErr } = await supabase.storage
-        .from("avatars")
-        .upload(path, file);            // ← NO upsert
-
-      if (upErr) {
-        if (upErr.statusCode === "403") {
-          throw new Error(
-            "Storage RLS blocked the upload. Check the INSERT policy on bucket avatars."
-          );
-        }
-        throw upErr;
+      const file = e.target.files?.[0]
+      if (!file) {
+        setError("Please choose an image.")
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setError("File is larger than 5 MB.")
+        return
       }
 
-      /* 3️⃣  get public URL */
-      const { data } = await supabase.storage
-        .from("avatars")
-        .getPublicUrl(path);
-      const publicUrl = data.publicUrl;
+      const { data: { user }, error: usrErr } = await supabase.auth.getUser()
+      if (usrErr || !user) {
+        setError("No active session.")
+        return
+      }
 
-      /* 4️⃣  save URL in profile row */
-      const { error: profErr } = await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", profile.id);
-      if (profErr) throw profErr;
+      const ext      = file.name.split(".").pop()
+      const fileName = `avatar-${Date.now()}.${ext}`
+      const filePath = `${user.id}/${fileName}`
 
-      setMsg("✅ Avatar updated!");
+      const { error: upErr } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, { upsert: true, cacheControl: "3600" })
+      if (upErr) throw upErr
+
+      const { data: urlData } = await supabase.storage.from(bucket).getPublicUrl(filePath)
+      onUpload?.(`${urlData.publicUrl}?t=${Date.now()}`)
     } catch (err) {
-      console.error(err);
-      setMsg(`❌ ${err.message}`);
+      setError(err.message)
+      console.error("Avatar upload error →", err)
     } finally {
-      setUploading(false);
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
-  };
+  }
+
+  /* ----------------------------------------------------------- */
+  const label = uploading
+    ? "Uploading…"
+    : hasAvatar
+    ? "Edit avatar"
+    : "Change avatar"
 
   return (
-    <div style={styles.box}>
-      <label style={styles.label}>
-        {uploading ? "Uploading…" : "Upload avatar"}
-        <input
-          type="file"
-          accept="image/*"
-          onChange={onFileChange}
-          style={{ display: "none" }}
-        />
-      </label>
-      {msg && <p style={{ marginTop: 6 }}>{msg}</p>}
-    </div>
-  );
-}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        style={{
+          backgroundColor: uploading ? "#9ca3af" : "#2563eb",
+          color: "white",
+          border: "none",
+          padding: "10px 18px",
+          borderRadius: 6,
+          cursor: uploading ? "not-allowed" : "pointer",
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </button>
 
-const styles = {
-  box: { marginTop: 16, textAlign: "center" },
-  label: {
-    display: "inline-block",
-    padding: "6px 12px",
-    background: "#007bff",
-    color: "#fff",
-    borderRadius: 4,
-    cursor: "pointer",
-  },
-};
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={uploadAvatar}
+        disabled={uploading}
+        style={{ display: "none" }}
+      />
+
+      {!!error && (
+        <span style={{ color: "#ef4444", fontSize: 14 }}>
+          {error}
+        </span>
+      )}
+    </div>
+  )
+}
