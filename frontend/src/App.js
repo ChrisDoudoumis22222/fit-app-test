@@ -1,85 +1,82 @@
-"use client"
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
-import AuthProvider, { useAuth } from "./AuthProvider"
+/* eslint-disable react/prop-types */
+"use client";
+
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import AuthProvider, { useAuth } from "./AuthProvider";
 
 /* pages */
-import AuthPage from "./pages/AuthPage"
-import ForgotPasswordPage from "./pages/ForgotPasswordPage"
-import ResetPasswordPage from "./pages/ResetPasswordPage"
-import UserDashboard from "./pages/UserDashboard"
-import TrainerDashboard from "./pages/TrainerDashboard"
-import TrainerServicesPage from "./pages/TrainerServicesPage"
-import TrainerPostsPage from "./pages/TrainerPostsPage"
-import AllPostsPage from "./pages/AllPostsPage"
-import PostDetailPage from "./pages/PostDetailPage"
-import TrainerPostsViewPage from "./pages/TrainerPostsViewPage" // ✅ NEW import
-import ServicesMarketplacePage from "./pages/ServicesMarketplacePage"
-import ServiceDetailPage from "./pages/ServiceDetailPage"
+import AuthPage from "./pages/AuthPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import UserDashboard from "./pages/UserDashboard";
+import TrainerDashboard from "./pages/TrainerDashboard";
+import TrainerServicesPage from "./pages/TrainerServicesPage";
+import TrainerPostsPage from "./pages/TrainerPostsPage";
+import AllPostsPage from "./pages/AllPostsPage";
+import PostDetailPage from "./pages/PostDetailPage";
+import TrainerPostsViewPage from "./pages/TrainerPostsViewPage";
+import ServicesMarketplacePage from "./pages/ServicesMarketplacePage";
+import ServiceDetailPage from "./pages/ServiceDetailPage";
 
-/* ───────── Guard component ───────── */
+/* ---------- layout that injects the rail-padding ---------- */
+function Shell({ children }) {
+  /*  4 px extra gap = the visual “GAP” you set in UserMenu.js  */
+  return (
+    <div className="pl-[calc(var(--side-w)+4px)] lg:pt-0 pt-14 transition-[padding]">
+      {children}
+    </div>
+  );
+}
+
+/* ---------- Guard components ---------- */
 function ProtectedRoute({ children, role }) {
-  const { session, profile, loading } = useAuth()
+  const { session, profile, loading } = useAuth();
 
   if (loading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          fontSize: "1.1rem",
-        }}
-      >
+      <div className="flex h-screen items-center justify-center text-lg">
         Loading…
       </div>
-    )
+    );
   }
 
-  if (!session) return <Navigate to="/" replace />
-  if (role && profile?.role !== role) return <Navigate to="/" replace />
-  return children
+  if (!session) return <Navigate to="/" replace />;
+  if (role && profile?.role !== role) return <Navigate to="/" replace />;
+
+  /* authenticated – wrap with Shell so every page has the left spacing */
+  return <Shell>{children}</Shell>;
 }
 
-/* ───────── Public Route Guard ───────── */
 function PublicRoute({ children }) {
-  const { session, profile, loading } = useAuth()
+  const { session, profile, loading } = useAuth();
 
   if (loading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          fontSize: "1.1rem",
-        }}
-      >
+      <div className="flex h-screen items-center justify-center text-lg">
         Loading…
       </div>
-    )
+    );
   }
 
-  // Redirect authenticated users to their dashboard
   if (session && profile) {
-    if (profile.role === "trainer") {
-      return <Navigate to="/trainer" replace />
-    } else if (profile.role === "user") {
-      return <Navigate to="/user" replace />
-    }
+    return (
+      <Navigate
+        to={profile.role === "trainer" ? "/trainer" : "/user"}
+        replace
+      />
+    );
   }
 
-  return children
+  return children;
 }
 
-/* ───────── App ───────── */
+/* ---------- App ---------- */
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* ─── public routes ─── */}
+          {/* public */}
           <Route
             path="/"
             element={
@@ -105,7 +102,7 @@ export default function App() {
             }
           />
 
-          {/* ─── protected: user routes ─── */}
+          {/* user */}
           <Route
             path="/user"
             element={
@@ -115,7 +112,7 @@ export default function App() {
             }
           />
 
-          {/* ─── protected: trainer routes ─── */}
+          {/* trainer */}
           <Route
             path="/trainer"
             element={
@@ -141,7 +138,7 @@ export default function App() {
             }
           />
 
-          {/* ─── protected: shared routes (all authenticated users) ─── */}
+          {/* shared authenticated */}
           <Route
             path="/posts"
             element={
@@ -183,10 +180,10 @@ export default function App() {
             }
           />
 
-          {/* ─── catch all route ─── */}
+          {/* catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
-  )
+  );
 }
