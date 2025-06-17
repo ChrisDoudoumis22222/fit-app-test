@@ -1,9 +1,8 @@
-/*  UserMenu.js  –  Black-Glass Side-Rail with custom logo
-    ------------------------------------------------------
-    • Collapsed 72 px  →  Expanded 240 px on hover
-    • Text labels appear only while the rail is open
-    • Icons stay centered when collapsed, even for the active link
-    • PNG logo applied to desktop + mobile
+/*  UserMenu.js – Black-Glass Side-Rail, v2.3
+    -------------------------------------------------------
+    • Collapsed 72 px → Expanded 240 px on hover
+    • “Κρατήσεις” entry in Settings
+    • White background accents RESTORED
 */
 
 "use client";
@@ -22,16 +21,17 @@ import {
   ImagePlus,
   Shield,
   Settings,
+  CalendarCheck,   // Bookings icon
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 
-const COLLAPSED = 72;         // closed width
-const EXPANDED  = 240;        // open width
+const COLLAPSED = 72;
+const EXPANDED  = 240;
 const LOGO_SRC  = "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
 
-/* export rail width as CSS var so pages can do pl-[var(--side-w)] */
+/* expose rail width as CSS var so content can do pl-[var(--side-w)] */
 document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
 
 export default function UserMenu() {
@@ -39,42 +39,48 @@ export default function UserMenu() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  /* component state */
-  const [open,   setOpen]   = useState(false);   // hover expansion
-  const [drawer, setDrawer] = useState(false);   // mobile drawer
-  const [ready,  setReady]  = useState(false);   // fade-in on mount
+  const [open,   setOpen]   = useState(false); // hover expansion
+  const [drawer, setDrawer] = useState(false); // mobile drawer
+  const [ready,  setReady]  = useState(false); // fade-in on mount
 
-  /* sync custom CSS var (desktop only) */
+  /* keep CSS variable in sync (desktop only) */
   const syncVar = (isOpen) => {
     const w = window.innerWidth >= 1024 ? (isOpen ? EXPANDED : COLLAPSED) : 0;
     document.documentElement.style.setProperty("--side-w", `${w}px`);
   };
   useEffect(() => syncVar(open), [open]);
   useEffect(() => {
-    const onResize = () => { if (window.innerWidth < 1024) setOpen(false); syncVar(open); };
+    const onResize = () => {
+      if (window.innerWidth < 1024) setOpen(false);
+      syncVar(open);
+    };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [open]);
-  useEffect(() => { setReady(true); }, []);
+  useEffect(() => setReady(true), []);
 
   if (!profileLoaded || !profile || profile.role !== "user") return null;
 
-  /* navigation arrays */
+  /* navigation definitions */
   const navMain = [
-    { id: "dash",    label: "Πίνακας",     href: "/user",          icon: BarChart3 },
-    { id: "market",  label: "Marketplace", href: "/services",      icon: ShoppingBag },
-    { id: "posts",   label: "Αναρτήσεις",  href: "/posts",         icon: Globe },
+    { id: "dash",   label: "Πίνακας",     href: "/user",          icon: BarChart3 },
+    { id: "market", label: "Marketplace", href: "/services",      icon: ShoppingBag },
+    { id: "posts",  label: "Αναρτήσεις",  href: "/posts",         icon: Globe },
   ];
   const navSettings = [
-    { id: "profile",  label: "Πληροφορίες", href: "/user#profile",  icon: UserIcon  },
-    { id: "avatar",   label: "Avatar",      href: "/user#avatar",   icon: ImagePlus },
-    { id: "security", label: "Ασφάλεια",    href: "/user#security", icon: Shield    },
+    { id: "profile",  label: "Πληροφορίες", href: "/user#profile",  icon: UserIcon      },
+    { id: "avatar",   label: "Avatar",      href: "/user#avatar",   icon: ImagePlus     },
+    { id: "bookings", label: "Κρατήσεις",   href: "/user#bookings", icon: CalendarCheck },
+    { id: "security", label: "Ασφάλεια",    href: "/user#security", icon: Shield        },
   ];
 
   const activePath = `${location.pathname}${location.hash}`;
-  const logout     = async () => { await supabase.auth.signOut(); navigate("/"); };
+  const logout     = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
 
-  /* ───────── Desktop rail ─────────*/
+  /* ───────── Desktop rail ───────── */
   return (
     <>
       <motion.aside
@@ -92,7 +98,7 @@ export default function UserMenu() {
                    bg-gradient-to-b from-black/80 to-black/60
                    backdrop-blur-xl ring-1 ring-white/10 shadow-2xl"
       >
-        {/* Brand + nav groups */}
+        {/* Brand + nav groups */}
         <div className="p-4 flex flex-col gap-6">
           <Brand open={open} />
 
@@ -109,7 +115,7 @@ export default function UserMenu() {
         <FooterBlock open={open} profile={profile} onLogout={logout} />
       </motion.aside>
 
-      {/* Mobile top-bar & drawer */}
+      {/* Mobile top-bar & drawer */}
       <MobileBar
         drawer={drawer}
         setDrawer={setDrawer}
@@ -123,7 +129,7 @@ export default function UserMenu() {
   );
 }
 
-/*──────────────── sub-components ────────────────*/
+/* ─────────── sub-components ─────────── */
 
 function Brand({ open }) {
   return (
@@ -131,7 +137,7 @@ function Brand({ open }) {
       <img
         src={LOGO_SRC}
         alt="logo"
-        className="h-10 w-10 object-contain rounded-xl bg-white p-1"
+        className="h-10 w-10 object-contain rounded-xl bg-white p-1"  /* white bg restored */
       />
       <AnimatePresence initial={false}>
         {open && (
@@ -163,7 +169,7 @@ function NavList({ items, open, active }) {
               className={`flex items-center gap-4 w-full rounded-xl py-3 ${layout}
                           transition-colors
                           ${isActive
-                            ? "bg-white text-black shadow-inner"
+                            ? "bg-white text-black shadow-inner"  /* white active highlight restored */
                             : "hover:bg-white/10 text-gray-300"}`}
             >
               <Icon
@@ -171,7 +177,7 @@ function NavList({ items, open, active }) {
                   isActive ? "text-black" : "text-gray-300"
                 }`}
               />
-              {/*  Label shown only while rail is open (hover)  */}
+              {/* label visible only when open */}
               <AnimatePresence initial={false}>
                 {open && (
                   <motion.span
@@ -199,7 +205,7 @@ function FooterBlock({ open, profile, onLogout }) {
       <img
         src={profile.avatar_url || undefined}
         alt="avatar"
-        className="h-9 w-9 rounded-full object-cover bg-white"
+        className="h-9 w-9 rounded-full object-cover bg-white" /* white bg restored */
       />
       <AnimatePresence initial={false}>
         {open && (
@@ -232,7 +238,7 @@ function FooterBlock({ open, profile, onLogout }) {
   );
 }
 
-/*───────── Mobile bar + drawer (logo swapped too) ─────────*/
+/* ───────── Mobile bar + drawer ───────── */
 
 function MobileBar({ drawer, setDrawer, profile, navMain, navSettings, active, logout }) {
   return (
@@ -263,10 +269,13 @@ function MobileBar({ drawer, setDrawer, profile, navMain, navSettings, active, l
       {/* drawer */}
       {drawer && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" onClick={() => setDrawer(false)} />
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+            onClick={() => setDrawer(false)}
+          />
           <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-full flex flex-col bg-black border-r border-gray-800 overflow-y-auto">
             <DrawerHeader close={() => setDrawer(false)} />
-            <DrawerLinks items={navMain} active={active} close={() => setDrawer(false)} />
+            <DrawerLinks items={navMain}     active={active} close={() => setDrawer(false)} />
             <hr className="my-2 border-gray-700/60" />
             <p className="px-6 pt-1 pb-2 text-[11px] uppercase tracking-wider text-gray-500">
               Ρυθμίσεις
@@ -326,9 +335,15 @@ function DrawerFooter({ profile, close, logout }) {
   return (
     <div className="mt-auto p-4 space-y-4 border-t border-gray-800">
       <div className="flex items-center gap-3">
-        <img src={profile.avatar_url || undefined} alt="avatar" className="h-10 w-10 rounded-full object-cover bg-white" />
+        <img
+          src={profile.avatar_url || undefined}
+          alt="avatar"
+          className="h-10 w-10 rounded-full object-cover bg-white"
+        />
         <div className="min-w-0">
-          <p className="text-sm font-medium text-white truncate">{profile.full_name || "Χρήστης"}</p>
+          <p className="text-sm font-medium text-white truncate">
+            {profile.full_name || "Χρήστης"}
+          </p>
           <p className="text-xs text-gray-400 truncate">{profile.email}</p>
         </div>
       </div>
