@@ -1,127 +1,163 @@
-/*  AvatarUpload.jsx  –  Lucide button + DB sync
-    --------------------------------------------
-    • Keeps the Camera / Loader2 icon button UI
-    • Uploads to Supabase storage (`avatars` bucket by default)
-    • On success:
-        1. writes the public URL to `profiles.avatar_url`
-        2. calls onUpload(url) so the parent can refresh its state
-*/
-
 "use client";
 
 import { useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
-import { Camera, Loader2 } from "lucide-react";   // npm i lucide-react if needed
+import { Camera, Loader2, Trash2 } from "lucide-react";
 
 export default function AvatarUpload({
   url,
   onUpload,
+  onDelete,
   bucket = "avatars",
-  icon   = <Camera size={16} />,   // customise from parent if you like
+  icon   = <Camera className="h-4 w-4" />,
 }) {
   const [uploading, setUploading] = useState(false);
   const [error,      setError]    = useState("");
-  const fileInputRef = useRef(null);
+  const fileInput = useRef(null);
 
-  /* helper: true if current url is a real uploaded image */
+  /* αληθινό avatar = public URL */
   const hasAvatar =
-    !!url &&
+    !!url && url.startsWith("http") &&
     !url.startsWith("data:image/svg+xml") &&
-    !url.includes("Avatar%3C");   // matches your placeholder logic
+    !url.includes("Avatar%3C");
 
-  /* -------------------------------------------------- */
+  /* ---------------- Ανέβασμα ---------------- */
   const uploadAvatar = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Το αρχείο πρέπει να είναι μικρότερο από 5 MB.");
+      fileInput.current.value = "";
+      return;
+    }
+
     try {
       setUploading(true);
       setError("");
 
-      const file = e.target.files?.[0];
-      if (!file)    return setError("Please choose an image.");
-      if (file.size > 5 * 1024 * 1024)
-        return setError("File is larger than 5 MB.");
-
-      /* current logged-in user */
       const { data: { user }, error: usrErr } = await supabase.auth.getUser();
-      if (usrErr || !user) return setError("No active session.");
+      if (usrErr || !user) throw new Error("Δεν υπάρχει ενεργή συνεδρία.");
 
-      /* create unique path */
       const ext      = file.name.split(".").pop();
       const filePath = `${user.id}/avatar-${Date.now()}.${ext}`;
 
-      /* upload to storage */
       const { error: upErr } = await supabase
         .storage
         .from(bucket)
-        .upload(filePath, file, { upsert: true, cacheControl: "3600" });
+        .upload(filePath, file, { cacheControl: "3600", upsert: true });
       if (upErr) throw upErr;
 
-      /* get public URL */
-      const { data: urlData } = await supabase
+      const { data: { publicUrl } } = supabase
         .storage
         .from(bucket)
         .getPublicUrl(filePath);
 
-      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`; // cache-buster
+      const finalUrl = `${publicUrl}?t=${Date.now()}`;
 
-      /* --- NEW: persist to profiles table --- */
       const { error: dbErr } = await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: finalUrl })
         .eq("id", user.id);
       if (dbErr) throw dbErr;
 
-      /* notify parent */
-      onUpload?.(publicUrl);
+      onUpload?.(finalUrl);
     } catch (err) {
-      console.error("Avatar upload error →", err);
-      setError(err.message);
+      console.error("Σφάλμα ανεβάσματος avatar →", err);
+      setError(err.message || "Αποτυχία ανεβάσματος.");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (fileInput.current) fileInput.current.value = "";
     }
   };
 
-  /* -------------------------------------------------- */
+  /* ---------------- Διαγραφή ---------------- */
+  const deleteAvatar = async () => {
+    if (!hasAvatar) return;
+
+    try {
+      setUploading(true);
+      setError("");
+
+      const { data: { user }, error: usrErr } = await supabase.auth.getUser();
+      if (usrErr || !user) throw new Error("Δεν υπάρχει ενεργή συνεδρία.");
+
+      const path = decodeURI(url)
+        .split(`/object/public/${bucket}/`)[1]
+        .split("?")[0];
+
+      const { error: remErr } = await supabase
+        .storage
+        .from(bucket)
+        .remove([path]);
+      if (remErr) throw remErr;
+
+      const { error: dbErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: null })
+        .eq("id", user.id);
+      if (dbErr) throw dbErr;
+
+      onDelete?.();
+    } catch (err) {
+      console.error("Σφάλμα διαγραφής avatar →", err);
+      setError(err.message || "Αποτυχία διαγραφής.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const label = uploading
-    ? "Uploading…"
+    ? "Ανέβασμα…"
     : hasAvatar
     ? "Αλλαγή"
-    : "Change avatar";
+    : "Αλλαγή Avatar";
 
+  /* ---------------- UI ---------------- */
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-        style={{
-          backgroundColor: uploading ? "#6b7280" /* gray-500 */ : "#2563eb", /* indigo-600 */
-          color: "white",
-          border: "none",
-          padding: "10px 18px",
-          borderRadius: 6,
-          cursor: uploading ? "not-allowed" : "pointer",
-          fontWeight: 600,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        {uploading ? <Loader2 className="animate-spin" size={16} /> : icon}
-        {label}
-      </button>
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        {/* Κουμπί Ανεβάσματος */}
+        <button
+          type="button"
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+                      ${uploading
+                        ? "bg-neutral-500 cursor-not-allowed"
+                        : "bg-indigo-600 hover:bg-indigo-500"} 
+                      disabled:opacity-50`}
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+          {label}
+        </button>
 
+        {/* Κουμπί Διαγραφής – εμφανίζεται μόνο με αληθινό avatar */}
+        {hasAvatar && (
+          <button
+            type="button"
+            onClick={deleteAvatar}
+            disabled={uploading}
+            className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium hover:bg-rose-500 disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" /> Διαγραφή
+          </button>
+        )}
+      </div>
+
+      {/* Κρυφό input */}
       <input
-        ref={fileInputRef}
+        ref={fileInput}
         type="file"
         accept="image/*"
         onChange={uploadAvatar}
         disabled={uploading}
-        style={{ display: "none" }}
+        className="hidden"
       />
 
-      {!!error && (
-        <span style={{ color: "#ef4444", fontSize: 14 }}>{error}</span>
+      {/* Μήνυμα Σφάλματος */}
+      {error && (
+        <span className="text-sm text-rose-400">{error}</span>
       )}
     </div>
   );

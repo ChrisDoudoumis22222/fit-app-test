@@ -1,160 +1,168 @@
-/*  UserMenu.js – Black-Glass Side-Rail, v2.3
-    -------------------------------------------------------
-    • Collapsed 72 px → Expanded 240 px on hover
-    • “Κρατήσεις” entry in Settings
-    • White background accents RESTORED
-*/
+/* UserMenu.js – black‑glass rail + bottom nav  (2025‑07‑19)
+   ----------------------------------------------------------------------- */
 
 "use client";
 
-import { useState, useEffect }              from "react";
-import { Link, useLocation, useNavigate }   from "react-router-dom";
-import { motion, AnimatePresence }          from "framer-motion";
-import { supabase }                         from "../supabaseClient";
-import { useAuth }                          from "../AuthProvider";
+import { useState, useEffect }            from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence }        from "framer-motion";
+import { supabase }                       from "../supabaseClient";
+import { useAuth }                        from "../AuthProvider";
 
 import {
-  BarChart3,
-  ShoppingBag,
-  Globe,
-  User as UserIcon,
-  ImagePlus,
-  Shield,
-  Settings,
-  CalendarCheck,   // Bookings icon
-  LogOut,
-  Menu,
+  /* rail / settings icons */
+  BarChart3, ShoppingBag, Globe,
+  User as UserIcon, ImagePlus, Shield, Settings,
+  CalendarCheck, LogOut,
+  /* drawer close */
   X,
+  /* bottom‑nav */
+  Home, CalendarDays, MoreHorizontal,
 } from "lucide-react";
 
 const COLLAPSED = 72;
 const EXPANDED  = 240;
 const LOGO_SRC  = "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
 
-/* expose rail width as CSS var so content can do pl-[var(--side-w)] */
 document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
 
 export default function UserMenu() {
   const { profile, profileLoaded } = useAuth();
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate   = useNavigate();
+  const location   = useLocation();
 
-  const [open,   setOpen]   = useState(false); // hover expansion
-  const [drawer, setDrawer] = useState(false); // mobile drawer
-  const [ready,  setReady]  = useState(false); // fade-in on mount
+  /* desktop hover / mobile drawer */
+  const [open,   setOpen]   = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const [ready,  setReady]  = useState(false);
 
-  /* keep CSS variable in sync (desktop only) */
-  const syncVar = (isOpen) => {
-    const w = window.innerWidth >= 1024 ? (isOpen ? EXPANDED : COLLAPSED) : 0;
+  const syncVar = (o) => {
+    const w = window.innerWidth >= 1024 ? (o ? EXPANDED : COLLAPSED) : 0;
     document.documentElement.style.setProperty("--side-w", `${w}px`);
   };
   useEffect(() => syncVar(open), [open]);
   useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth < 1024) setOpen(false);
-      syncVar(open);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const h = () => { if (window.innerWidth < 1024) setOpen(false); syncVar(open); };
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
   }, [open]);
   useEffect(() => setReady(true), []);
 
   if (!profileLoaded || !profile || profile.role !== "user") return null;
 
-  /* navigation definitions */
+  /* nav defs */
   const navMain = [
-    { id: "dash",   label: "Πίνακας",     href: "/user",          icon: BarChart3 },
-    { id: "market", label: "Marketplace", href: "/services",      icon: ShoppingBag },
-    { id: "posts",  label: "Αναρτήσεις",  href: "/posts",         icon: Globe },
+    { id: "dash",   label: "Πίνακας",     href: "/user",     icon: BarChart3 },
+    { id: "market", label: "Marketplace", href: "/services", icon: ShoppingBag },
+    { id: "posts",  label: "Αναρτήσεις",  href: "/posts",    icon: Globe },
   ];
   const navSettings = [
-    { id: "profile",  label: "Πληροφορίες", href: "/user#profile",  icon: UserIcon      },
-    { id: "avatar",   label: "Avatar",      href: "/user#avatar",   icon: ImagePlus     },
+    { id: "profile",  label: "Πληροφορίες", href: "/user#profile",  icon: UserIcon },
+    { id: "avatar",   label: "Avatar",      href: "/user#avatar",   icon: ImagePlus },
     { id: "bookings", label: "Κρατήσεις",   href: "/user#bookings", icon: CalendarCheck },
-    { id: "security", label: "Ασφάλεια",    href: "/user#security", icon: Shield        },
+    { id: "security", label: "Ασφάλεια",    href: "/user#security", icon: Shield },
   ];
 
-  const activePath = `${location.pathname}${location.hash}`;
-  const logout     = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
-  };
+  /* bottom nav (Payment‑screen style) */
+  const bottomNav = [
+    { href: "/user",           label: "Επισκόπηση", icon: Home },
+    { href: "/services",       label: "Marketplace", icon: ShoppingBag },
+    { href: "/user#bookings",  label: "Κρατήσεις",   icon: CalendarDays },
+    { href: "/user#profile",   label: "Ρυθμίσεις",   icon: Settings },
+    { href: "drawer",          label: "Περισσότερα", icon: MoreHorizontal },
+  ];
 
-  /* ───────── Desktop rail ───────── */
+  const route   = location.pathname + location.hash;
+  const logout  = async () => { await supabase.auth.signOut(); navigate("/"); };
+
+  /* ---------------- DESKTOP RAIL ---------------- */
   return (
     <>
-      <motion.aside
-        initial={{ opacity: 0, width: COLLAPSED }}
-        animate={{ opacity: ready ? 1 : 0, width: open ? EXPANDED : COLLAPSED }}
-        whileHover={{ width: EXPANDED }}
-        transition={{
-          opacity: { duration: 0.6, ease: [0.4, 0, 0.2, 1] },
-          width:   { type: "spring", stiffness: 260, damping: 26 },
-        }}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        className="hidden lg:flex fixed top-0 left-0 z-40 h-screen
-                   flex-col justify-between overflow-hidden
-                   bg-gradient-to-b from-black/80 to-black/60
-                   backdrop-blur-xl ring-1 ring-white/10 shadow-2xl"
-      >
-        {/* Brand + nav groups */}
-        <div className="p-4 flex flex-col gap-6">
-          <Brand open={open} />
+      <DesktopRail
+        open={open} setOpen={setOpen} ready={ready}
+        navMain={navMain} navSettings={navSettings}
+        active={location.pathname} profile={profile} logout={logout}
+      />
 
-          <NavList items={navMain}     open={open} active={activePath} />
-          <hr className="my-3 border-gray-700/60" />
-          {open && (
-            <p className="px-4 pt-1 pb-2 text-[11px] uppercase tracking-wider text-gray-500">
-              Ρυθμίσεις
-            </p>
-          )}
-          <NavList items={navSettings} open={open} active={activePath} />
+      {/* -------- Mobile top‑bar (no hamburger) -------- */}
+      <motion.header
+        initial={false}
+        animate={{ opacity: drawer ? 0 : 1, pointerEvents: drawer ? "none" : "auto" }}
+        className="lg:hidden fixed inset-x-0 top-0 z-40 flex items-center
+                   h-14 px-4 bg-black/80 backdrop-blur ring-1 ring-white/10 transition-opacity"
+      >
+        <div className="w-10" />   {/* spacer keeps logo centered */}
+
+        <div className="flex-1 flex justify-center">
+          <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
         </div>
 
-        <FooterBlock open={open} profile={profile} onLogout={logout} />
-      </motion.aside>
+        <img src={profile.avatar_url || undefined} alt="avatar" className="h-9 w-9 rounded-full object-cover bg-white" />
+      </motion.header>
 
-      {/* Mobile top-bar & drawer */}
-      <MobileBar
-        drawer={drawer}
-        setDrawer={setDrawer}
-        profile={profile}
-        navMain={navMain}
-        navSettings={navSettings}
-        active={activePath}
-        logout={logout}
+      {/* -------- Mobile drawer (opens from bottom bar) -------- */}
+      <MobileDrawer
+        open={drawer} setOpen={setDrawer}
+        navMain={navMain} navSettings={navSettings}
+        activePath={location.pathname} profile={profile} logout={logout}
+      />
+
+      {/* -------- Bottom nav -------- */}
+      <BottomNav
+        items={bottomNav}
+        route={route}
+        drawerOpen={drawer}
+        openDrawer={() => setDrawer(true)}
       />
     </>
   );
 }
 
-/* ─────────── sub-components ─────────── */
-
-function Brand({ open }) {
+/* ======= Desktop rail helpers (unchanged layout) ======= */
+function DesktopRail({ open, setOpen, ready, navMain, navSettings, active, profile, logout }) {
   return (
-    <div className="flex items-center gap-3">
-      <img
-        src={LOGO_SRC}
-        alt="logo"
-        className="h-10 w-10 object-contain rounded-xl bg-white p-1"  /* white bg restored */
-      />
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.span
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -8 }}
-            transition={{ duration: 0.2 }}
-            className="text-xl font-bold tracking-tight text-white max-w-[110px] truncate"
-          >
-            User<span className="font-light text-gray-400">Hub</span>
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </div>
+    <motion.aside
+      initial={{ opacity: 0, width: COLLAPSED }}
+      animate={{ opacity: ready ? 1 : 0, width: open ? EXPANDED : COLLAPSED }}
+      whileHover={{ width: EXPANDED }}
+      transition={{
+        opacity: { duration: 0.6, ease: [0.4, 0, 0.2, 1] },
+        width:   { type: "spring", stiffness: 260, damping: 26 },
+      }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      className="hidden lg:flex fixed top-0 left-0 z-40 h-screen flex-col justify-between
+                 overflow-hidden bg-gradient-to-b from-black/80 to-black/60 backdrop-blur-xl
+                 ring-1 ring-white/10 shadow-2xl"
+    >
+      <div className="flex flex-col gap-6 p-4">
+        <Brand open={open} />
+        <NavList items={navMain}     open={open} active={active} />
+        <hr className="my-3 border-gray-700/60" />
+        {open && <p className="px-4 pt-1 pb-2 text-[11px] uppercase tracking-wider text-gray-500">Ρυθμίσεις</p>}
+        <NavList items={navSettings} open={open} active={active} />
+      </div>
+      <FooterBlock open={open} profile={profile} onLogout={logout} />
+    </motion.aside>
   );
 }
+
+const Brand = ({ open }) => (
+  <div className="flex items-center gap-3">
+    <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+    <AnimatePresence>
+      {open && (
+        <motion.span
+          initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+          transition={{ duration: 0.2 }}
+          className="max-w-[110px] truncate text-xl font-bold text-white"
+        >
+          User<span className="font-light text-gray-400">Hub</span>
+        </motion.span>
+      )}
+    </AnimatePresence>
+  </div>
+);
 
 function NavList({ items, open, active }) {
   return (
@@ -167,25 +175,16 @@ function NavList({ items, open, active }) {
             <Link
               to={href}
               className={`flex items-center gap-4 w-full rounded-xl py-3 ${layout}
-                          transition-colors
-                          ${isActive
-                            ? "bg-white text-black shadow-inner"  /* white active highlight restored */
-                            : "hover:bg-white/10 text-gray-300"}`}
+                          ${isActive ? "bg-white text-black shadow-inner" : "text-gray-300 hover:bg-white/10"}
+                          transition-colors`}
             >
-              <Icon
-                className={`h-5 w-5 flex-shrink-0 ${
-                  isActive ? "text-black" : "text-gray-300"
-                }`}
-              />
-              {/* label visible only when open */}
-              <AnimatePresence initial={false}>
+              <Icon className={`h-5 w-5 ${isActive ? "text-black" : ""}`} />
+              <AnimatePresence>
                 {open && (
                   <motion.span
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -8 }}
+                    initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
                     transition={{ duration: 0.2 }}
-                    className="text-sm font-medium truncate"
+                    className="truncate text-sm font-medium"
                   >
                     {label}
                   </motion.span>
@@ -202,35 +201,21 @@ function NavList({ items, open, active }) {
 function FooterBlock({ open, profile, onLogout }) {
   return (
     <div className="flex items-center gap-3 p-4 hover:bg-white/10 cursor-pointer">
-      <img
-        src={profile.avatar_url || undefined}
-        alt="avatar"
-        className="h-9 w-9 rounded-full object-cover bg-white" /* white bg restored */
-      />
-      <AnimatePresence initial={false}>
+      <img src={profile.avatar_url || undefined} alt="avatar" className="h-9 w-9 rounded-full object-cover bg-white" />
+      <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -8 }}
+            initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
             transition={{ duration: 0.2 }}
-            className="min-w-0 text-white text-sm leading-tight"
+            className="min-w-0 text-sm text-white"
           >
-            <p className="font-medium truncate">
-              {profile.full_name || "Χρήστης"}
-            </p>
-            <p className="text-xs text-gray-400 truncate">
-              {profile.email}
-            </p>
+            <p className="truncate font-medium">{profile.full_name || "Χρήστης"}</p>
+            <p className="truncate text-xs text-gray-400">{profile.email}</p>
           </motion.div>
         )}
       </AnimatePresence>
       {open && (
-        <button
-          onClick={onLogout}
-          title="Αποσύνδεση"
-          className="ml-auto p-2 rounded-lg hover:bg-white/10"
-        >
+        <button onClick={onLogout} className="ml-auto rounded-lg p-2 hover:bg-white/10">
           <LogOut className="h-4 w-4 text-red-400" />
         </button>
       )}
@@ -238,68 +223,49 @@ function FooterBlock({ open, profile, onLogout }) {
   );
 }
 
-/* ───────── Mobile bar + drawer ───────── */
-
-function MobileBar({ drawer, setDrawer, profile, navMain, navSettings, active, logout }) {
+/* ======= Mobile drawer helpers ======= */
+function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, profile, logout }) {
+  if (!open) return null;
   return (
-    <>
-      {/* top-bar */}
-      <header className="lg:hidden fixed inset-x-0 top-0 z-40 h-14 flex items-center justify-between bg-black/90 backdrop-blur-md px-4">
-        <button
-          onClick={() => setDrawer(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-white"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-
-        <div className="flex items-center gap-2">
-          <img src={LOGO_SRC} alt="logo" className="h-6 w-6 object-contain rounded-md bg-white p-0.5" />
-          <span className="text-xl font-semibold text-white">
-            User<span className="font-light text-gray-400">Hub</span>
-          </span>
+    <AnimatePresence>
+      <motion.div
+        key="overlay"
+        initial={{ opacity: 0 }} animate={{ opacity: 0.55 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black backdrop-blur-sm"
+        onClick={() => setOpen(false)}
+      />
+      <motion.aside
+        key="drawer"
+        initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }}
+        transition={{ type: "spring", damping: 24 }}
+        className="fixed inset-y-0 left-0 z-50 w-[76vw] max-w-[320px]
+                   flex flex-col bg-gradient-to-b from-black/90 to-black/70
+                   border-r border-gray-800 shadow-2xl"
+      >
+        <DrawerHeader close={() => setOpen(false)} />
+        <div className="flex-1 overflow-y-auto p-4">
+          <Section>Μενού</Section>
+          <DrawerLinks items={navMain} active={activePath} close={() => setOpen(false)} />
+          <div className="my-5 h-px bg-gradient-to-r from-transparent via-gray-800 to-transparent" />
+          <Section>Ρυθμίσεις</Section>
+          <DrawerLinks items={navSettings} active={activePath} close={() => setOpen(false)} />
         </div>
-
-        <img
-          src={profile.avatar_url || undefined}
-          alt="avatar"
-          className="h-9 w-9 rounded-full object-cover bg-white"
-        />
-      </header>
-
-      {/* drawer */}
-      {drawer && (
-        <>
-          <div
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
-            onClick={() => setDrawer(false)}
-          />
-          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-full flex flex-col bg-black border-r border-gray-800 overflow-y-auto">
-            <DrawerHeader close={() => setDrawer(false)} />
-            <DrawerLinks items={navMain}     active={active} close={() => setDrawer(false)} />
-            <hr className="my-2 border-gray-700/60" />
-            <p className="px-6 pt-1 pb-2 text-[11px] uppercase tracking-wider text-gray-500">
-              Ρυθμίσεις
-            </p>
-            <DrawerLinks items={navSettings} active={active} close={() => setDrawer(false)} />
-            <DrawerFooter profile={profile} close={() => setDrawer(false)} logout={logout} />
-          </div>
-        </>
-      )}
-    </>
+        <DrawerFooter profile={profile} close={() => setOpen(false)} logout={logout} />
+      </motion.aside>
+    </AnimatePresence>
   );
 }
 
+const Section = ({ children }) => <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">{children}</p>;
+
 function DrawerHeader({ close }) {
   return (
-    <div className="flex items-center justify-between p-4">
+    <div className="flex items-center justify-between p-4 border-b border-gray-800">
       <div className="flex items-center gap-3">
-        <img src={LOGO_SRC} alt="logo" className="h-9 w-9 object-contain rounded-xl bg-white p-1" />
-        <span className="text-lg font-bold text-white">User Hub</span>
+        <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+        <span className="text-lg font-bold text-white">User<span className="font-light text-gray-400">Hub</span></span>
       </div>
-      <button
-        onClick={close}
-        className="h-10 w-10 flex items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400"
-      >
+      <button onClick={close} className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10">
         <X className="h-5 w-5" />
       </button>
     </div>
@@ -308,59 +274,74 @@ function DrawerHeader({ close }) {
 
 function DrawerLinks({ items, active, close }) {
   return (
-    <ul className="space-y-1 px-2">
-      {items.map(({ id, label, href, icon: Icon }) => {
-        const isActive = active === href;
-        return (
-          <li key={id}>
-            <Link
-              to={href}
-              onClick={close}
-              className={`flex items-center gap-4 rounded-xl px-4 py-3
-                           ${isActive
-                             ? "bg-white text-black"
-                             : "text-gray-300 hover:bg-gray-800"}`}
-            >
-              <Icon className="h-5 w-5" />
-              <span>{label}</span>
-            </Link>
-          </li>
-        );
-      })}
+    <ul className="space-y-1">
+      {items.map(({ id, label, href, icon: Icon }) => (
+        <li key={id}>
+          <Link
+            to={href}
+            onClick={close}
+            className={`flex min-h-11 items-center gap-3 rounded-xl px-4 text-sm font-medium
+                        ${active === href ? "bg-white text-black" : "text-gray-300 hover:bg-gray-800"}`}
+          >
+            <Icon className="h-5 w-5 flex-shrink-0" />
+            {label}
+          </Link>
+        </li>
+      ))}
     </ul>
   );
 }
 
 function DrawerFooter({ profile, close, logout }) {
   return (
-    <div className="mt-auto p-4 space-y-4 border-t border-gray-800">
+    <div className="space-y-4 bg-gradient-to-t from-black/90 to-black/70 p-4 shadow-inner">
       <div className="flex items-center gap-3">
-        <img
-          src={profile.avatar_url || undefined}
-          alt="avatar"
-          className="h-10 w-10 rounded-full object-cover bg-white"
-        />
+        <img src={profile.avatar_url || undefined} alt="avatar" className="h-11 w-11 rounded-full object-cover bg-white" />
         <div className="min-w-0">
-          <p className="text-sm font-medium text-white truncate">
-            {profile.full_name || "Χρήστης"}
-          </p>
-          <p className="text-xs text-gray-400 truncate">{profile.email}</p>
+          <p className="truncate text-sm font-medium text-white">{profile.full_name || "Χρήστης"}</p>
+          <p className="truncate text-xs text-gray-400">{profile.email}</p>
         </div>
       </div>
-
-      <Link
-        to="/user#profile"
-        onClick={close}
-        className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800"
-      >
+      <Link to="/user#profile" onClick={close} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800">
         <Settings className="h-5 w-5" /> Ρυθμίσεις προφίλ
       </Link>
-      <button
-        onClick={() => { logout(); close(); }}
-        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-red-400 hover:bg-red-950/30"
-      >
+      <button onClick={() => { logout(); close(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-800/20 px-4 py-3 text-red-300 hover:bg-red-700/30">
         <LogOut className="h-5 w-5" /> Αποσύνδεση
       </button>
     </div>
+  );
+}
+
+/* ======= Bottom nav ======= */
+function NavBtn({ href, label, icon: Icon, active, onClick }) {
+  const base = "flex flex-1 flex-col items-center justify-center gap-1 py-3";
+  const cls  = active ? "text-indigo-400" : "text-white/60 hover:bg-white/10";
+  const body = (<><Icon className="h-6 w-6" /><span className="text-xs font-medium">{label}</span></>);
+  return href ? (
+    <Link to={href} className={`${base} ${cls}`}>{body}</Link>
+  ) : (
+    <button onClick={onClick} className={`${base} ${cls}`}>{body}</button>
+  );
+}
+
+function BottomNav({ items, route, drawerOpen, openDrawer }) {
+  return (
+    <motion.footer
+      initial={false}
+      animate={{ opacity: drawerOpen ? 0 : 1, pointerEvents: drawerOpen ? "none" : "auto" }}
+      className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex border-t border-white/10
+                 bg-black/90 backdrop-blur"
+    >
+      {items.map(({ href, label, icon }) => (
+        <NavBtn
+          key={label}
+          href={href !== "drawer" ? href : null}
+          label={label}
+          icon={icon}
+          active={href !== "drawer" && route === href}
+          onClick={href === "drawer" ? openDrawer : undefined}
+        />
+      ))}
+    </motion.footer>
   );
 }

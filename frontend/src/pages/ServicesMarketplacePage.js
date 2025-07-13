@@ -1,753 +1,701 @@
-/*  ServicesMarketplacePage.jsx – Glass-Light marketplace v1.6
-    ───────────────────────────────────────────────────────────
-    • Accept / Decline pop-ups (lazy-loaded)
-    • FK-safe booking logic  (slot_id → number, trainer_id, booking_date)
-    • All sub-components in one file – just paste & save
-*/
+/* ------------------------------------------------------------------
+   ServicesMarketplacePage.jsx  — 20 Jul 2025
+   • Silver theme
+   • Whole card is clickable (stopPropagation on inner controls)
+   • Improved list layout + uniform grid height
+   • ✱ NEW ✱  full‑tag display + detail‑style avatar placeholder
+------------------------------------------------------------------ */
 
-"use client";
+"use client"
 
+import { lazy, Suspense, useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import {
-  lazy, Suspense, useEffect, useState,
-} from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Search, Filter, Grid3X3, List, Calendar, Users, Star, MapPin, Globe, Clock,
-  Euro, Tag, Sparkles, ChevronDown, ChevronRight, Heart, BookOpen, Zap,
-  TrendingUp, Award, CheckCircle,
-} from "lucide-react";
+  Search,
+  Filter,
+  Star,
+  MapPin,
+  Globe,
+  Euro,
+  ChevronDown,
+  ChevronRight,
+  Heart,
+  Zap,
+  TrendingUp,
+  Award,
+  X,
+  Play,
+  LayoutGrid,
+  ListIcon,
+  Calendar,
+  Clock,
+  CheckCircle,
+  Timer,
+  Sparkles,   // ✱ added
+  User,       // ✱ added
+} from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 
-import { supabase }            from "../supabaseClient";
-import { useAuth }             from "../AuthProvider";
-import UserMenu                from "../components/UserMenu";
-import TrainerMenu             from "../components/TrainerMenu";
-import { SERVICE_PLACEHOLDER } from "../utils/placeholderServiceImg";
+import { supabase } from "../supabaseClient"
+import { useAuth } from "../AuthProvider"
+import UserMenu from "../components/UserMenu"
+import TrainerMenu from "../components/TrainerMenu"
+import { SERVICE_PLACEHOLDER } from "../utils/placeholderServiceImg"
 
-/* ── lazy-loaded pop-ups ───────────────────────────────────── */
-const AcceptPopup  = lazy(() => import("../components/AcceptBookingPopup"));
-const DeclinePopup = lazy(() => import("../components/DeclineBookingPopup"));
+const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar"
 
-/* ════════════════════════════════════════════════════════════ */
+const AcceptPopup  = lazy(() => import("../components/AcceptBookingPopup"))
+const DeclinePopup = lazy(() => import("../components/DeclineBookingPopup"))
+
+/* ───────────────── helper: human‑friendly slot label ───────────── */
+const fmt = (d) => {
+  try {
+    const date       = new Date(d)
+    const today      = new Date()
+    const tomorrow   = new Date(Date.now() + 86_400_000)
+    const isToday    = date.toDateString() === today.toDateString()
+    const isTomorrow = date.toDateString() === tomorrow.toDateString()
+    let label        = date.toLocaleDateString("el-GR", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    })
+    if (isToday)    label = "Σήμερα"
+    else if (isTomorrow) label = "Αύριο"
+    const time = date.toLocaleTimeString("el-GR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+    return `${label} στις ${time}`
+  } catch {
+    return "Μη έγκυρη ημερομηνία"
+  }
+}
+
+/* ═════════════════════════════ PAGE ════════════════════════════ */
 export default function ServicesMarketplacePage() {
-  const { profile, loading } = useAuth();
-  const navigate              = useNavigate();
-  const Menu                  = profile?.role === "trainer" ? TrainerMenu : UserMenu;
-
-  /* ── state ──────────────────────────────────────────────── */
-  const [services,         setServices]         = useState([]);
-  const [filteredServices, setFilteredServices] = useState([]);
-  const [searchTerm,       setSearchTerm]       = useState("");
-  const [selectedSlots,    setSelectedSlots]    = useState({});
-  const [viewMode,         setViewMode]         = useState("grid");
-  const [sortBy,           setSortBy]           = useState("newest");
-  const [filterCategory,   setFilterCategory]   = useState("all");
-  const [showFilters,      setShowFilters]      = useState(false);
-
-  /* pop-up modals */
-  const [acceptOpen,  setAcceptOpen]  = useState(false);
-  const [declineOpen, setDeclineOpen] = useState({ open: false, message: "" });
-
-  /* ── 1. fetch services once ─────────────────────────────── */
+  /* force black BG for the whole doc */
   useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
+    document.documentElement.classList.add("bg-black")
+    document.body.classList.add("bg-black")
+    return () => {
+      document.documentElement.classList.remove("bg-black")
+      document.body.classList.remove("bg-black")
+    }
+  }, [])
+
+  /* auth + nav */
+  const { profile, loading } = useAuth()
+  const navigate      = useNavigate()
+  const MenuComponent = profile?.role === "trainer" ? TrainerMenu : UserMenu
+
+  /* ───────── state ───────── */
+  const [services,       setServices]       = useState([])
+  const [filtered,       setFiltered]       = useState([])
+  const [selectedSlots,  setSelectedSlots]  = useState({})
+  const [searchTerm,     setSearchTerm]     = useState("")
+  const [viewMode,       setViewMode]       = useState("grid")
+  const [sortBy,         setSortBy]         = useState("newest")
+  const [filterCategory, setFilterCategory] = useState("all")
+  const [showFilters,    setShowFilters]    = useState(false)
+  const [bookingLoading, setBookingLoading] = useState(null)
+  const [acceptOpen,     setAcceptOpen]     = useState(false)
+  const [declineOpen,    setDeclineOpen]    = useState({ open: false, message: "" })
+
+  /* ───────── fetch services once ───────── */
+  useEffect(() => {
+    ;(async () => {
+      const { data: svcData, error } = await supabase
         .from("services")
-        .select(`
-          *,
-          trainer:profiles(id, full_name),
-          service_extras(*),
-          service_slots(id, starts_at, booked)
-        `)
-        .order("created_at", { ascending: false });
+        .select(
+          `*, trainer:profiles(id, full_name, avatar_url), service_slots(id, starts_at, booked), service_extras(id)`,
+        )
+        .order("created_at", { ascending: false })
 
       if (error) {
-        setDeclineOpen({ open: true, message: error.message });
-      } else {
-        setServices(data ?? []);
-        setFilteredServices(data ?? []);
+        setDeclineOpen({ open: true, message: error.message })
+        return
       }
-    })();
-  }, []);
 
-  /* ── 2. client-side search / filter / sort ─────────────── */
+      const { data: imgData } = await supabase.from("service_images").select("service_id, url")
+      const imgsBySvc = (imgData ?? []).reduce((m, { service_id, url }) => {
+        ;(m[service_id] ||= []).push(url)
+        return m
+      }, {})
+
+      const merged = (svcData ?? []).map((s) => ({
+        ...s,
+        service_images: imgsBySvc[s.id] ?? [],
+        mainImage: (imgsBySvc[s.id] ?? [])[0] || SERVICE_PLACEHOLDER,
+        tags: s.tags ?? [],
+        service_slots: s.service_slots ?? [],
+        service_extras: s.service_extras ?? [],
+      }))
+
+      setServices(merged)
+      setFiltered(merged)
+    })()
+  }, [])
+
+  /* ───────── search / filter / sort ───────── */
   useEffect(() => {
-    let out = [...services];
+    let out = [...services]
 
-    /* search */
+    /* search term */
     if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
+      const q = searchTerm.toLowerCase()
       out = out.filter(
         (s) =>
           (s.title ?? "").toLowerCase().includes(q) ||
           (s.description ?? "").toLowerCase().includes(q) ||
           (s.trainer?.full_name ?? "").toLowerCase().includes(q) ||
           (s.tags ?? []).some((t) => t.toLowerCase().includes(q)),
-      );
+      )
     }
 
     /* category */
     if (filterCategory !== "all") {
       out = out.filter((s) => {
-        if (filterCategory === "virtual")   return s.is_virtual;
-        if (filterCategory === "in-person") return !s.is_virtual;
-        if (filterCategory === "available") return s.service_slots.some((sl) => !sl.booked);
-        return (s.tags ?? []).some((t) => t.toLowerCase().includes(filterCategory));
-      });
+        if (filterCategory === "virtual") return s.is_virtual
+        if (filterCategory === "in-person") return !s.is_virtual
+        return (s.tags ?? []).some((t) => t.toLowerCase().includes(filterCategory))
+      })
     }
 
     /* sort */
     out.sort((a, b) => {
       switch (sortBy) {
-        case "price-low":  return a.price - b.price;
-        case "price-high": return b.price - a.price;
-        case "name":       return (a.title || "").localeCompare(b.title || "");
-        case "trainer":    return (a.trainer?.full_name || "").localeCompare(b.trainer?.full_name || "");
-        default:           return new Date(b.created_at) - new Date(a.created_at);
+        case "price-low":
+          return (a.price || 0) - (b.price || 0)
+        case "price-high":
+          return (b.price || 0) - (a.price || 0)
+        case "name":
+          return (a.title || "").localeCompare(b.title || "")
+        case "trainer":
+          return (a.trainer?.full_name || "").localeCompare(b.trainer?.full_name || "")
+        default:
+          return new Date(b.created_at || 0) - new Date(a.created_at || 0)
       }
-    });
+    })
 
-    setFilteredServices(out);
-  }, [searchTerm, services, sortBy, filterCategory]);
+    setFiltered(out)
+  }, [searchTerm, services, sortBy, filterCategory])
 
-  /* ── 3. booking action ─────────────────────────────────── */
-  const book = async (serviceId, slotIdRaw) => {
-    if (!slotIdRaw) {
-      setDeclineOpen({ open: true, message: "⚠️ Επιλέξτε ώρα πρώτα" });
-      return;
+  /* slot select */
+  const handleSlotChange = (svcId, slotId) => setSelectedSlots((p) => ({ ...p, [svcId]: slotId }))
+
+  /* ───────── booking action ───────── */
+  const book = async (serviceId) => {
+    const slotId = selectedSlots[serviceId]
+    if (!slotId) {
+      setDeclineOpen({ open: true, message: "⚠️ Επιλέξτε ώρα πρώτα" })
+      return
     }
 
-    const slot_id   = Number(slotIdRaw) || slotIdRaw; // FK integer / uuid safe
-    const svc       = services.find((s) => s.id === serviceId);
-    const trainerId = svc?.trainer?.id;
-    if (!trainerId) {
-      setDeclineOpen({ open: true, message: "⚠️ Δεν βρέθηκε προπονητής" });
-      return;
+    const svc = services.find((s) => s.id === serviceId)
+    if (!svc?.trainer?.id) {
+      setDeclineOpen({ open: true, message: "⚠️ Δεν βρέθηκε προπονητής" })
+      return
     }
+
+    setBookingLoading(serviceId)
 
     const { error } = await supabase.from("bookings").insert({
-      service_id:   serviceId,
-      user_id:      profile.id,
-      trainer_id:   trainerId,
-      slot_id,
+      service_id: serviceId,
+      user_id: profile.id,
+      trainer_id: svc.trainer.id,
+      slot_id: slotId,
       booking_date: new Date().toISOString(),
-      status:       "pending",
-    });
+      status: "pending",
+    })
+
+    setBookingLoading(null)
 
     if (error) {
-      setDeclineOpen({ open: true, message: `Error: ${error.message}` });
-      return;
+      setDeclineOpen({ open: true, message: error.message })
+      return
     }
 
-    /* mark slot booked both server & local */
-    await supabase.from("service_slots").update({ booked: true }).eq("id", slot_id);
+    /* optimistic: mark slot booked */
     setServices((prev) =>
       prev.map((s) =>
         s.id === serviceId
-          ? { ...s, service_slots: s.service_slots.map((sl) =>
-              sl.id === slot_id ? { ...sl, booked: true } : sl) }
+          ? { ...s, service_slots: s.service_slots.map((sl) => (sl.id === slotId ? { ...sl, booked: true } : sl)) }
           : s,
       ),
-    );
+    )
 
-    setAcceptOpen(true);
-  };
-
-  const handleSlotChange = (svcId, slotId) =>
-    setSelectedSlots((prev) => ({ ...prev, [svcId]: Number(slotId) || slotId }));
-
-  /* ── 4. loading splash ─────────────────────────────────── */
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-gray-600" />
-      </div>
-    );
+    setAcceptOpen(true)
   }
 
-  /* quick stats */
-  const available = services.filter((s) => s.service_slots.some((sl) => !sl.booked));
-  const trainers  = new Set(services.map((s) => s.trainer?.full_name)).size;
+  /* loading splash */
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white">Φόρτωση…</div>
+      </div>
+    )
+  }
 
-  /* ── 5. UI ─────────────────────────────────────────────── */
+  /* ═════════════════════════ UI ══════════════════════════════ */
   return (
     <>
-      <div className="min-h-screen bg-white">
-        <Menu />
-
-        {/* ═══ Hero ═══ */}
-        <Hero services={services} available={available.length} trainers={trainers} />
-
-        {/* ═══ Main ═══ */}
-        <main className="mx-auto max-w-7xl px-4 py-8 space-y-6">
-          <Controls
-            searchTerm={searchTerm}          setSearchTerm={setSearchTerm}
-            showFilters={showFilters}        setShowFilters={setShowFilters}
-            viewMode={viewMode}              setViewMode={setViewMode}
-            sortBy={sortBy}                  setSortBy={setSortBy}
-            filterCategory={filterCategory}  setFilterCategory={setFilterCategory}
+      <div className="min-h-screen bg-black text-gray-200 overflow-x-hidden relative">
+        {/* soft grey blobs */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-gray-500/5 rounded-full blur-3xl animate-pulse" />
+          <div
+            className="absolute bottom-0 right-1/4 w-80 h-80 bg-gray-500/5 rounded-full blur-3xl animate-pulse"
+            style={{ animationDelay: "2s" }}
           />
+          <div
+            className="absolute top-1/3 right-1/3 w-64 h-64 bg-gray-500/5 rounded-full blur-3xl animate-pulse"
+            style={{ animationDelay: "4s" }}
+          />
+        </div>
 
-          {filteredServices.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className={viewMode === "grid"
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                : "space-y-4"}
-            >
-              {filteredServices.map((service) => (
-                <ServiceCard
-                  key={service.id}
-                  service={service}
-                  viewMode={viewMode}
-                  selectedSlot={selectedSlots[service.id]}
-                  onSlotChange={handleSlotChange}
-                  onBook={book}
-                  onNavigate={navigate}
-                />
-              ))}
-            </div>
-          )}
-        </main>
+        <div className="relative z-10">
+          <MenuComponent />
+
+          <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
+            {/* ------------ CONTROLS BAR ------------ */}
+            <Controls
+              search={searchTerm}
+              setSearch={setSearchTerm}
+              showFilters={showFilters}
+              setShowFilters={setShowFilters}
+              view={viewMode}
+              setView={setViewMode}
+              sort={sortBy}
+              setSort={setSortBy}
+              cat={filterCategory}
+              setCat={setFilterCategory}
+              results={filtered.length}
+            />
+
+            {/* ------------ RESULTS GRID / LIST ------------ */}
+            {filtered.length === 0 ? (
+              <Empty search={searchTerm} />
+            ) : viewMode === "grid" ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6 }}
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 lg:gap-8 auto-rows-fr"
+              >
+                {filtered.map((s, i) => (
+                  <motion.div
+                    key={s.id}
+                    className="h-full"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.08, duration: 0.5 }}
+                  >
+                    <Card
+                      service={s}
+                      selected={selectedSlots[s.id]}
+                      onSelect={(slotId) => handleSlotChange(s.id, slotId)}
+                      onBook={book}
+                      onNavigate={navigate}
+                      loading={bookingLoading === s.id}
+                    />
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6 }}>
+                {filtered.map((s, i) => (
+                  <motion.div
+                    key={s.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.08, duration: 0.5 }}
+                    className="mb-6"
+                  >
+                    <Card
+                      list
+                      service={s}
+                      selected={selectedSlots[s.id]}
+                      onSelect={(slotId) => handleSlotChange(s.id, slotId)}
+                      onBook={book}
+                      onNavigate={navigate}
+                      loading={bookingLoading === s.id}
+                    />
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </main>
+        </div>
       </div>
 
-      {/* ═══ Pop-ups ═══ */}
+      {/* pop‑ups */}
       <Suspense fallback={null}>
         {acceptOpen && <AcceptPopup onClose={() => setAcceptOpen(false)} />}
         {declineOpen.open && (
-          <DeclinePopup
-            message={declineOpen.message}
-            onClose={() => setDeclineOpen({ open: false, message: "" })}
-          />
+          <DeclinePopup message={declineOpen.message} onClose={() => setDeclineOpen({ open: false, message: "" })} />
         )}
       </Suspense>
     </>
-  );
+  )
 }
 
-/* ═════════════════════════ sub-components ══════════════════════ */
-
-/* ---------- Hero ---------- */
-function Hero({ services, available, trainers }) {
-  return (
-    <section
-      className="relative overflow-hidden rounded-3xl mx-4 mt-8 shadow-xl ring-1 ring-gray-200"
-      style={{
-        background:
-          "linear-gradient(135deg,rgba(255,255,255,.95)0%,rgba(248,250,252,.9)100%)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        boxShadow: "0 10px 30px -5px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05)",
-      }}
-    >
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gray-100 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gray-200 rounded-full blur-2xl" />
-      </div>
-
-      <div className="relative p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Marketplace Υπηρεσιών</h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Ανακαλύψτε και κλείστε ραντεβού με επαγγελματίες προπονητές
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard icon={BookOpen}    color="blue"   label="Συνολικές Υπηρεσίες" value={services.length} />
-          <StatCard icon={Users}       color="green"  label="Προπονητές"          value={trainers} />
-          <StatCard icon={CheckCircle} color="purple" label="Διαθέσιμες"          value={available} />
-          <StatCard
-            icon={TrendingUp}
-            color="orange"
-            label="Πρόσθετα"
-            value={services.reduce((a, s) => a + (s.service_extras?.length || 0), 0)}
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* small coloured stat card */
-function StatCard({ icon: Icon, color, label, value }) {
-  const bg  = { blue:"bg-blue-100", green:"bg-green-100", purple:"bg-purple-100", orange:"bg-orange-100" }[color];
-  const txt = { blue:"text-blue-600", green:"text-green-600", purple:"text-purple-600", orange:"text-orange-600" }[color];
-  return (
-    <div className="p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-gray-200 text-center">
-      <div className={`p-2 rounded-lg ${bg} w-fit mx-auto mb-2`}>
-        <Icon className={`h-5 w-5 ${txt}`} />
-      </div>
-      <p className="text-sm text-gray-600">{label}</p>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-    </div>
-  );
-}
-
-/* ---------- Controls (search + view + sort + filters) ---------- */
+/* ─────────────────────────── CONTROLS BAR ────────────────────────── */
 function Controls({
-  searchTerm, setSearchTerm,
-  showFilters, setShowFilters,
-  viewMode, setViewMode,
-  sortBy, setSortBy,
-  filterCategory, setFilterCategory,
+  search,
+  setSearch,
+  showFilters,
+  setShowFilters,
+  view,
+  setView,
+  sort,
+  setSort,
+  cat,
+  setCat,
+  results,
 }) {
   return (
-    <section
-      className="relative overflow-hidden rounded-2xl shadow-lg ring-1 ring-gray-200"
-      style={{
-        background:
-          "linear-gradient(135deg,rgba(255,255,255,.95)0%,rgba(248,250,252,.9)100%)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-      }}
-    >
-      <div className="p-6">
-        {/* search row */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-6">
-          <div className="relative flex-grow">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Αναζήτηση υπηρεσιών, προπονητών, κατηγοριών..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-xl
-                         text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2
-                         focus:ring-gray-500 focus:border-transparent transition-all duration-200"
-            />
-          </div>
+    <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-12 lg:mb-16">
+      <div className="rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden">
+        <div className="p-6 lg:p-8">
+          <h2 className="text-xl font-semibold text-white mb-6">
+            {results} {results === 1 ? "υπηρεσία" : "υπηρεσίες"} βρέθηκαν
+          </h2>
 
-          {/* buttons */}
-          <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
-                showFilters
-                  ? "bg-gray-800 text-white shadow-md"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              <Filter className="h-4 w-4" /> Φίλτρα{" "}
-              {showFilters ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-
-            <div className="flex rounded-xl overflow-hidden border border-gray-300">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-2 px-4 py-3 transition-all duration-200 ${
-                  viewMode === "grid" ? "bg-gray-800 text-white" : "bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                <Grid3X3 className="h-4 w-4" /> Grid
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`flex items-center gap-2 px-4 py-3 transition-all duration-200 border-l border-gray-300 ${
-                  viewMode === "list" ? "bg-gray-800 text-white" : "bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                <List className="h-4 w-4" /> List
-              </button>
-            </div>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-800
-                         focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent
-                         transition-all duration-200"
-            >
-              <option value="newest">Νεότερες</option>
-              <option value="price-low">Τιμή: Χαμηλή → Υψηλή</option>
-              <option value="price-high">Τιμή: Υψηλή → Χαμηλή</option>
-              <option value="name">Όνομα A-Z</option>
-              <option value="trainer">Προπονητής A-Z</option>
-            </select>
-          </div>
-        </div>
-
-        {showFilters && (
-          <FiltersPanel filterCategory={filterCategory} setFilterCategory={setFilterCategory} />
-        )}
-
-        {(searchTerm || filterCategory !== "all") && (
-          <ActiveFilters
-            searchTerm={searchTerm}
-            filterCategory={filterCategory}
-            clear={() => {
-              setSearchTerm("");
-              setFilterCategory("all");
-            }}
-          />
-        )}
-      </div>
-    </section>
-  );
-}
-
-/* ---------- Filters panel ---------- */
-function FiltersPanel({ filterCategory, setFilterCategory }) {
-  const cats = [
-    { id:"all",       label:"Όλες",        icon:Star },
-    { id:"virtual",   label:"Online",      icon:Globe },
-    { id:"in-person", label:"Από κοντά",   icon:MapPin },
-    { id:"available", label:"Διαθέσιμες",  icon:CheckCircle },
-    { id:"fitness",   label:"Fitness",     icon:Zap },
-    { id:"yoga",      label:"Yoga",        icon:Heart },
-    { id:"nutrition", label:"Διατροφή",    icon:Award },
-  ];
-  return (
-    <div className="border-t border-gray-200 pt-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <Tag className="h-5 w-5" /> Κατηγορίες
-      </h3>
-      <div className="flex flex-wrap gap-3">
-        {cats.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setFilterCategory(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all duration-200 ${
-              filterCategory === id
-                ? "bg-gray-800 text-white shadow-md transform scale-105"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm"
-            }`}
-          >
-            <Icon className="h-4 w-4" /> {label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* active filters pills */
-function ActiveFilters({ searchTerm, filterCategory, clear }) {
-  return (
-    <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200">
-      <span className="text-sm text-gray-600">Ενεργά φίλτρα:</span>
-      {searchTerm && (
-        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-          Αναζήτηση: “{searchTerm}”
-        </span>
-      )}
-      {filterCategory !== "all" && (
-        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-          Κατηγορία: {filterCategory}
-        </span>
-      )}
-      <button
-        onClick={clear}
-        className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200 transition-colors"
-      >
-        Καθαρισμός
-      </button>
-    </div>
-  );
-}
-
-/* ---------- empty state ---------- */
-function EmptyState() {
-  return (
-    <div className="text-center py-20">
-      <div className="p-6 rounded-full bg-gray-100 mb-6 inline-block">
-        <Search className="h-12 w-12 text-gray-400" />
-      </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">Δεν βρέθηκαν υπηρεσίες</h3>
-      <p className="text-gray-500 max-w-md mx-auto">
-        Δοκιμάστε να αλλάξετε τα κριτήρια αναζήτησης ή τα φίλτρα σας.
-      </p>
-    </div>
-  );
-}
-
-/* ---------- Service card (list + grid) ---------- */
-function ServiceCard({
-  service,
-  viewMode,
-  selectedSlot,
-  onSlotChange,
-  onBook,
-  onNavigate,
-}) {
-  const freeSlots = service.service_slots.filter((sl) => !sl.booked);
-  const hasExtras = service.service_extras?.length > 0;
-
-  const clickCard = (e) => {
-    const tag = e.target.tagName;
-    if (!["BUTTON", "SELECT", "OPTION"].includes(tag)) {
-      onNavigate(`/service/${service.id}`);
-    }
-  };
-
-  /* ─── list view ─── */
-  if (viewMode === "list") {
-    return (
-      <article
-        onClick={clickCard}
-        className="group flex items-center gap-6 p-6 rounded-2xl cursor-pointer
-                   transition-all duration-300 hover:shadow-lg hover:scale-[1.01]"
-        style={{
-          background:
-            "linear-gradient(135deg,rgba(255,255,255,.95)0%,rgba(248,250,252,.9)100%)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
-          boxShadow: "0 4px 20px -5px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05)",
-        }}
-      >
-        {/* img */}
-        <div className="relative w-32 h-24 rounded-xl overflow-hidden flex-shrink-0">
-          <img
-            src={service.image_url || SERVICE_PLACEHOLDER}
-            alt={service.title}
-            className="w-full h-full object-cover"
-          />
-          {service.is_virtual && (
-            <span className="absolute top-2 right-2 p-1 bg-emerald-600 text-white rounded-md">
-              <Globe className="h-3 w-3" />
-            </span>
-          )}
-        </div>
-
-        {/* content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between mb-2">
-            <h3 className="text-lg font-semibold text-gray-900 truncate">{service.title}</h3>
-            <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium ml-4">
-              <Euro className="h-4 w-4" /> {service.price}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-            <span className="flex items-center gap-1">
-              <Users className="h-4 w-4" /> {service.trainer?.full_name || "Trainer"}
-            </span>
-            <span className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" /> {freeSlots.length} διαθέσιμα
-            </span>
-            {hasExtras && (
-              <span className="flex items-center gap-1">
-                <Sparkles className="h-4 w-4" /> {service.service_extras.length} πρόσθετα
-              </span>
-            )}
-          </div>
-
-          <p className="text-gray-600 text-sm line-clamp-1">{service.description}</p>
-        </div>
-
-        {/* actions */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {freeSlots.length > 0 ? (
-            <>
-              <select
-                value={selectedSlot || ""}
-                onChange={(e) => onSlotChange(service.id, e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-500"
-              >
-                <option value="">Επιλέξτε ώρα</option>
-                {freeSlots.map((sl) => (
-                  <option key={sl.id} value={sl.id}>
-                    {new Date(sl.starts_at).toLocaleDateString("el-GR")}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (selectedSlot) onBook(service.id, selectedSlot);
-                }}
-                disabled={!selectedSlot}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                  selectedSlot
-                    ? "bg-gray-800 text-white hover:bg-gray-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                Κράτηση
-              </button>
-            </>
-          ) : (
-            <div className="px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4" /> Πλήρως κλεισμένο
-            </div>
-          )}
-        </div>
-      </article>
-    );
-  }
-
-  /* ─── grid view ─── */
-  return (
-    <article
-      onClick={clickCard}
-      className="group relative overflow-hidden rounded-3xl cursor-pointer
-                 transition-all duration-500 hover:shadow-xl hover:scale-[1.02]"
-      style={{
-        background:
-          "linear-gradient(135deg,rgba(255,255,255,.95)0%,rgba(248,250,252,.9)100%)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        boxShadow: "0 10px 30px -5px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05)",
-      }}
-    >
-      {/* hero image */}
-      <div className="relative h-48 overflow-hidden">
-        <img
-          src={service.image_url || SERVICE_PLACEHOLDER}
-          alt={service.title}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-        <div className="absolute top-4 left-4">
-          {service.is_virtual
-            ? <BadgePill color="emerald" icon={Globe} label="Online" />
-            : <BadgePill color="amber"   icon={MapPin} label="Από κοντά" />}
-        </div>
-        <div className="absolute top-4 right-4">
-          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/70
-                           backdrop-blur-sm text-white text-sm font-bold shadow-lg">
-            <Euro className="h-4 w-4" /> {service.price}
-          </span>
-        </div>
-
-        <div className="absolute bottom-4 left-4 right-4">
-          <h3 className="text-xl font-bold text-white mb-1">{service.title}</h3>
-          <p className="text-white/80 text-sm flex items-center gap-2">
-            <Users className="h-4 w-4" /> {service.trainer?.full_name || "Trainer"}
-          </p>
-        </div>
-      </div>
-
-      {/* body */}
-      <div className="p-6 space-y-4">
-        <p className="text-gray-600 text-sm line-clamp-2 leading-relaxed">{service.description}</p>
-
-        {service.tags?.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {service.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
-                {tag}
-              </span>
-            ))}
-            {service.tags.length > 3 && (
-              <span className="px-3 py-1 rounded-full bg-gray-800 text-white text-xs font-medium">
-                +{service.tags.length - 3}
-              </span>
-            )}
-          </div>
-        )}
-
-        {hasExtras && (
-          <div className="p-3 rounded-xl bg-white/60 border border-gray-200">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-4 w-4 text-purple-600" />
-              <span className="text-sm font-medium text-gray-900">Πρόσθετα διαθέσιμα</span>
-            </div>
-            <div className="text-xs text-gray-600">
-              {service.service_extras.slice(0, 2).map((extra, i) => (
-                <span key={extra.id}>
-                  {extra.title} (€{extra.price})
-                  {i < Math.min(service.service_extras.length, 2) - 1 && ", "}
-                </span>
-              ))}
-              {service.service_extras.length > 2 && (
-                <span> +{service.service_extras.length - 2} ακόμη</span>
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 mb-6">
+            {/* search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Αναζήτηση υπηρεσιών, προπονητών..."
+                className="w-full pl-14 pr-10 py-4 lg:py-5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-400 focus:ring-gray-400/50 focus:border-gray-400/50"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
-          </div>
-        )}
 
-        {/* booking */}
-        <div className="space-y-3 pt-4 border-t border-gray-200">
-          {freeSlots.length > 0 ? (
-            <>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Calendar className="h-4 w-4" /> {freeSlots.length} διαθέσιμα ραντεβού
+            {/* actions */}
+            <div className="flex gap-3 flex-wrap lg:flex-nowrap">
+              {/* filters */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 px-5 py-4 lg:py-5 rounded-2xl font-medium ${
+                  showFilters
+                    ? "bg-gray-400 text-black shadow-lg shadow-gray-400/20"
+                    : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
+                }`}
+              >
+                <Filter className="h-4 w-4" />
+                Φίλτρα
+                {showFilters ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+
+              {/* view toggle */}
+              <div className="flex rounded-2xl overflow-hidden border border-white/10 bg-white/5">
+                <button
+                  onClick={() => setView("grid")}
+                  className={`px-4 py-4 lg:py-5 ${
+                    view === "grid" ? "bg-gray-400 text-black" : "text-gray-300"
+                  } transition`}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setView("list")}
+                  className={`px-4 py-4 lg:py-5 border-l border-white/10 ${
+                    view === "list" ? "bg-gray-400 text-black" : "text-gray-300"
+                  } transition`}
+                >
+                  <ListIcon className="h-4 w-4" />
+                </button>
               </div>
 
+              {/* sort */}
               <select
-                value={selectedSlot || ""}
-                onChange={(e) => onSlotChange(service.id, e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent
-                           transition-all duration-200"
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                className="px-5 py-4 lg:py-5 bg-white/5 border border-white/10 rounded-2xl text-white min-w-[180px] appearance-none cursor-pointer"
+                style={{
+                  backgroundImage:
+                    "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e\")",
+                  backgroundPosition: "right .5rem center",
+                  backgroundSize: "1.5em 1.5em",
+                  backgroundRepeat: "no-repeat",
+                }}
               >
-                <option value="">Επιλέξτε ημερομηνία και ώρα</option>
-                {freeSlots.map((sl) => (
-                  <option key={sl.id} value={sl.id}>
-                    {new Date(sl.starts_at).toLocaleDateString("el-GR")} στις{" "}
-                    {new Date(sl.starts_at).toLocaleTimeString("el-GR", { hour:"2-digit", minute:"2-digit" })}
+                <option value="newest" className="bg-black text-white">
+                  Νεότερες πρώτα
+                </option>
+                <option value="price-low" className="bg-black text-white">
+                  Τιμή: Χαμηλή → Υψηλή
+                </option>
+                <option value="price-high" className="bg-black text-white">
+                  Τιμή: Υψηλή → Χαμηλή
+                </option>
+                <option value="name" className="bg-black text-white">
+                  Όνομα A‑Z
+                </option>
+                <option value="trainer" className="bg-black text-white">
+                  Προπονητής A‑Z
+                </option>
+              </select>
+            </div>
+          </div>
+
+          {/* filters panel */}
+          <AnimatePresence>{showFilters && <Filters cat={cat} setCat={setCat} />}</AnimatePresence>
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
+/* ────────────────────────────── FILTERS PANEL ───────────────────── */
+function Filters({ cat, setCat }) {
+  const C = [
+    { id: "all", label: "Όλες", icon: Star },
+    { id: "fitness", label: "Fitness", icon: Zap },
+    { id: "yoga", label: "Yoga", icon: Heart },
+    { id: "nutrition", label: "Διατροφή", icon: Award },
+    { id: "strength", label: "Strength", icon: TrendingUp },
+    { id: "cardio", label: "Cardio", icon: Play },
+    { id: "virtual", label: "Online", icon: Globe },
+    { id: "in-person", label: "Από κοντά", icon: MapPin },
+  ]
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.3 }}
+      className="border-t border-white/10 pt-6"
+    >
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        {C.map(({ id, label, icon: Icon }, i) => (
+          <motion.button
+            key={id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            onClick={() => setCat(id)}
+            className={`flex flex-col items-center gap-2 p-4 rounded-xl font-medium ${
+              cat === id
+                ? "bg-gray-400 text-black shadow-lg shadow-gray-400/20"
+                : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="text-xs">{label}</span>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+/* ────────────────────────────── EMPTY STATE ─────────────────────── */
+const Empty = ({ search }) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20 lg:py-32">
+    <Search className="mx-auto h-16 w-16 text-gray-600 mb-6" />
+    <h3 className="text-3xl font-bold text-white mb-2">
+      {search ? `Δεν βρέθηκαν αποτελέσματα για "${search}"` : "Δεν βρέθηκαν υπηρεσίες"}
+    </h3>
+    <p className="text-gray-400 mb-6">
+      {search
+        ? "Δοκιμάστε διαφορετικούς όρους αναζήτησης ή αλλάξτε τα φίλτρα σας."
+        : "Δοκιμάστε να αλλάξετε τα κριτήρια αναζήτησης ή τα φίλτρα σας."}
+    </p>
+    <button onClick={() => window.location.reload()} className="px-6 py-3 bg-gray-400 text-black rounded-xl">
+      Εξερευνήστε όλες
+    </button>
+  </motion.div>
+)
+
+/* ─────────────────────────────── BADGE ──────────────────────────── */
+const Badge = ({ color, icon: Icon, label }) => {
+  const clr =
+    color === "emerald"
+      ? "bg-emerald-500 text-white"
+      : "bg-gray-400 text-black" // amber → silver
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${clr}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </span>
+  )
+}
+
+/* ──────────────────────── FULLY BOOKED NOTICE ───────────────────── */
+const Booked = () => (
+  <div className="text-center py-6">
+    <div className="p-6 rounded-xl bg-red-500/10 border border-red-500/20">
+      <Clock className="mx-auto h-6 w-6 text-red-400 mb-3" />
+      <h4 className="font-semibold text-red-300">Πλήρως Κλεισμένο</h4>
+      <p className="text-sm text-red-400 mb-4">Όλα τα ραντεβού έχουν κλειστεί</p>
+      <button disabled className="w-full px-4 py-2.5 bg-red-500/20 text-red-400 rounded-lg cursor-not-allowed">
+        Μη διαθέσιμο
+      </button>
+    </div>
+  </div>
+)
+
+/* ─────────────────────────────── CARD ───────────────────────────── */
+function Card({ list = false, service, selected, onSelect, onBook, onNavigate, loading }) {
+  const free = service.service_slots.filter((s) => !s.booked)
+  const stop = (e) => e.stopPropagation() // for inner controls only
+
+  return (
+    <article
+      onClick={() => onNavigate(`/service/${service.id}`)}
+      className={`relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 transition ${
+        list ? "flex flex-col lg:flex-row min-h-[12rem]" : "flex flex-col h-full"
+      }`}
+      style={{ cursor: "pointer" }}
+    >
+      {/* image / thumb */}
+      <div className={list ? "relative h-48 lg:h-auto lg:w-60 shrink-0" : "relative h-48"}>
+        <img
+          src={service.mainImage}
+          alt={service.title}
+          onError={(e) => {
+            e.currentTarget.onerror = null
+            e.currentTarget.src = SERVICE_PLACEHOLDER
+          }}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        <div
+          className={list ? "absolute inset-0 lg:bg-gradient-to-r" : "absolute inset-0"}
+          style={{ background: "linear-gradient(180deg,rgba(0,0,0,.6),transparent)" }}
+        />
+        <div className="absolute top-3 left-3">
+          {service.is_virtual ? (
+            <Badge color="emerald" icon={Globe} label="Online" />
+          ) : (
+            <Badge color="amber" icon={MapPin} label="Από κοντά" />
+          )}
+        </div>
+        <div className="absolute top-3 right-3 px-3 py-1.5 rounded-lg bg-black/80 text-white text-sm font-semibold flex items-center gap-1">
+          <Euro className="h-3.5 w-3.5" />
+          {service.price}
+        </div>
+      </div>
+
+      {/* content */}
+      <div className={`${list ? "flex flex-col flex-1 p-6" : "flex flex-col flex-1 p-5"}`} onClick={stop}>
+        <div className="flex-1">
+          <h3 className={`${list ? "text-xl" : "text-lg"} font-semibold text-white mb-1`}>{service.title}</h3>
+
+          {/* avatar row (detail‑style) */}
+          <div className="flex items-center gap-2 text-gray-400 mb-2">
+            <div className="w-5 h-5 rounded-full bg-white/10 overflow-hidden flex items-center justify-center">
+              {service.trainer?.avatar_url ? (
+                <img
+                  src={service.trainer.avatar_url}
+                  alt={service.trainer.full_name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = AVATAR_PLACEHOLDER
+                  }}
+                />
+              ) : (
+                <User className="h-4 w-4" />
+              )}
+            </div>
+            <span className="text-sm">{service.trainer?.full_name || "Trainer"}</span>
+          </div>
+
+          <p className="text-gray-300 text-sm leading-relaxed line-clamp-2">{service.description}</p>
+
+          {/* all tags, sparkle‑pill style */}
+          {service.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {service.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white/10 border border-white/20 text-gray-300 text-xs"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* booking */}
+        <div className="pt-4 border-t border-white/10">
+          {free.length > 0 ? (
+            <>
+              <select
+                value={selected || ""}
+                onChange={(e) => {
+                  stop(e)
+                  onSelect(e.target.value)
+                }}
+                className="w-full px-3 py-2.5 mb-3 bg-white/5 border border-white/10 rounded-lg text-white text-sm appearance-none"
+                style={{
+                  backgroundImage:
+                    "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e\")",
+                  backgroundPosition: "right .5rem center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: "1.5em 1.5em",
+                }}
+              >
+                <option value="" disabled className="bg-black text-white">
+                  Επιλέξτε διαθέσιμη ώρα
+                </option>
+                {free.map((sl) => (
+                  <option key={sl.id} value={sl.id} className="bg-black text-white">
+                    {fmt(sl.starts_at)}
                   </option>
                 ))}
               </select>
 
               <button
                 onClick={(e) => {
-                  e.stopPropagation();
-                  if (selectedSlot) onBook(service.id, selectedSlot);
+                  stop(e)
+                  onBook(service.id)
                 }}
-                disabled={!selectedSlot}
-                className={`w-full px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
-                  selectedSlot
-                    ? "bg-gray-800 text-white hover:bg-gray-700 hover:shadow-lg"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                disabled={!selected || loading}
+                className={`w-full px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 ${
+                  selected && !loading
+                    ? "bg-gray-400 text-black hover:bg-gray-300"
+                    : "bg-white/10 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                {selectedSlot ? "Κλείστε Ραντεβού" : "Επιλέξτε ώρα πρώτα"}
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    Κράτηση…
+                  </>
+                ) : selected ? (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    Κράτηση
+                  </>
+                ) : (
+                  <>
+                    <Timer className="h-4 w-4" />
+                    Επιλέξτε ώρα
+                  </>
+                )}
               </button>
             </>
           ) : (
-            <FullyBookedNotice />
+            <Booked />
           )}
         </div>
       </div>
     </article>
-  );
-}
-
-/* pill badge helper */
-function BadgePill({ color, icon: Icon, label }) {
-  const bg = color === "emerald" ? "bg-emerald-600/90"
-           : color === "amber"   ? "bg-amber-600/90"
-           : "bg-gray-600/90";
-  return (
-    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${bg}
-                      backdrop-blur-sm text-white text-sm font-medium shadow-lg`}>
-      <Icon className="h-4 w-4" /> {label}
-    </span>
-  );
-}
-
-/* fully-booked notice */
-function FullyBookedNotice() {
-  return (
-    <div className="text-center py-6">
-      <div className="relative p-6 rounded-2xl bg-gradient-to-br from-red-50 via-red-25 to-orange-50
-                      border border-red-200 overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-2 right-2 w-16 h-16 bg-red-100 rounded-full blur-xl opacity-60" />
-          <div className="absolute bottom-2 left-2 w-12 h-12 bg-orange-100 rounded-full blur-lg opacity-40" />
-        </div>
-
-        <div className="relative">
-          <div className="p-3 rounded-full bg-red-100 w-fit mx-auto mb-3">
-            <Clock className="h-6 w-6 text-red-600" />
-          </div>
-          <h4 className="font-semibold text-red-800 mb-2">Πλήρως Κλεισμένο</h4>
-          <p className="text-sm text-red-600 mb-4">Όλα τα ραντεβού έχουν κλειστεί</p>
-
-          <button
-            disabled
-            className="w-full px-4 py-3 bg-gradient-to-r from-red-200 to-red-300 text-red-700
-                       rounded-xl cursor-not-allowed font-medium border border-red-300"
-          >
-            Μη Διαθέσιμο
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  )
 }

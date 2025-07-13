@@ -1,371 +1,153 @@
-"use client"
+"use client";
 
-import { useState, useRef } from "react"
-import { supabase } from "../supabaseClient"
+import { useState, useRef } from "react";
+import { supabase } from "../supabaseClient";
+import { FileText, GraduationCap, Download, Loader2 } from "lucide-react";
 
-/**
- * Diploma / certificate uploader with inline preview.
- */
-export default function DiplomaUpload({ profileId, currentUrl = null, onChange, bucket = "diplomas" }) {
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState("")
-  const [fileName, setFileName] = useState("")
-  const inputRef = useRef(null)
+export default function DiplomaUpload({ 
+  profileId, 
+  currentUrl, 
+  onChange, 
+  bucket = "diplomas" 
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
 
-  const isImage = (url) => {
-    if (!url) return false
-    // Remove query parameters and get the actual filename
-    const cleanUrl = url.split("?")[0]
-    return /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(cleanUrl)
-  }
-
-  const isPDF = (url) => {
-    if (!url) return false
-    // Remove query parameters and get the actual filename
-    const cleanUrl = url.split("?")[0]
-    return /\.pdf$/i.test(cleanUrl)
-  }
+  const isImage = (url) => /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(url?.split("?")[0]);
+  const isPDF = (url) => /\.pdf$/i.test(url?.split("?")[0]);
 
   const handleSelect = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
     if (file.size > 10 * 1024 * 1024) {
-      setError("File must be ≤ 10 MB.")
-      return
+      setError("Το αρχείο πρέπει να είναι μικρότερο από 10MB");
+      return;
     }
 
-    setUploading(true)
-    setError("")
-    setFileName(file.name)
+    setUploading(true);
+    setError("");
 
     try {
-      const ext = file.name.split(".").pop()
-      const path = `${profileId}/${Date.now()}.${ext}`
+      const ext = file.name.split(".").pop();
+      const path = `${profileId}/${Date.now()}.${ext}`;
 
       const { error: upErr } = await supabase.storage
         .from(bucket)
-        .upload(path, file, { upsert: true, cacheControl: "3600" })
-      if (upErr) throw upErr
+        .upload(path, file);
+      if (upErr) throw upErr;
 
-      const { data } = await supabase.storage.from(bucket).getPublicUrl(path)
-      const publicUrl = `${data.publicUrl}?t=${Date.now()}`
+      const { data } = await supabase.storage.from(bucket).getPublicUrl(path);
+      const publicUrl = `${data.publicUrl}?t=${Date.now()}`;
 
-      const { error: dbErr } = await supabase.from("profiles").update({ diploma_url: publicUrl }).eq("id", profileId)
-      if (dbErr) throw dbErr
-
-      onChange?.(publicUrl)
+      onChange?.(publicUrl);
     } catch (err) {
-      setError(err.message)
-      console.error("Diploma upload error →", err)
+      setError(err.message || "Σφάλμα κατά το ανέβασμα");
+      console.error("Diploma upload error →", err);
     } finally {
-      setUploading(false)
-      if (inputRef.current) inputRef.current.value = ""
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
-  }
+  };
 
   const getFileNameFromUrl = (url) => {
-    if (!url) return ""
+    if (!url) return "";
     try {
-      const urlParts = url.split("/")
-      const fileNameWithQuery = urlParts[urlParts.length - 1]
-      const fileName = fileNameWithQuery.split("?")[0]
-      return decodeURIComponent(fileName)
+      return decodeURIComponent(url.split("/").pop().split("?")[0]);
     } catch {
-      return "diploma"
+      return "δίπλωμα";
     }
-  }
-
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
-
-  const containerStyle = {
-    maxWidth: "600px",
-    margin: "0 auto",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-    overflow: "hidden",
-  }
-
-  const headerStyle = {
-    padding: "24px 24px 16px 24px",
-    textAlign: "center",
-    borderBottom: "1px solid #f3f4f6",
-  }
-
-  const titleStyle = {
-    fontSize: "20px",
-    fontWeight: "600",
-    color: "#111827",
-    margin: "0 0 8px 0",
-  }
-
-  const subtitleStyle = {
-    fontSize: "14px",
-    color: "#6b7280",
-    margin: "0",
-  }
-
-  const previewAreaStyle = {
-    padding: "24px",
-    backgroundColor: "#f9fafb",
-  }
-
-  const uploadZoneStyle = {
-    border: "2px dashed #d1d5db",
-    borderRadius: "8px",
-    padding: "32px 16px",
-    textAlign: "center",
-    backgroundColor: "#ffffff",
-    transition: "all 0.2s ease",
-  }
-
-  const imagePreviewStyle = {
-    maxWidth: "100%",
-    maxHeight: "300px",
-    borderRadius: "8px",
-    border: "1px solid #e5e7eb",
-    objectFit: "contain",
-    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-    backgroundColor: "#ffffff",
-  }
-
-  const pdfPreviewStyle = {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
-    borderRadius: "8px",
-    padding: "24px",
-    textAlign: "center",
-    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-  }
-
-  const pdfEmbedStyle = {
-    width: "100%",
-    height: "400px",
-    border: "1px solid #e5e7eb",
-    borderRadius: "8px",
-    marginTop: "16px",
-  }
-
-  const buttonContainerStyle = {
-    padding: "0 24px 24px 24px",
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-  }
-
-  const primaryButtonStyle = {
-    flex: "1",
-    minWidth: "140px",
-    padding: "12px 24px",
-    backgroundColor: uploading ? "#9ca3af" : "#3b82f6",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "14px",
-    fontWeight: "500",
-    cursor: uploading ? "not-allowed" : "pointer",
-    transition: "background-color 0.2s ease",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-  }
-
-  const secondaryButtonStyle = {
-    padding: "12px 24px",
-    backgroundColor: "#ffffff",
-    color: "#374151",
-    border: "1px solid #d1d5db",
-    borderRadius: "8px",
-    fontSize: "14px",
-    fontWeight: "500",
-    cursor: "pointer",
-    textDecoration: "none",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    transition: "all 0.2s ease",
-  }
-
-  const errorStyle = {
-    margin: "0 24px 24px 24px",
-    padding: "12px 16px",
-    backgroundColor: "#fef2f2",
-    border: "1px solid #fecaca",
-    borderRadius: "8px",
-    color: "#dc2626",
-    fontSize: "14px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  }
+  };
 
   return (
-    <div style={containerStyle}>
-      {/* Header */}
-      <div style={headerStyle}>
-        <h3 style={titleStyle}>📜 Diploma & Certificates</h3>
-        <p style={subtitleStyle}>Upload your professional credentials (Images & PDF, Max 10MB)</p>
-      </div>
-
-      {/* Preview Area */}
-      <div style={previewAreaStyle}>
-        {currentUrl ? (
-          <div>
-            {console.log("Current URL:", currentUrl)}
-            {console.log("Is Image:", isImage(currentUrl))}
-            {console.log("Is PDF:", isPDF(currentUrl))}
+    <div className="space-y-4">
+      {currentUrl ? (
+        <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4">
+          <div className="flex flex-col items-center gap-3">
             {isImage(currentUrl) ? (
-              // Image Preview
-              <div style={{ textAlign: "center" }}>
-                <img src={currentUrl || "/placeholder.svg"} alt="Diploma preview" style={imagePreviewStyle} />
-                <div style={{ marginTop: "12px", fontSize: "12px", color: "#6b7280" }}>
-                  📷 {getFileNameFromUrl(currentUrl)}
-                </div>
+              <div className="flex flex-col items-center">
+                <img 
+                  src={currentUrl} 
+                  alt="Προεπισκόπηση Διπλώματος" 
+                  className="max-h-48 rounded-lg mb-2"
+                />
+                <span className="text-sm text-emerald-300 flex items-center gap-1">
+                  <FileText className="h-4 w-4" /> Εικόνα Διπλώματος
+                </span>
               </div>
             ) : isPDF(currentUrl) ? (
-              // PDF Preview with Embedded Viewer
-              <div>
-                <div style={pdfPreviewStyle}>
-                  <div style={{ fontSize: "48px", marginBottom: "16px" }}>📄</div>
-                  <h4 style={{ margin: "0 0 8px 0", fontWeight: "600", color: "#111827" }}>PDF Document Uploaded</h4>
-                  <p style={{ margin: "0 0 16px 0", color: "#6b7280", fontSize: "14px" }}>
-                    📎 {getFileNameFromUrl(currentUrl)}
-                  </p>
-                </div>
-
-                {/* Embedded PDF Viewer */}
-                <iframe
-                  src={`${currentUrl}#toolbar=1&navpanes=1&scrollbar=1`}
-                  style={pdfEmbedStyle}
-                  title="PDF Preview"
-                  frameBorder="0"
-                >
-                  <p>
-                    Your browser does not support PDFs.{" "}
-                    <a href={currentUrl} target="_blank" rel="noopener noreferrer">
-                      Download the PDF
-                    </a>
-                  </p>
-                </iframe>
+              <div className="flex flex-col items-center">
+                <FileText className="h-12 w-12 text-emerald-400 mb-2" />
+                <span className="text-sm text-emerald-300 flex items-center gap-1">
+                  PDF: {getFileNameFromUrl(currentUrl)}
+                </span>
               </div>
             ) : (
-              // Other File Types
-              <div style={pdfPreviewStyle}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>📎</div>
-                <h4 style={{ margin: "0 0 8px 0", fontWeight: "600", color: "#111827" }}>Document Uploaded</h4>
-                <p style={{ margin: "0", color: "#6b7280", fontSize: "14px" }}>📁 {getFileNameFromUrl(currentUrl)}</p>
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-emerald-400" />
+                <span className="text-sm text-emerald-300">
+                  Το δίπλωμα ανέβηκε επιτυχώς
+                </span>
               </div>
             )}
+            
+            <div className="flex gap-2 mt-3">
+              <a
+                href={currentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg bg-blue-500/80 px-3 py-1.5 text-xs hover:bg-blue-400 transition-colors"
+              >
+                <Download className="h-3 w-3" /> Προβολή
+              </a>
+              
+              <button
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/80 px-3 py-1.5 text-xs hover:bg-indigo-400 transition-colors disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  "Αντικατάσταση"
+                )}
+              </button>
+            </div>
           </div>
-        ) : (
-          <div style={uploadZoneStyle}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>📤</div>
-            <p style={{ margin: "0 0 8px 0", color: "#6b7280", fontSize: "16px" }}>No diploma uploaded yet</p>
-            <p style={{ margin: "0", color: "#9ca3af", fontSize: "12px" }}>
-              Click to upload • Images (JPG, PNG, GIF, WebP) & PDF files supported
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Action Buttons */}
-      <div style={buttonContainerStyle}>
-        <button
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          style={primaryButtonStyle}
-          onMouseOver={(e) => {
-            if (!uploading) e.target.style.backgroundColor = "#2563eb"
-          }}
-          onMouseOut={(e) => {
-            if (!uploading) e.target.style.backgroundColor = "#3b82f6"
-          }}
-        >
-          {uploading ? (
-            <>
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "16px",
-                  height: "16px",
-                  border: "2px solid #ffffff",
-                  borderTop: "2px solid transparent",
-                  borderRadius: "50%",
-                  animation: "spin 1s linear infinite",
-                }}
-              ></span>
-              Uploading...
-            </>
-          ) : (
-            <>📤 {currentUrl ? "Replace Document" : "Upload Document"}</>
-          )}
-        </button>
-
-        {currentUrl && (
-          <a
-            href={currentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={secondaryButtonStyle}
-            onMouseOver={(e) => (e.target.style.backgroundColor = "#f3f4f6")}
-            onMouseOut={(e) => (e.target.style.backgroundColor = "#ffffff")}
-          >
-            {isPDF(currentUrl) ? "📄 Open PDF" : isImage(currentUrl) ? "🖼️ Full Size" : "📁 Download"}
-          </a>
-        )}
-
-        {currentUrl && isPDF(currentUrl) && (
-          <a
-            href={currentUrl}
-            download
-            style={{
-              ...secondaryButtonStyle,
-              backgroundColor: "#f0f9ff",
-              color: "#0369a1",
-              borderColor: "#bae6fd",
-            }}
-            onMouseOver={(e) => (e.target.style.backgroundColor = "#e0f2fe")}
-            onMouseOut={(e) => (e.target.style.backgroundColor = "#f0f9ff")}
-          >
-            💾 Download PDF
-          </a>
-        )}
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div style={errorStyle}>
-          <span>⚠️</span>
-          <span>{error}</span>
+        </div>
+      ) : (
+        <div className="border-2 border-dashed border-white/20 rounded-lg p-6 text-center">
+          <GraduationCap className="h-12 w-12 mx-auto mb-3 text-white/40" />
+          <p className="text-white/60 mb-4">Ανεβάστε το δίπλωμα ή την πιστοποίησή σας</p>
+          
+          <label className="inline-flex items-center gap-2 rounded-lg bg-indigo-500/90 px-4 py-2 text-sm font-medium hover:bg-indigo-400 transition-colors cursor-pointer">
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Επιλογή Αρχείου"
+            )}
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={handleSelect}
+              disabled={uploading}
+              className="hidden"
+            />
+          </label>
+          
+          <p className="text-xs text-white/40 mt-2">
+            Αποδεκτά: PDF, JPG, PNG (έως 10MB)
+          </p>
         </div>
       )}
-
-      {/* Hidden File Input */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*,application/pdf"
-        onChange={handleSelect}
-        disabled={uploading}
-        style={{ display: "none" }}
-      />
-
-      {/* CSS Animation for Spinner */}
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
+      
+      {error && (
+        <div className="rounded-lg bg-red-500/20 p-3 text-sm text-red-300 flex items-center gap-2">
+          <span>⚠️</span> {error}
+        </div>
+      )}
     </div>
-  )
+  );
 }
