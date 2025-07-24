@@ -1,28 +1,28 @@
-/*  App.jsx – router with lazy-loaded pages (+ /trainer/payments) */
-/* -------------------------------------------------------------- */
+/*  App.jsx – NO AUTH version (everything is public, incl. /goals) */
+/* ---------------------------------------------------------------- */
 
 "use client";
 /* eslint-disable react/prop-types */
-
+import React, { Suspense, lazy, Fragment } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { Suspense, lazy } from "react";
-import AuthProvider, { useAuth } from "./AuthProvider";
+import AuthProvider from "./AuthProvider";
 
 /* ---------------- lazy pages ---------------- */
-const AuthPage               = lazy(() => import("./pages/AuthPage"));
-const ForgotPasswordPage     = lazy(() => import("./pages/ForgotPasswordPage"));
-const ResetPasswordPage      = lazy(() => import("./pages/ResetPasswordPage"));
-const UserDashboard          = lazy(() => import("./pages/UserDashboard"));
-const TrainerDashboard       = lazy(() => import("./pages/TrainerDashboard"));
-const TrainerServicesPage    = lazy(() => import("./pages/TrainerServicesPage"));
-const TrainerPostsPage       = lazy(() => import("./pages/TrainerPostsPage"));
-const AllPostsPage           = lazy(() => import("./pages/AllPostsPage"));
-const PostDetailPage         = lazy(() => import("./pages/PostDetailPage"));
-const TrainerPostsViewPage   = lazy(() => import("./pages/TrainerPostsViewPage"));
-const ServicesMarketplacePage= lazy(() => import("./pages/ServicesMarketplacePage"));
-const ServiceDetailPage      = lazy(() => import("./pages/ServiceDetailPage"));
-const TrainerBookingsPage    = lazy(() => import("./pages/TrainerBookings"));
-const TrainerPaymentsPage    = lazy(() => import("./pages/PaymentScreen")); /* NEW */
+const AuthPage                 = lazy(() => import("./pages/AuthPage"));
+const ForgotPasswordPage       = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage        = lazy(() => import("./pages/ResetPasswordPage"));
+const UserDashboard            = lazy(() => import("./pages/UserDashboard"));
+const TrainerDashboard         = lazy(() => import("./pages/TrainerDashboard"));
+const TrainerServicesPage      = lazy(() => import("./pages/TrainerServicesPage"));
+const TrainerPostsPage         = lazy(() => import("./pages/TrainerPostsPage"));
+const AllPostsPage             = lazy(() => import("./pages/AllPostsPage"));
+const PostDetailPage           = lazy(() => import("./pages/PostDetailPage"));
+const TrainerPostsViewPage     = lazy(() => import("./pages/TrainerPostsViewPage"));
+const ServicesMarketplacePage  = lazy(() => import("./pages/ServicesMarketplacePage"));
+const ServiceDetailPage        = lazy(() => import("./pages/ServiceDetailPage"));
+const TrainerBookingsPage      = lazy(() => import("./pages/TrainerBookings"));
+const TrainerPaymentsPage      = lazy(() => import("./pages/PaymentScreen"));
+const EpicGoalsPage            = lazy(() => import("./pages/EpicGoalsPage"));
 
 /* fallback spinner */
 const Loading = () => (
@@ -40,30 +40,12 @@ function Shell({ children }) {
   );
 }
 
-/* -------- Guards -------- */
-function ProtectedRoute({ children, role }) {
-  const { session, profile, loading } = useAuth();
-  if (loading) return <Loading />;
-
-  if (!session) return <Navigate to="/" replace />;
-  if (role && profile?.role !== role) return <Navigate to="/" replace />;
-
+/* Dummy “guards” – they do nothing now */
+function ProtectedRoute({ children }) {
   return <Shell>{children}</Shell>;
 }
-
 function PublicRoute({ children }) {
-  const { session, profile, loading } = useAuth();
-  if (loading) return <Loading />;
-
-  if (session && profile) {
-    return (
-      <Navigate
-        to={profile.role === "trainer" ? "/trainer" : "/user"}
-        replace
-      />
-    );
-  }
-  return children;
+  return <Fragment>{children}</Fragment>;
 }
 
 /* -------- App -------- */
@@ -99,21 +81,29 @@ export default function App() {
               }
             />
 
-            {/* ---------- user ---------- */}
+            {/* ---------- user (now public) ---------- */}
             <Route
               path="/user"
               element={
-                <ProtectedRoute role="user">
+                <ProtectedRoute>
                   <UserDashboard />
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/goals"
+              element={
+                <ProtectedRoute>
+                  <EpicGoalsPage />
+                </ProtectedRoute>
+              }
+            />
 
-            {/* ---------- trainer ---------- */}
+            {/* ---------- trainer (also public) ---------- */}
             <Route
               path="/trainer"
               element={
-                <ProtectedRoute role="trainer">
+                <ProtectedRoute>
                   <TrainerDashboard />
                 </ProtectedRoute>
               }
@@ -121,7 +111,7 @@ export default function App() {
             <Route
               path="/trainer/services"
               element={
-                <ProtectedRoute role="trainer">
+                <ProtectedRoute>
                   <TrainerServicesPage />
                 </ProtectedRoute>
               }
@@ -129,7 +119,7 @@ export default function App() {
             <Route
               path="/trainer/posts"
               element={
-                <ProtectedRoute role="trainer">
+                <ProtectedRoute>
                   <TrainerPostsPage />
                 </ProtectedRoute>
               }
@@ -137,22 +127,21 @@ export default function App() {
             <Route
               path="/trainer/bookings"
               element={
-                <ProtectedRoute role="trainer">
+                <ProtectedRoute>
                   <TrainerBookingsPage />
                 </ProtectedRoute>
               }
             />
-            {/* NEW payments page */}
             <Route
               path="/trainer/payments"
               element={
-                <ProtectedRoute role="trainer">
+                <ProtectedRoute>
                   <TrainerPaymentsPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* ---------- shared authenticated ---------- */}
+            {/* ---------- shared pages (public) ---------- */}
             <Route
               path="/posts"
               element={

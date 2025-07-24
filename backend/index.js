@@ -16,11 +16,18 @@ app.use(express.json());
      Uses supabaseAdmin to bypass RLS on auth.users + profiles
 ─────────────────────────────────────────────────────────────*/
 app.post("/api/signup", async (req, res) => {
-  const { email, password, full_name = "", role = "user" } = req.body;
+  const {
+    email,
+    password,
+    full_name = "",
+    role = "user",
+    specialty = null,
+    roles = [],
+    location = null,
+  } = req.body;
+
   if (!email || !password) {
-    return res
-      .status(400)
-      .json({ error: "email and password are required" });
+    return res.status(400).json({ error: "email and password are required" });
   }
 
   try {
@@ -34,13 +41,15 @@ app.post("/api/signup", async (req, res) => {
     if (userErr) throw userErr;
 
     // 1-b: insert matching profile row via service-role
-    const { error: profErr } = await supabaseAdmin
-      .from("profiles")
-      .insert({
-        id: userData.user.id,
-        full_name,
-        role,
-      });
+    const { error: profErr } = await supabaseAdmin.from("profiles").insert({
+      id: userData.user.id,
+      email,
+      full_name,
+      role,
+      specialty,
+      roles,
+      location,
+    });
     if (profErr) throw profErr;
 
     return res.status(201).json({ message: "user created" });
@@ -60,10 +69,11 @@ app.get("/", (_, res) => res.send("Backend up 🚀"));
 ─────────────────────────────────────────────────────────────*/
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
-    // Use supabasePublic so RLS policies apply to “profiles”
     const { data, error } = await supabasePublic
       .from("profiles")
-      .select("role, full_name, avatar_url, diploma_url")
+      .select(
+        "id, email, role, full_name, avatar_url, diploma_url, specialty, roles, location"
+      )
       .eq("id", req.user.id)
       .single();
 
@@ -80,7 +90,6 @@ app.get("/api/profile", requireAuth, async (req, res) => {
 ─────────────────────────────────────────────────────────────*/
 app.get("/api/trainer/secret", requireAuth, async (req, res) => {
   try {
-    // Use supabasePublic so RLS policy on profiles restricts by role
     const { data, error } = await supabasePublic
       .from("profiles")
       .select("role")
@@ -100,7 +109,6 @@ app.get("/api/trainer/secret", requireAuth, async (req, res) => {
 
 /*─────────────────────────────────────────────────────────────
   5) Protected – update my diploma_url (service-role bypass)
-      Clients POST here instead of writing directly to profiles
 ─────────────────────────────────────────────────────────────*/
 app.post("/api/update-diploma", requireAuth, async (req, res) => {
   const { diploma_url } = req.body;
@@ -111,7 +119,6 @@ app.post("/api/update-diploma", requireAuth, async (req, res) => {
   }
 
   try {
-    // Perform the update with the service‐role client, bypassing RLS
     const { error } = await supabaseAdmin
       .from("profiles")
       .update({ diploma_url })
@@ -121,6 +128,175 @@ app.post("/api/update-diploma", requireAuth, async (req, res) => {
     return res.json({ message: "Diploma URL updated" });
   } catch (err) {
     console.error("update-diploma error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/*─────────────────────────────────────────────────────────────
+  6) GOALS – CRUD for the logged-in user
+     We’ll use supabaseAdmin but manually enforce user_id
+     (so we don’t accidentally give cross-user access).
+─────────────────────────────────────────────────────────────*/
+
+/**
+ * GET /api/goals
+ * List my goals
+ */
+app.get("/api/goals", requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("goals")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return res.json(data ?? []);
+  } catch (err) {
+    console.error("GET /api/goals error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/goals
+ * Create a goal for the logged-in user
+ */
+app.post("/api/goals", requireAuth, async (req, res) => {
+  const {
+    title,
+    description = null,
+    category = null,
+    target_value = null,
+    unit = null,
+    progress_value = 0,
+    status = "not_started",
+    due_date = null,
+  } = req.body;
+
+  if (!title) {
+    return res.status(400).json({ error: "title is required" });
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("goals")
+      .insert([
+        {
+          user_id: req.user.id,
+          title,
+          description,
+          category,
+          target_value,
+          unit,
+          progress_value,
+          status,
+          due_date,
+        },
+      ])
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return res.status(201).json(data);
+  } catch (err) {
+    console.error("POST /api/goals error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/goals/:id
+ * Update my goal (only if it belongs to me)
+ */
+app.patch("/api/goals/:id", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const patch = req.body;
+
+  try {
+    // First check ownership
+    const { data: row, error: getErr } = await supabaseAdmin
+      .from("goals")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+    if (getErr) throw getErr;
+    if (!row || row.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("goals")
+      .update({ ...patch })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return res.json(data);
+  } catch (err) {
+    console.error("PATCH /api/goals/:id error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/goals/:id/complete
+ * Mark my goal as completed
+ */
+app.post("/api/goals/:id/complete", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Validate ownership
+    const { data: row, error: getErr } = await supabaseAdmin
+      .from("goals")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+    if (getErr) throw getErr;
+    if (!row || row.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("goals")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    return res.json(data);
+  } catch (err) {
+    console.error("POST /api/goals/:id/complete error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/goals/:id
+ * Delete my goal
+ */
+app.delete("/api/goals/:id", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Validate ownership
+    const { data: row, error: getErr } = await supabaseAdmin
+      .from("goals")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+    if (getErr) throw getErr;
+    if (!row || row.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const { error } = await supabaseAdmin.from("goals").delete().eq("id", id);
+    if (error) throw error;
+
+    return res.json({ message: "deleted" });
+  } catch (err) {
+    console.error("DELETE /api/goals/:id error:", err);
     return res.status(500).json({ error: err.message });
   }
 });
