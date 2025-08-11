@@ -1,7 +1,7 @@
 "use client"
-
-import { useState, useEffect, useCallback, useRef } from "react"
-import { useNavigate } from "react-router-dom" // Replace next/navigation import
+import { useState, useEffect, useCallback, useRef, memo } from "react"
+import { useNavigate } from "react-router-dom"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   PlusCircle,
   ImageIcon,
@@ -9,7 +9,6 @@ import {
   Trash2,
   Loader2,
   CalendarDays,
-  Eye,
   Camera,
   Upload,
   Grid3X3,
@@ -23,72 +22,188 @@ import {
   Save,
   RotateCcw,
   ExternalLink,
+  Eye,
 } from "lucide-react"
-
 import { supabase } from "../supabaseClient"
 import { useAuth } from "../AuthProvider"
 import TrainerMenu from "../components/TrainerMenu"
-import PostPreviewModal from "../components/PostPreviewModal" // Correct path
+import PostPreviewModal from "../components/PostPreviewModal"
 
 const MAX_BYTES = 1_024_000 // 1 MB
-const PLACEHOLDER = "/placeholder.jpg"
-const INITIAL_SHOW = 6 // initial cards
-const BATCH_SIZE = 6 // cards per lazy batch
+const PLACEHOLDER = "/placeholder.svg?height=300&width=400&text=No+Image"
+const INITIAL_SHOW = 6
+const BATCH_SIZE = 6
 
-/* Custom Popup Components */
+/* ---------- Enhanced Background Components ---------- */
+const BaseBackground = memo(() => (
+  <div className="fixed inset-0 -z-50">
+    <div className="absolute inset-0 bg-black" />
+    <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-black opacity-90" />
+  </div>
+))
+
+const AthleticBackground = memo(() => (
+  <>
+    <style>{`
+      @keyframes pulse-performance {
+         0%, 100% { opacity: 0.1; transform: scale(1); }
+         50% { opacity: 0.3; transform: scale(1.05); }
+       }
+      @keyframes drift-metrics {
+         0% { transform: translateX(-100px) translateY(0px); }
+         50% { transform: translateX(50px) translateY(-30px); }
+         100% { transform: translateX(100px) translateY(0px); }
+       }
+      @keyframes athletic-grid {
+         0% { transform: translate(0, 0) rotate(0deg); }
+         100% { transform: translate(60px, 60px) rotate(0.5deg); }
+       }
+      @keyframes float-particles {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-20px) rotate(180deg); }
+      }
+    `}</style>
+
+    {/* Animated grid */}
+    <div
+      className="fixed inset-0 -z-40 pointer-events-none opacity-[0.15]"
+      style={{
+        backgroundImage: `
+          linear-gradient(rgba(113,113,122,0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(113,113,122,0.08) 1px, transparent 1px)
+        `,
+        backgroundSize: "60px 60px",
+        animation: "athletic-grid 25s linear infinite",
+        maskImage: "radial-gradient(circle at 50% 50%, black 0%, transparent 75%)",
+        WebkitMaskImage: "radial-gradient(circle at 50% 50%, black 0%, transparent 75%)",
+      }}
+    />
+
+    {/* Floating orbs */}
+    <div className="fixed inset-0 -z-40 pointer-events-none overflow-hidden">
+      <div
+        className="absolute top-1/5 left-1/5 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-blue-600/8 rounded-full blur-3xl"
+        style={{ animation: "pulse-performance 12s ease-in-out infinite" }}
+      />
+      <div
+        className="absolute top-3/5 right-1/5 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-purple-700/8 rounded-full blur-3xl"
+        style={{ animation: "pulse-performance 15s ease-in-out infinite reverse" }}
+      />
+      <div
+        className="absolute top-1/2 left-1/2 w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] bg-zinc-800/8 rounded-full blur-3xl"
+        style={{ animation: "drift-metrics 20s ease-in-out infinite" }}
+      />
+    </div>
+
+    {/* Floating particles */}
+    <div className="fixed inset-0 -z-40 pointer-events-none">
+      {[...Array(15)].map((_, i) => (
+        <div
+          key={i}
+          className="absolute w-1 h-1 bg-blue-400/30 rounded-full"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animation: `float-particles ${3 + Math.random() * 4}s ease-in-out infinite`,
+            animationDelay: `${Math.random() * 2}s`,
+          }}
+        />
+      ))}
+    </div>
+  </>
+))
+
+/* ---------- Glass Card Component ---------- */
+const GlassCard = memo(({ children, className = "", hover = false, ...props }) => (
+  <motion.div
+    className={`
+      relative overflow-hidden rounded-3xl border border-zinc-700/50 backdrop-blur-xl
+      ${hover ? "hover:scale-[1.02] hover:border-zinc-600/70 transition-all duration-500" : ""}
+      ${className}
+    `}
+    style={{
+      background: "rgba(0, 0, 0, 0.4)",
+      backdropFilter: "blur(20px) saturate(160%)",
+      WebkitBackdropFilter: "blur(20px) saturate(160%)",
+      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+    }}
+    {...props}
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
+    <div className="relative">{children}</div>
+  </motion.div>
+))
+
+/* ---------- Enhanced Popup Components ---------- */
 const ErrorPopup = ({ open, onClose, title, message, rejectedFiles = [] }) => {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-      <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl shadow-2xl ring-1 ring-red-200"
-        style={{
-          background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(254,242,242,0.9) 100%)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
-          boxShadow: "0 25px 50px -12px rgba(239, 68, 68, 0.25)",
-        }}
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
       >
-        {/* Header */}
-        <div className="flex items-center gap-3 p-6 pb-4">
-          <div className="p-2 rounded-full bg-red-100">
-            <AlertTriangle className="h-6 w-6 text-red-600" />
-          </div>
-          <h3 className="text-lg font-semibold text-red-800">{title}</h3>
-          <button onClick={onClose} className="ml-auto p-1 rounded-full hover:bg-red-100 transition-colors">
-            <X className="h-5 w-5 text-red-600" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="px-6 pb-6">
-          <p className="text-red-700 mb-4">{message}</p>
-
-          {rejectedFiles.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-red-800">Αρχεία που απορρίφθηκαν:</p>
-              <div className="max-h-32 overflow-y-auto space-y-1">
-                {rejectedFiles.map((file, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
-                    <FileX className="h-4 w-4 text-red-500 flex-shrink-0" />
-                    <span className="text-sm text-red-700 truncate">{file.name}</span>
-                    <span className="text-xs text-red-500 ml-auto">{(file.size / 1024 / 1024).toFixed(1)}MB</span>
-                  </div>
-                ))}
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className="relative w-full max-w-md overflow-hidden rounded-3xl shadow-2xl border border-red-500/30"
+          style={{
+            background: "rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            boxShadow: "0 25px 50px -12px rgba(239, 68, 68, 0.25)",
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 via-transparent to-transparent" />
+          <div className="relative">
+            {/* Header */}
+            <div className="flex items-center gap-3 p-6 pb-4">
+              <div className="p-2 rounded-full bg-red-500/20">
+                <AlertTriangle className="h-6 w-6 text-red-400" />
               </div>
+              <h3 className="text-lg font-semibold text-red-200">{title}</h3>
+              <button onClick={onClose} className="ml-auto p-1 rounded-full hover:bg-red-500/20 transition-colors">
+                <X className="h-5 w-5 text-red-400" />
+              </button>
             </div>
-          )}
 
-          <button
-            onClick={onClose}
-            className="w-full mt-4 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
-          >
-            Κατανοητό
-          </button>
-        </div>
-      </div>
-    </div>
+            {/* Content */}
+            <div className="px-6 pb-6">
+              <p className="text-red-300 mb-4">{message}</p>
+              {rejectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-red-200">Αρχεία που απορρίφθηκαν:</p>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {rejectedFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 p-2 bg-red-500/10 rounded-lg border border-red-500/20"
+                      >
+                        <FileX className="h-4 w-4 text-red-400 flex-shrink-0" />
+                        <span className="text-sm text-red-300 truncate">{file.name}</span>
+                        <span className="text-xs text-red-400 ml-auto">{(file.size / 1024 / 1024).toFixed(1)}MB</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onClose}
+                className="w-full mt-4 px-4 py-2 bg-red-600/20 text-red-200 rounded-xl hover:bg-red-600/30 transition-colors font-medium border border-red-500/30"
+              >
+                Κατανοητό
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
 
@@ -96,57 +211,58 @@ const SuccessPopup = ({ open, onClose, title, message }) => {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-      <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl shadow-2xl ring-1 ring-green-200"
-        style={{
-          background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,253,244,0.9) 100%)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
-          boxShadow: "0 25px 50px -12px rgba(34, 197, 94, 0.25)",
-          animation: "successSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
       >
-        {/* Header */}
-        <div className="flex items-center gap-3 p-6 pb-4">
-          <div className="p-2 rounded-full bg-green-100">
-            <CheckCircle className="h-6 w-6 text-green-600" />
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className="relative w-full max-w-md overflow-hidden rounded-3xl shadow-2xl border border-green-500/30"
+          style={{
+            background: "rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            boxShadow: "0 25px 50px -12px rgba(34, 197, 94, 0.25)",
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-green-600/10 via-transparent to-transparent" />
+          <div className="relative">
+            {/* Header */}
+            <div className="flex items-center gap-3 p-6 pb-4">
+              <div className="p-2 rounded-full bg-green-500/20">
+                <CheckCircle className="h-6 w-6 text-green-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-green-200">{title}</h3>
+              <button onClick={onClose} className="ml-auto p-1 rounded-full hover:bg-green-500/20 transition-colors">
+                <X className="h-5 w-5 text-green-400" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 pb-6">
+              <p className="text-green-300 mb-4">{message}</p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onClose}
+                className="w-full px-4 py-2 bg-green-600/20 text-green-200 rounded-xl hover:bg-green-600/30 transition-colors font-medium border border-green-500/30"
+              >
+                Τέλεια!
+              </motion.button>
+            </div>
           </div>
-          <h3 className="text-lg font-semibold text-green-800">{title}</h3>
-          <button onClick={onClose} className="ml-auto p-1 rounded-full hover:bg-green-100 transition-colors">
-            <X className="h-5 w-5 text-green-600" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="px-6 pb-6">
-          <p className="text-green-700 mb-4">{message}</p>
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
-          >
-            Τέλεια!
-          </button>
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes successSlide {
-          from { 
-            opacity: 0;
-            transform: translateY(20px) scale(0.95);
-          }
-          to { 
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-      `}</style>
-    </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
 
-/* Edit Modal Component */
+/* ---------- Edit Modal Component ---------- */
 const EditPostModal = ({ open, post, onClose, onSave }) => {
   const [editTitle, setEditTitle] = useState("")
   const [editDesc, setEditDesc] = useState("")
@@ -234,153 +350,172 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
   const totalImages = editImages.length + newThumbs.length
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-      <div
-        className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl ring-1 ring-gray-200"
-        style={{
-          background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-        }}
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-100">
-              <Edit3 className="h-5 w-5 text-blue-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900">Επεξεργασία ανάρτησης</h2>
-          </div>
-          <button onClick={handleCancel} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-            <X className="h-5 w-5 text-gray-500" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(90vh-140px)] p-6 space-y-6">
-          {/* Title Field */}
-          <Field label="Τίτλος" value={editTitle} onChange={setEditTitle} />
-
-          {/* Description Field */}
-          <Field label="Περιγραφή" textarea value={editDesc} onChange={setEditDesc} />
-
-          {/* Images Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-gray-700">Εικόνες ({totalImages})</label>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                <Upload className="h-4 w-4" />
-                Προσθήκη εικόνων
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl border border-zinc-700/50"
+          style={{
+            background: "rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
+          <div className="relative">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-zinc-700/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-blue-500/20">
+                  <Edit3 className="h-5 w-5 text-blue-400" />
+                </div>
+                <h2 className="text-xl font-semibold text-zinc-100">Επεξεργασία ανάρτησης</h2>
+              </div>
+              <button onClick={handleCancel} className="p-2 rounded-full hover:bg-zinc-700/50 transition-colors">
+                <X className="h-5 w-5 text-zinc-400" />
               </button>
             </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="sr-only"
-              onChange={(e) => {
-                addNewFiles(e.target.files)
-                e.target.value = ""
-              }}
-            />
+            {/* Content */}
+            <div className="overflow-y-auto max-h-[calc(90vh-140px)] p-6 space-y-6">
+              {/* Title Field */}
+              <Field label="Τίτλος" value={editTitle} onChange={setEditTitle} />
 
-            {/* Existing Images */}
-            {editImages.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-600">Υπάρχουσες εικόνες</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {editImages.map((src, i) => (
-                    <EditImageThumb
-                      key={`existing-${i}`}
-                      src={src}
-                      index={i + 1}
-                      onRemove={() => removeExistingImage(i)}
-                      type="existing"
-                    />
-                  ))}
+              {/* Description Field */}
+              <Field label="Περιγραφή" textarea value={editDesc} onChange={setEditDesc} />
+
+              {/* Images Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-zinc-300">Εικόνες ({totalImages})</label>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-700/50 text-zinc-300 rounded-lg hover:bg-zinc-600/50 transition-colors border border-zinc-600/50"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Προσθήκη εικόνων
+                  </motion.button>
                 </div>
-              </div>
-            )}
 
-            {/* New Images */}
-            {newThumbs.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-600">Νέες εικόνες</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {newThumbs.map((src, i) => (
-                    <EditImageThumb
-                      key={`new-${i}`}
-                      src={src}
-                      index={editImages.length + i + 1}
-                      onRemove={() => removeNewImage(i)}
-                      type="new"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => {
+                    addNewFiles(e.target.files)
+                    e.target.value = ""
+                  }}
+                />
 
-            {totalImages === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <ImageIcon className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                <p>Δεν υπάρχουν εικόνες. Προσθέστε τουλάχιστον μία εικόνα.</p>
+                {/* Existing Images */}
+                {editImages.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-zinc-400">Υπάρχουσες εικόνες</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {editImages.map((src, i) => (
+                        <EditImageThumb
+                          key={`existing-${i}`}
+                          src={src}
+                          index={i + 1}
+                          onRemove={() => removeExistingImage(i)}
+                          type="existing"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* New Images */}
+                {newThumbs.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-zinc-400">Νέες εικόνες</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {newThumbs.map((src, i) => (
+                        <EditImageThumb
+                          key={`new-${i}`}
+                          src={src}
+                          index={editImages.length + i + 1}
+                          onRemove={() => removeNewImage(i)}
+                          type="new"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {totalImages === 0 && (
+                  <div className="text-center py-8 text-zinc-400">
+                    <ImageIcon className="h-12 w-12 mx-auto mb-2 text-zinc-500" />
+                    <p>Δεν υπάρχουν εικόνες. Προσθέστε τουλάχιστον μία εικόνα.</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-zinc-700/50">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleCancel}
+                className="flex items-center gap-2 px-4 py-2 text-zinc-300 hover:bg-zinc-700/50 rounded-xl transition-colors border border-zinc-600/50"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Ακύρωση
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSave}
+                disabled={saving || !editTitle.trim() || !editDesc.trim() || totalImages === 0}
+                className="flex items-center gap-2 px-6 py-2 bg-blue-600/20 text-blue-200 rounded-xl hover:bg-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-blue-500/30"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Αποθήκευση...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Αποθήκευση αλλαγών
+                  </>
+                )}
+              </motion.button>
+            </div>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
-          <button
-            onClick={handleCancel}
-            className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Ακύρωση
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !editTitle.trim() || !editDesc.trim() || totalImages === 0}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Αποθήκευση...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Αποθήκευση αλλαγών
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
 
 const EditImageThumb = ({ src, index, onRemove, type }) => (
-  <div className="group relative aspect-square overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200">
+  <div className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-800 border border-zinc-700/50">
     <img src={src || "/placeholder.svg"} alt={`Εικόνα ${index}`} className="h-full w-full object-cover" />
-
     {/* Type indicator */}
     <div
       className={`absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-medium ${
-        type === "new" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+        type === "new"
+          ? "bg-green-500/20 text-green-300 border border-green-500/30"
+          : "bg-blue-500/20 text-blue-300 border border-blue-500/30"
       }`}
     >
       {type === "new" ? "Νέα" : "Υπάρχουσα"}
     </div>
-
     {/* Remove button */}
     <button
       onClick={onRemove}
@@ -388,33 +523,69 @@ const EditImageThumb = ({ src, index, onRemove, type }) => (
     >
       <X className="h-3 w-3" />
     </button>
-
     {/* Hover overlay */}
     <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
   </div>
 )
 
-/* Helper splash screens */
+/* ---------- Helper Screens ---------- */
 const LoaderScreen = () => (
-  <div className="flex h-[75vh] items-center justify-center bg-white">
-    <div className="flex flex-col items-center gap-4">
-      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-      <p className="text-gray-500">Φόρτωση...</p>
+  <div className="relative min-h-screen text-gray-100">
+    <BaseBackground />
+    <AthleticBackground />
+    <TrainerMenu />
+    <div className="relative z-10 flex items-center justify-center h-[75vh]">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center gap-6 p-8 rounded-3xl border border-zinc-700/50"
+        style={{
+          background: "rgba(0,0,0,0.4)",
+          backdropFilter: "blur(20px) saturate(160%)",
+          WebkitBackdropFilter: "blur(20px) saturate(160%)",
+        }}
+      >
+        <div className="relative">
+          <Loader2 className="h-12 w-12 animate-spin text-zinc-400" />
+          <div className="absolute inset-0 h-12 w-12 animate-ping rounded-full bg-zinc-400/20" />
+        </div>
+        <div className="text-center space-y-2">
+          <h3 className="text-xl font-semibold text-zinc-100">Φόρτωση</h3>
+          <p className="text-zinc-400">Προετοιμασία του περιεχομένου...</p>
+        </div>
+      </motion.div>
     </div>
   </div>
 )
 
 const DeniedScreen = () => (
-  <div className="flex h-[75vh] items-center justify-center bg-white">
-    <div className="text-center">
-      <h2 className="text-xl font-semibold text-red-500 mb-2">Δεν έχετε πρόσβαση</h2>
-      <p className="text-gray-500">Δεν είστε εξουσιοδοτημένοι να δείτε αυτή τη σελίδα.</p>
+  <div className="relative min-h-screen text-gray-100">
+    <BaseBackground />
+    <AthleticBackground />
+    <TrainerMenu />
+    <div className="relative z-10 flex items-center justify-center h-[75vh]">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="text-center p-8 rounded-3xl max-w-md border border-red-500/30"
+        style={{
+          background: "rgba(0,0,0,0.4)",
+          backdropFilter: "blur(20px) saturate(160%)",
+          WebkitBackdropFilter: "blur(20px) saturate(160%)",
+          boxShadow: "0 8px 32px rgba(220, 38, 38, 0.2)",
+        }}
+      >
+        <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+        <h2 className="text-xl font-semibold text-red-400 mb-2">Δεν έχετε πρόσβαση</h2>
+        <p className="text-red-300">Δεν είστε εξουσιοδοτημένοι να δείτε αυτή τη σελίδα.</p>
+      </motion.div>
     </div>
   </div>
 )
 
+/* ---------- Main Component ---------- */
 export default function TrainerPostsPage() {
-  const navigate = useNavigate() // For navigation
+  const navigate = useNavigate()
   const { profile, profileLoaded, session } = useAuth()
   const uid = session?.user?.id
 
@@ -425,8 +596,8 @@ export default function TrainerPostsPage() {
   /* Composer state */
   const [title, setTitle] = useState("")
   const [desc, setDesc] = useState("")
-  const [files, setFiles] = useState([]) // File[]
-  const [thumbs, setThumbs] = useState([]) // dataURL[]
+  const [files, setFiles] = useState([])
+  const [thumbs, setThumbs] = useState([])
   const [busy, setBusy] = useState(false)
 
   /* Preview + viewer */
@@ -488,6 +659,7 @@ export default function TrainerPostsPage() {
       },
       { rootMargin: "200px" },
     )
+
     io.observe(sentinel)
     return () => io.disconnect()
   }, [visible, allPosts.length])
@@ -572,6 +744,7 @@ export default function TrainerPostsPage() {
         if (error) throw error
         urls.push(supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl)
       }
+
       const { data, error } = await supabase
         .from("posts")
         .insert({
@@ -583,6 +756,7 @@ export default function TrainerPostsPage() {
         })
         .select("*")
         .single()
+
       if (error) throw error
 
       setAllPosts((p) => [{ ...data, _animate: true }, ...p])
@@ -590,7 +764,6 @@ export default function TrainerPostsPage() {
       setDesc("")
       setFiles([])
       setThumbs([])
-
       setSuccessPopup({
         open: true,
         title: "Μπράβο! Επιτυχής ανάρτηση!",
@@ -661,6 +834,7 @@ export default function TrainerPostsPage() {
   /* Delete */
   const deletePost = async (id) => {
     if (!confirm("Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την ανάρτηση;")) return
+
     const { error } = await supabase.from("posts").delete().eq("id", id)
     if (error) {
       setErrorPopup({
@@ -671,6 +845,7 @@ export default function TrainerPostsPage() {
       })
       return
     }
+
     setAllPosts((p) => p.filter((x) => x.id !== id))
     setSuccessPopup({
       open: true,
@@ -693,14 +868,8 @@ export default function TrainerPostsPage() {
 
   /* Navigate to post detail page */
   const navigateToPost = (post) => {
-    // Close any open modals
     closeDetailView()
-
-    // Navigate to post detail page using React Router
-    navigate(`/posts/${post.id}`)
-
-    // Alternatively, you could open a modal with post details
-    // openDetailView(post)
+    navigate(`/post/${post.id}`)
   }
 
   /* Preview object */
@@ -714,7 +883,9 @@ export default function TrainerPostsPage() {
 
   /* UI */
   return (
-    <div className="min-h-screen bg-white">
+    <div className="relative min-h-screen text-gray-100">
+      <BaseBackground />
+      <AthleticBackground />
       <TrainerMenu />
 
       {/* Custom Popups */}
@@ -753,137 +924,140 @@ export default function TrainerPostsPage() {
       {isLoaded && !isAuthorized ? (
         <DeniedScreen />
       ) : (
-        <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
+        <main className="relative z-10 mx-auto max-w-6xl space-y-8 px-4 py-8">
           {/* Creator Section */}
-          <section
-            className="relative overflow-hidden rounded-3xl shadow-xl ring-1 ring-gray-200"
-            style={{
-              background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-              backdropFilter: "blur(20px) saturate(180%)",
-              WebkitBackdropFilter: "blur(20px) saturate(180%)",
-              boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)",
-            }}
-          >
-            {/* Background decoration */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gray-100 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gray-200 rounded-full blur-2xl" />
-            </div>
-
-            <div className="relative p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 rounded-2xl bg-gradient-to-r from-gray-100 to-gray-200">
-                  <Camera className="h-6 w-6 text-gray-700" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900">Δημιουργία νέας ανάρτησης</h2>
+          <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <GlassCard className="p-8" hover>
+              {/* Background decoration */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-600/5 rounded-full blur-2xl" />
               </div>
 
-              <form onSubmit={createPost} className="space-y-6">
-                <Field label="Τίτλος" value={title} onChange={setTitle} />
-                <Field label="Περιγραφή" textarea value={desc} onChange={setDesc} />
-
-                {/* Enhanced Drop Zone */}
-                <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700">Εικόνες</label>
-                  <label
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      addFiles(e.dataTransfer.files)
-                    }}
-                    className="group relative flex h-48 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 transition-all duration-300 hover:border-gray-500 hover:bg-gray-50"
-                  >
-                    <input
-                      ref={fileInput}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="sr-only"
-                      onChange={(e) => {
-                        addFiles(e.target.files)
-                        e.target.value = ""
-                      }}
-                    />
-                    <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-700 transition-colors">
-                      <div className="p-4 rounded-full bg-gray-100 group-hover:bg-gray-200 transition-colors mb-4">
-                        <Upload className="h-8 w-8" />
-                      </div>
-                      <p className="text-lg font-medium mb-1">Σύρετε εικόνες εδώ ή κάντε κλικ για επιλογή</p>
-                      <p className="text-sm text-gray-400">Υποστήριξη πολλαπλών εικόνων • Μέγιστο 1MB η κάθε μία</p>
-                    </div>
-                  </label>
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30">
+                    <Camera className="h-6 w-6 text-blue-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-zinc-100">Δημιουργία νέας ανάρτησης</h2>
                 </div>
 
-                {/* Enhanced Thumbnails */}
-                {!!thumbs.length && (
+                <form onSubmit={createPost} className="space-y-6">
+                  <Field label="Τίτλος" value={title} onChange={setTitle} />
+                  <Field label="Περιγραφή" textarea value={desc} onChange={setDesc} />
+
+                  {/* Enhanced Drop Zone */}
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
-                        <Layers className="h-5 w-5" />
-                        Επιλεγμένες εικόνες ({thumbs.length})
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => setPreview(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200"
-                      >
-                        <Eye className="h-4 w-4" />
-                        Προεπισκόπηση
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {thumbs.map((src, i) => (
-                        <EnhancedThumb
-                          key={i}
-                          src={src}
-                          index={i + 1}
-                          total={thumbs.length}
-                          onOpen={() => openViewer(thumbs, i)}
-                          onRemove={() => removeThumb(i)}
-                        />
-                      ))}
-                    </div>
+                    <label className="block text-sm font-medium text-zinc-300">Εικόνες</label>
+                    <label
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        addFiles(e.dataTransfer.files)
+                      }}
+                      className="group relative flex h-48 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-zinc-600/50 transition-all duration-300 hover:border-zinc-500/70 hover:bg-zinc-800/20"
+                    >
+                      <input
+                        ref={fileInput}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="sr-only"
+                        onChange={(e) => {
+                          addFiles(e.target.files)
+                          e.target.value = ""
+                        }}
+                      />
+                      <div className="flex flex-col items-center text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                        <div className="p-4 rounded-full bg-zinc-800/50 group-hover:bg-zinc-700/50 transition-colors mb-4 border border-zinc-700/50">
+                          <Upload className="h-8 w-8" />
+                        </div>
+                        <p className="text-lg font-medium mb-1">Σύρετε εικόνες εδώ ή κάντε κλικ για επιλογή</p>
+                        <p className="text-sm text-zinc-500">Υποστήριξη πολλαπλών εικόνων • Μέγιστο 1MB η κάθε μία</p>
+                      </div>
+                    </label>
                   </div>
-                )}
 
-                <button
-                  disabled={busy}
-                  className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-gradient-to-r from-gray-800 to-gray-700 text-white font-medium transition-all duration-300 hover:from-gray-700 hover:to-gray-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Δημοσίευση...
-                    </>
-                  ) : (
-                    <>
-                      <PlusCircle className="h-5 w-5" />
-                      Δημοσίευση ανάρτησης
-                    </>
+                  {/* Enhanced Thumbnails */}
+                  {!!thumbs.length && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+                          <Layers className="h-5 w-5 text-blue-400" />
+                          Επιλεγμένες εικόνες ({thumbs.length})
+                        </h3>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          type="button"
+                          onClick={() => setPreview(true)}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-700/50 text-zinc-300 hover:bg-zinc-600/50 transition-all duration-200 border border-zinc-600/50"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Προεπισκόπηση
+                        </motion.button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {thumbs.map((src, i) => (
+                          <EnhancedThumb
+                            key={i}
+                            src={src}
+                            index={i + 1}
+                            total={thumbs.length}
+                            onOpen={() => openViewer(thumbs, i)}
+                            onRemove={() => removeThumb(i)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )}
-                </button>
-              </form>
-            </div>
-          </section>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={busy}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-zinc-100 font-medium transition-all duration-300 hover:from-blue-500/30 hover:to-purple-500/30 hover:shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-500/30"
+                  >
+                    {busy ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Δημοσίευση...
+                      </>
+                    ) : (
+                      <>
+                        <PlusCircle className="h-5 w-5" />
+                        Δημοσίευση ανάρτησης
+                      </>
+                    )}
+                  </motion.button>
+                </form>
+              </div>
+            </GlassCard>
+          </motion.section>
 
           {/* Posts Feed */}
           {allPosts.length === 0 ? (
             <EmptyState />
           ) : (
             <>
-              <section className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {allPosts.slice(0, visible).map((p) => (
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+                className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3"
+              >
+                {allPosts.slice(0, visible).map((p, index) => (
                   <EnhancedPostCard
                     key={p.id}
                     post={p}
+                    index={index}
                     onDelete={deletePost}
                     onOpen={openViewer}
                     onEdit={openEditModal}
                     onViewDetails={openDetailView}
                   />
                 ))}
-              </section>
+              </motion.section>
               {visible < allPosts.length && <div id="lazy-sentinel" className="h-10" />}
             </>
           )}
@@ -895,42 +1069,47 @@ export default function TrainerPostsPage() {
   )
 }
 
-/* Enhanced Components */
+/* ---------- Enhanced Components ---------- */
 const Field = ({ label, textarea = false, value, onChange }) => (
   <div className="relative">
     {textarea ? (
       <textarea
-        className="w-full h-32 px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
+        className="w-full h-32 px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl text-zinc-100 placeholder-zinc-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200 backdrop-blur-xl"
         placeholder={`Εισάγετε ${label.toLowerCase()}...`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
     ) : (
       <input
-        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
+        className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200 backdrop-blur-xl"
         placeholder={`Εισάγετε ${label.toLowerCase()}...`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
     )}
-    <label className="absolute -top-2 left-3 px-2 bg-white text-xs font-medium text-gray-500">{label}</label>
+    <label className="absolute -top-2 left-3 px-2 bg-zinc-900/80 text-xs font-medium text-zinc-400 backdrop-blur-sm rounded">
+      {label}
+    </label>
   </div>
 )
 
 const EnhancedThumb = ({ src, index, total, onOpen, onRemove }) => (
-  <div className="group relative aspect-square overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200">
+  <motion.div
+    initial={{ opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{ delay: index * 0.05 }}
+    className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-800 border border-zinc-700/50"
+  >
     <img
       src={src || "/placeholder.svg"}
       alt={`Εικόνα ${index}`}
       className="h-full w-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
       onClick={onOpen}
     />
-
     {/* Image counter */}
-    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-md text-xs text-white font-medium">
+    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-md text-xs text-white font-medium backdrop-blur-sm">
       {index}/{total}
     </div>
-
     {/* Remove button */}
     <button
       onClick={onRemove}
@@ -938,10 +1117,9 @@ const EnhancedThumb = ({ src, index, total, onOpen, onRemove }) => (
     >
       <X className="h-3 w-3" />
     </button>
-
     {/* Hover overlay */}
     <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-  </div>
+  </motion.div>
 )
 
 function EnhancedViewer({ imgs, idx, onClose }) {
@@ -960,154 +1138,175 @@ function EnhancedViewer({ imgs, idx, onClose }) {
   }, [i])
 
   return (
-    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-      <div className="relative max-h-[90vh] max-w-[90vw]">
-        <img src={imgs[i] || "/placeholder.svg"} alt="" className="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-2xl" />
-
-        {/* Image counter */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/70 rounded-full text-white text-sm font-medium">
-          {i + 1} / {imgs.length}
-        </div>
-      </div>
-
-      {/* Close button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onClose()
-        }}
-        className="absolute right-8 top-8 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200"
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
       >
-        <X className="h-6 w-6" />
-      </button>
+        <div className="relative max-h-[90vh] max-w-[90vw]">
+          <motion.img
+            key={i}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            src={imgs[i] || "/placeholder.svg"}
+            alt=""
+            className="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-2xl"
+          />
+          {/* Image counter */}
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/70 rounded-full text-white text-sm font-medium backdrop-blur-sm">
+            {i + 1} / {imgs.length}
+          </div>
+        </div>
 
-      {/* Navigation */}
-      {imgs.length > 1 && (
-        <>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              prev()
-            }}
-            className="absolute left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              next()
-            }}
-            className="absolute right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-        </>
-      )}
-    </div>
+        {/* Close button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+          className="absolute right-8 top-8 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
+        {/* Navigation */}
+        {imgs.length > 1 && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                prev()
+              }}
+              className="absolute left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                next()
+              }}
+              className="absolute right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </>
+        )}
+      </motion.div>
+    </AnimatePresence>
   )
 }
 
-function EnhancedPostCard({ post, onDelete, onOpen, onEdit, onViewDetails }) {
+function EnhancedPostCard({ post, index, onDelete, onOpen, onEdit, onViewDetails }) {
   const imgs = post.image_urls?.length ? post.image_urls : [post.image_url || PLACEHOLDER]
   const hasMultipleImages = imgs.length > 1
 
   return (
-    <article
-      className={`group relative overflow-hidden rounded-3xl shadow-lg ring-1 ring-gray-200 transition-all duration-500 hover:shadow-xl hover:scale-[1.02] ${post._animate ? "animate-pulse" : ""}`}
-      style={{
-        background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)",
-      }}
+    <motion.article
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1, duration: 0.6 }}
+      whileHover={{ scale: 1.02, y: -4 }}
+      className={`group relative overflow-hidden rounded-3xl transition-all duration-500 ${post._animate ? "animate-pulse" : ""}`}
     >
-      {/* Action buttons */}
-      <div className="absolute right-4 top-4 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
-        <button
-          onClick={() => onEdit(post)}
-          className="p-2 rounded-full bg-black/50 text-white hover:bg-blue-600 transition-colors"
-          title="Επεξεργασία"
-        >
-          <Edit3 className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => onDelete(post.id)}
-          className="p-2 rounded-full bg-black/50 text-white hover:bg-red-600 transition-colors"
-          title="Διαγραφή"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Image with multiple indicator */}
-      <div className="relative aspect-[4/3] overflow-hidden cursor-pointer" onClick={() => onViewDetails(post)}>
-        <img
-          src={imgs[0] || "/placeholder.svg"}
-          alt=""
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-        />
-
-        {/* Multiple images indicator */}
-        {hasMultipleImages && (
-          <div className="absolute bottom-3 right-3 flex items-center gap-1 px-3 py-1.5 bg-black/70 rounded-full text-white text-sm font-medium">
-            <Grid3X3 className="h-4 w-4" />
-            {imgs.length}
-          </div>
-        )}
-
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-      </div>
-
-      {/* Content */}
-      <div className="p-6 space-y-4 cursor-pointer" onClick={() => onViewDetails(post)}>
-        <h3 className="text-lg font-bold text-gray-900 line-clamp-2 group-hover:text-gray-700 transition-colors">
-          {post.title || "Χωρίς τίτλο"}
-        </h3>
-
-        <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
-          {post.description || "Δεν υπάρχει περιγραφή."}
-        </p>
-
-        <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-gray-400" />
-            <time className="text-xs text-gray-500">
-              {new Date(post.created_at).toLocaleDateString("el-GR", {
-                day: "2-digit",
-                month: "short",
-                year: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </time>
-          </div>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onViewDetails(post)
-            }}
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+      <GlassCard hover className="overflow-hidden">
+        {/* Action buttons */}
+        <div className="absolute right-4 top-4 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => onEdit(post)}
+            className="p-2 rounded-full bg-black/50 text-white hover:bg-blue-600 transition-colors backdrop-blur-sm"
+            title="Επεξεργασία"
           >
-            <ExternalLink className="h-3 w-3" />
-            Προβολή
-          </button>
+            <Edit3 className="h-4 w-4" />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => onDelete(post.id)}
+            className="p-2 rounded-full bg-black/50 text-white hover:bg-red-600 transition-colors backdrop-blur-sm"
+            title="Διαγραφή"
+          >
+            <Trash2 className="h-4 w-4" />
+          </motion.button>
         </div>
-      </div>
-    </article>
+
+        {/* Image with multiple indicator */}
+        <div className="relative aspect-[4/3] overflow-hidden cursor-pointer" onClick={() => onViewDetails(post)}>
+          <img
+            src={imgs[0] || "/placeholder.svg"}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+          {/* Multiple images indicator */}
+          {hasMultipleImages && (
+            <div className="absolute bottom-3 right-3 flex items-center gap-1 px-3 py-1.5 bg-black/70 rounded-full text-white text-sm font-medium backdrop-blur-sm">
+              <Grid3X3 className="h-4 w-4" />
+              {imgs.length}
+            </div>
+          )}
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-4 cursor-pointer" onClick={() => onViewDetails(post)}>
+          <h3 className="text-lg font-bold text-zinc-100 line-clamp-2 group-hover:text-zinc-300 transition-colors">
+            {post.title || "Χωρίς τίτλο"}
+          </h3>
+          <p className="text-zinc-300 text-sm leading-relaxed line-clamp-3">
+            {post.description || "Δεν υπάρχει περιγραφή."}
+          </p>
+          <div className="flex items-center justify-between pt-2 border-t border-zinc-700/50">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-zinc-400" />
+              <time className="text-xs text-zinc-400">
+                {new Date(post.created_at).toLocaleDateString("el-GR", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </time>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onViewDetails(post)
+              }}
+              className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Προβολή
+            </button>
+          </div>
+        </div>
+      </GlassCard>
+    </motion.article>
   )
 }
 
 const EmptyState = () => (
-  <div className="flex flex-col items-center justify-center py-20 text-center">
-    <div className="p-6 rounded-full bg-gray-100 mb-6">
-      <ImageIcon className="h-12 w-12 text-gray-400" />
-    </div>
-    <h3 className="text-xl font-semibold text-gray-900 mb-2">Δεν υπάρχουν ακόμη αναρτήσεις</h3>
-    <p className="text-gray-500 max-w-md">
-      Ξεκινήστε να μοιράζεστε το περιεχόμενό σας με το κοινό σας δημιουργώντας την πρώτη σας ανάρτηση παραπάνω.
-    </p>
-  </div>
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.3 }}
+    className="flex flex-col items-center justify-center py-20 text-center"
+  >
+    <GlassCard className="p-12 max-w-md mx-auto">
+      <div className="p-6 rounded-full bg-zinc-800/50 mb-6 inline-block border border-zinc-700/50">
+        <ImageIcon className="h-12 w-12 text-zinc-400" />
+      </div>
+      <h3 className="text-xl font-semibold text-zinc-100 mb-2">Δεν υπάρχουν ακόμη αναρτήσεις</h3>
+      <p className="text-zinc-400 max-w-md">
+        Ξεκινήστε να μοιράζεστε το περιεχόμενό σας με το κοινό σας δημιουργώντας την πρώτη σας ανάρτηση παραπάνω.
+      </p>
+    </GlassCard>
+  </motion.div>
 )

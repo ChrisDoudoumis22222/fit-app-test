@@ -44,7 +44,7 @@ import { PLACEHOLDER } from "../utils/avatar";
 /* shadcn/ui (yours) */
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
 
-/* lazy */
+/* lazy: bookings component (already built) */
 const UserBookings = lazy(() => import("../components/UserBookings"));
 
 /* ---------- Styling helpers ---------- */
@@ -156,31 +156,11 @@ const fromHash = (h = "") =>
 const PremiumNavigation = ({ currentSection, onSectionChange }) => {
   const sections = useMemo(
     () => [
-      {
-        id: "dashboard",
-        label: "Dashboard",
-        icon: BarChart3,
-        color: "from-blue-600 to-blue-700",
-      },
-      {
-        id: "profile",
-        label: "Προφίλ",
-        icon: Settings,
-        color: "from-zinc-600 to-zinc-700",
-      },
-      { id: "avatar", label: "Avatar", icon: ImagePlus, color: "from-gray-600 to-gray-700" },
-      {
-        id: "security",
-        label: "Ασφάλεια",
-        icon: Shield,
-        color: "from-zinc-700 to-zinc-800",
-      },
-      {
-        id: "bookings",
-        label: "Κρατήσεις",
-        icon: CalendarCheck,
-        color: "from-gray-700 to-gray-800",
-      },
+      { id: "dashboard", label: "Dashboard", icon: BarChart3, color: "from-blue-600 to-blue-700" },
+      { id: "profile",   label: "Προφίλ",    icon: Settings,  color: "from-zinc-600 to-zinc-700" },
+      { id: "avatar",    label: "Avatar",    icon: ImagePlus, color: "from-gray-600 to-gray-700" },
+      { id: "security",  label: "Ασφάλεια",  icon: Shield,    color: "from-zinc-700 to-zinc-800" },
+      { id: "bookings",  label: "Κρατήσεις", icon: CalendarCheck, color: "from-gray-700 to-gray-800" },
     ],
     []
   );
@@ -202,9 +182,7 @@ const PremiumNavigation = ({ currentSection, onSectionChange }) => {
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.98 }}
         >
-          <div
-            className={`absolute inset-0 bg-gradient-to-r ${color} opacity-0 group-hover:opacity-20 transition-opacity duration-500`}
-          />
+          <div className={`absolute inset-0 bg-gradient-to-r ${color} opacity-0 group-hover:opacity-20 transition-opacity duration-500`} />
           <Icon className="w-5 h-5 relative z-10" />
           <span className="relative z-10 hidden sm:inline">{label}</span>
           {currentSection === id && (
@@ -228,8 +206,7 @@ const PerformanceStats = ({ performanceData }) => {
         label: "Σημερινές Προπονήσεις",
         value: performanceData.todayStats.workoutsCompleted,
         icon: Activity,
-        trend:
-          performanceData.todayStats.workoutsCompleted > 0 ? "+1" : "0",
+        trend: performanceData.todayStats.workoutsCompleted > 0 ? "+1" : "0",
         color: "from-blue-600/20 to-blue-700/20",
         borderColor: "border-blue-500/30",
       },
@@ -245,10 +222,7 @@ const PerformanceStats = ({ performanceData }) => {
         label: "Επερχόμενες",
         value: performanceData.todayStats.upcomingBookings,
         icon: Clock,
-        trend:
-          performanceData.todayStats.upcomingBookings > 0
-            ? "Ενεργός"
-            : "—",
+        trend: performanceData.todayStats.upcomingBookings > 0 ? "Ενεργός" : "—",
         color: "from-orange-600/20 to-orange-700/20",
         borderColor: "border-orange-500/30",
       },
@@ -319,6 +293,7 @@ export default function EnhancedDashboard() {
 
   const hasFetchedRef = useRef(false);
 
+  // pass-through element; hover behavior is handled inside the component file
   const UserBookingsEl = useMemo(() => <UserBookings />, []);
 
   /* time tick */
@@ -355,23 +330,18 @@ export default function EnhancedDashboard() {
       if (!opts.silent) setInitialLoading(true);
 
       const [bookingsRes, goalsRes, achievementsRes] = await Promise.allSettled([
+        // ⬇️ switch to trainer_bookings (RLS: user_id = auth.uid())
         supabase
-          .from("bookings")
-          .select(
-            `
-            *,
-            trainer:profiles!bookings_trainer_id_fkey(full_name, specialty)
-          `
-          )
+          .from("trainer_bookings")
+          .select("*")
           .eq("user_id", profile.id)
-          .order("date", { ascending: false })
+          .order("created_at", { ascending: false })
           .limit(50),
         supabase
           .from("goals")
           .select("*")
           .eq("user_id", profile.id)
           .order("created_at", { ascending: false }),
-        // If you don't have this table, it will fail silently and we keep []
         supabase
           .from("user_achievements")
           .select("*")
@@ -385,52 +355,54 @@ export default function EnhancedDashboard() {
         bookingsData = bookingsRes.value.data || [];
       }
 
+      // derive stats from trainer_bookings
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const toDateObj = (isoDate) =>
+        isoDate ? new Date(`${isoDate}T00:00:00`) : null;
 
-      const todayBookings =
-        bookingsData.filter((b) => {
-          const d = new Date(b.date);
-          return d >= today && d < new Date(today.getTime() + 86400000);
-        }) || [];
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(todayStart.getTime() + 86400000);
 
-      const upcomingBookings =
-        bookingsData.filter((b) => {
-          const d = new Date(b.date);
-          return d > now && b.status !== "cancelled";
-        }) || [];
+      const isPast = (d) => d && d < now;
+      const isToday = (d) => d && d >= todayStart && d < todayEnd;
 
-      const completedBookings =
-        bookingsData.filter((b) => {
-          const d = new Date(b.date);
-          return d < now && b.status === "confirmed";
-        }) || [];
+      // normalize date for comparisons
+      const withDateObj = bookingsData.map((b) => ({
+        ...b,
+        _dateObj: toDateObj(b.date),
+      }));
 
-      const weeklyBookings =
-        bookingsData.filter((b) => {
-          const d = new Date(b.date);
-          return d >= thisWeek && b.status === "confirmed";
-        }) || [];
+      const todayBookings = withDateObj.filter((b) => isToday(b._dateObj));
+      const upcomingBookings = withDateObj.filter(
+        (b) => b._dateObj && b._dateObj > now && b.status !== "cancelled"
+      );
+      const completedBookings = withDateObj.filter(
+        (b) => isPast(b._dateObj) && ["completed", "confirmed", "accepted"].includes((b.status || "").toLowerCase())
+      );
 
       setPerformanceData({
         todayStats: {
-          workoutsCompleted: todayBookings.filter((b) => b.status === "confirmed").length,
+          workoutsCompleted: todayBookings.filter(
+            (b) => ["completed", "confirmed", "accepted"].includes((b.status || "").toLowerCase())
+          ).length,
           totalBookings: bookingsData.length,
           upcomingBookings: upcomingBookings.length,
           completedBookings: completedBookings.length,
         },
+        // show a short list; this is just a dashboard preview
         recentBookings: bookingsData.slice(0, 5).map((b) => ({
-          name: b.trainer?.specialty || "Προπόνηση",
-          trainer: b.trainer?.full_name || "Προπονητής",
-          date: new Date(b.date).toLocaleDateString("el-GR"),
-          time: b.time,
-          status: b.status,
-          duration: b.duration || "60 λεπτά",
+          name: "Συνεδρία", // no join here; details will show inside <UserBookings />
+          trainer: b.trainer_name || (b.trainer_id ? `Προπονητής #${String(b.trainer_id).slice(0, 6)}` : "Προπονητής"),
+          date: b.date
+            ? new Date(`${b.date}T00:00:00`).toLocaleDateString("el-GR")
+            : "—",
+          time: [b.start_time, b.end_time].filter(Boolean).join("–"),
+          status: b.status || "pending",
+          duration: b.duration_min ? `${b.duration_min} λεπτά` : "60 λεπτά",
         })),
       });
 
-      // GOALS (real data from DB)
+      // GOALS
       if (goalsRes.status === "fulfilled" && !goalsRes.value.error) {
         const rawGoals = goalsRes.value.data || [];
         const normalized = rawGoals.map((g) => {
@@ -458,23 +430,20 @@ export default function EnhancedDashboard() {
         setGoals([]);
       }
 
-      // ACHIEVEMENTS (from DB only, if table exists)
-      if (
-        achievementsRes.status === "fulfilled" &&
-        !achievementsRes.value.error
-      ) {
+      // ACHIEVEMENTS
+      if (achievementsRes.status === "fulfilled" && !achievementsRes.value.error) {
         const raw = achievementsRes.value.data || [];
         const normalized = raw.map((a) => ({
           id: a.id,
           title: a.title,
           description: a.description,
-          icon: a.icon || Award, // you can map string->icon if you store icon names
+          icon: a.icon || Award,
           earned: a.earned,
           created_at: a.created_at,
         }));
         setAchievements(normalized);
       } else {
-        setAchievements([]); // nothing if you don't have table
+        setAchievements([]);
       }
     } catch (err) {
       console.error("Error fetching user data:", err);
@@ -543,7 +512,7 @@ export default function EnhancedDashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
           >
-          <div>
+            <div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-2">
                 Καλώς ήρθες, {profile.full_name || "Αθλητή"}
               </h1>
@@ -679,10 +648,12 @@ export default function EnhancedDashboard() {
 
             {/* Bookings */}
             <DashSection id="bookings" show={section === "bookings"}>
+              {/* ⛔ No hover effects on this card */}
               <PremiumCard
                 title="Οι Κρατήσεις μου"
                 icon={CalendarCheck}
                 description="Διαχειρίσου τις προπονήσεις σου"
+                hoverless
               >
                 <Suspense
                   fallback={
@@ -773,7 +744,7 @@ const ProfileSummaryCard = ({ profile }) => {
 
         <div className="space-y-4 lg:space-y-6">
           <div className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-800/30 border border-zinc-700/30">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-600/20 to-blue-700/20 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-600/20 to-blue-700/20 flex items-center justify-center">
               <User className="w-6 h-6 text-blue-400" />
             </div>
             <div>
@@ -910,32 +881,27 @@ const GoalStatusBadge = ({ status }) => {
     not_started: { color: "text-zinc-300 bg-zinc-300/10", label: "Δεν ξεκίνησε" },
     in_progress: { color: "text-blue-400 bg-blue-400/10", label: "Σε εξέλιξη" },
     completed: { color: "text-green-400 bg-green-400/10", label: "Ολοκληρώθηκε" },
-    archived: { color: "text-zinc-500 bg-zinc-500/10", label: "Αρχειοθετήθηκε" },
+    archived:   { color: "text-zinc-500 bg-zinc-500/10", label: "Αρχειοθετήθηκε" },
   };
 
   const cfg = map[status] || map.in_progress;
   return (
-    <span
-      className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.color}`}
-    >
+    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.color}`}>
       {cfg.label}
     </span>
   );
 };
 
 /**
- * UPDATED: Each booking row is clickable when there are bookings.
- * It redirects to /user#bookings (http://localhost:3000/user#bookings in dev).
+ * Dashboard preview list — still fine to keep hover here since it's the dashboard,
+ * not the dedicated bookings page. (If you also want zero hover here, shout.)
  */
 const RecentBookingsCard = ({ bookings, totalBookings }) => {
   const navigate = useNavigate();
 
   const goToBookings = () => {
-    // Use SPA navigation + keep the hash. This resolves to http://localhost:3000/user#bookings locally.
     navigate("/user#bookings");
     window.location.hash = "bookings";
-    // Or do a hard redirect:
-    // window.location.href = "/user#bookings";
   };
 
   const handleCTA = () => {
@@ -962,7 +928,7 @@ const RecentBookingsCard = ({ bookings, totalBookings }) => {
             <h3 className="text-xl lg:text-2xl font-bold text-white mb-2">
               Πρόσφατες Κρατήσεις
             </h3>
-            <p className="text-zinc-400">(από τον πίνακα `bookings`)</p>
+            <p className="text-zinc-400">(από τον πίνακα `trainer_bookings`)</p>
           </div>
           <Activity className="w-8 h-8 text-purple-400" />
         </div>
@@ -999,17 +965,23 @@ const RecentBookingsCard = ({ bookings, totalBookings }) => {
                   </div>
                   <div
                     className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                      booking.status === "confirmed"
+                      (booking.status || "").toLowerCase() === "confirmed" ||
+                      (booking.status || "").toLowerCase() === "accepted"
                         ? "bg-green-400/10 text-green-400"
-                        : booking.status === "pending"
+                        : (booking.status || "").toLowerCase() === "pending"
                         ? "bg-yellow-400/10 text-yellow-400"
+                        : (booking.status || "").toLowerCase() === "completed"
+                        ? "bg-sky-400/10 text-sky-400"
                         : "bg-red-400/10 text-red-400"
                     }`}
                   >
-                    {booking.status === "confirmed"
+                    {(booking.status || "").toLowerCase() === "confirmed" ||
+                    (booking.status || "").toLowerCase() === "accepted"
                       ? "Επιβεβαιωμένη"
-                      : booking.status === "pending"
+                      : (booking.status || "").toLowerCase() === "pending"
                       ? "Εκκρεμής"
+                      : (booking.status || "").toLowerCase() === "completed"
+                      ? "Ολοκληρώθηκε"
                       : "Ακυρωμένη"}
                   </div>
                 </motion.div>
@@ -1153,10 +1125,11 @@ const QuickActionButton = ({ icon: Icon, label, primary = false, onClick }) => {
   );
 };
 
-const PremiumCard = ({ title, icon: Icon, description, children }) => {
+/* ⛔ PremiumCard supports a 'hoverless' prop used in the Bookings section */
+const PremiumCard = ({ title, icon: Icon, description, children, hoverless = false }) => {
   return (
     <motion.div
-      whileHover={{ y: -6, scale: 1.01 }}
+      {...(!hoverless ? { whileHover: { y: -6, scale: 1.01 } } : {})}
       transition={{ duration: 0.3 }}
       className="relative overflow-hidden rounded-3xl"
       style={cardGlass}

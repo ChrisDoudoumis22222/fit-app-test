@@ -57,48 +57,46 @@ const PROFANITY_WORDS = [
   "bastard",
 ]
 
-// Profanity filter function
 const containsProfanity = (text) => {
   const lowerText = text.toLowerCase()
   return PROFANITY_WORDS.some((word) => lowerText.includes(word))
 }
 
-// Profanity warning popup
+// Dark profanity warning popup
 const ProfanityWarningPopup = ({ open, onClose }) => {
   if (!open) return null
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl shadow-2xl ring-1 ring-orange-200"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl shadow-2xl border border-orange-400/30"
         style={{
-          background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,247,237,0.9) 100%)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          background: "rgba(17,17,17,0.7)",
+          backdropFilter: "blur(20px) saturate(160%)",
+          WebkitBackdropFilter: "blur(20px) saturate(160%)",
           boxShadow: "0 25px 50px -12px rgba(251, 146, 60, 0.25)",
         }}
       >
-        {/* Header */}
         <div className="flex items-center gap-3 p-6 pb-4">
-          <div className="p-2 rounded-full bg-orange-100">
-            <AlertTriangle className="h-6 w-6 text-orange-600" />
+          <div className="p-2 rounded-full bg-orange-500/20">
+            <AlertTriangle className="h-6 w-6 text-orange-300" />
           </div>
-          <h3 className="text-lg font-semibold text-orange-800">Προσοχή!</h3>
-          <button onClick={onClose} className="ml-auto p-1 rounded-full hover:bg-orange-100 transition-colors">
-            <X className="h-5 w-5 text-orange-600" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="px-6 pb-6">
-          <p className="text-orange-700 mb-4">Συγγνώμη φίλε, αλλά δεν μπορείς να βρίζεις εδώ! 😅</p>
-          <p className="text-orange-600 text-sm mb-4">
-            Παρακαλούμε να διατηρήσετε έναν ευγενικό και σεβαστό τόνο στα σχόλιά σας.
-          </p>
-
+          <h3 className="text-lg font-semibold text-orange-200">Προσοχή!</h3>
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors font-medium"
+            className="ml-auto p-1 rounded-full hover:bg-orange-500/10 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5 text-orange-300" />
+          </button>
+        </div>
+        <div className="px-6 pb-6">
+          <p className="text-orange-200 mb-4">Συγγνώμη φίλε, αλλά δεν μπορείς να βρίζεις εδώ! 😅</p>
+          <p className="text-orange-300/90 text-sm mb-4">
+            Παρακαλούμε να διατηρήσετε έναν ευγενικό και σεβαστό τόνο στα σχόλιά σας.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-orange-600 text-white rounded-xl hover:bg-orange-500 transition-colors font-medium"
           >
             Κατάλαβα!
           </button>
@@ -124,7 +122,6 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
   const [expandedReplies, setExpandedReplies] = useState({})
   const [showProfanityWarning, setShowProfanityWarning] = useState(false)
 
-  // Intersection Observer ref for lazy loading
   const observerRef = useRef()
   const loadMoreRef = useRef()
 
@@ -132,34 +129,7 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
     fetchComments(true)
   }, [postId])
 
-  // Set up intersection observer for infinite scroll
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const target = entries[0]
-        if (target.isIntersecting && hasMore && !loadingMore && !loading) {
-          loadMoreComments()
-        }
-      },
-      {
-        threshold: 0.1,
-        rootMargin: "100px",
-      },
-    )
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current)
-    }
-
-    observerRef.current = observer
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-    }
-  }, [hasMore, loadingMore, loading])
-
+  // --- keep fetchComments above loadMoreComments so it can be called there ---
   const fetchComments = async (isInitial = false) => {
     try {
       if (isInitial) {
@@ -167,19 +137,13 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
         setCurrentPage(1)
       }
 
-      // Get updated comments count from posts table
       const { data: postData } = await supabase.from("posts").select("comments_count").eq("id", postId).single()
-
       if (postData) {
         const newCount = postData.comments_count || 0
         setTotalComments(newCount)
-        // Notify parent component about the count update
-        if (onCommentCountUpdate) {
-          onCommentCountUpdate(newCount)
-        }
+        onCommentCountUpdate?.(newCount)
       }
 
-      // Fetch comments with pagination
       const { data, error } = await supabase
         .from("comments")
         .select(`
@@ -200,7 +164,6 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
 
       const commentsWithReplies = await Promise.all(
         (data || []).map(async (comment) => {
-          // Fetch first few replies for each comment
           const { data: replies } = await supabase
             .from("comments")
             .select(`
@@ -242,17 +205,34 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
     }
   }
 
+  // --- define loadMoreComments BEFORE the effect that references it ---
   const loadMoreComments = useCallback(() => {
     if (loadingMore || !hasMore) return
-
     setLoadingMore(true)
     setCurrentPage((prev) => prev + 1)
-
-    // Delay to prevent too rapid requests
     setTimeout(() => {
       fetchComments(false)
     }, 300)
-  }, [currentPage, hasMore, loadingMore])
+  }, [hasMore, loadingMore])
+
+  // --- intersection observer effect AFTER loadMoreComments is initialized ---
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const target = entries[0]
+        if (target.isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMoreComments()
+        }
+      },
+      { threshold: 0.1, rootMargin: "100px" },
+    )
+
+    const node = loadMoreRef.current
+    if (node) observer.observe(node)
+    observerRef.current = observer
+
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore, loading, loadMoreComments])
 
   const loadMoreReplies = async (commentId) => {
     try {
@@ -294,7 +274,6 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
     e.preventDefault()
     if (!newComment.trim() || !profile?.id) return
 
-    // Check for profanity
     if (containsProfanity(newComment)) {
       setShowProfanityWarning(true)
       return
@@ -324,27 +303,18 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
       if (error) throw error
 
       if (replyingTo) {
-        // Add reply to existing comment
         setComments((prev) =>
           prev.map((comment) =>
             comment.id === replyingTo
-              ? {
-                  ...comment,
-                  replies: [...comment.replies, data],
-                }
+              ? { ...comment, replies: [...comment.replies, data] }
               : comment,
           ),
         )
         setReplyingTo(null)
       } else {
-        // Add new top-level comment
         setComments((prev) => [{ ...data, replies: [], hasMoreReplies: false }, ...prev])
-        // Update local count (will be synced by trigger)
         setTotalComments((prev) => prev + 1)
-        // Notify parent component about the count update
-        if (onCommentCountUpdate) {
-          onCommentCountUpdate(totalComments + 1)
-        }
+        onCommentCountUpdate?.(totalComments + 1)
       }
 
       setNewComment("")
@@ -358,24 +328,17 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
 
   const handleEditComment = async (commentId) => {
     if (!editText.trim()) return
-
-    // Check for profanity in edit
     if (containsProfanity(editText)) {
       setShowProfanityWarning(true)
       return
     }
-
     try {
       const { error } = await supabase.from("comments").update({ content: editText.trim() }).eq("id", commentId)
-
       if (error) throw error
 
-      // Update local state
       setComments((prev) =>
         prev.map((comment) => {
-          if (comment.id === commentId) {
-            return { ...comment, content: editText.trim() }
-          }
+          if (comment.id === commentId) return { ...comment, content: editText.trim() }
           if (comment.replies) {
             return {
               ...comment,
@@ -398,31 +361,19 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
 
   const handleDeleteComment = async (commentId) => {
     if (!confirm("Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το σχόλιο;")) return
-
     try {
       const { error } = await supabase.from("comments").delete().eq("id", commentId)
-
       if (error) throw error
 
-      // Update local state
       setComments((prev) => {
-        const isTopLevel = prev.some((comment) => comment.id === commentId)
-
+        const isTopLevel = prev.some((c) => c.id === commentId)
         if (isTopLevel) {
-          // Update local count (will be synced by trigger)
           const newCount = Math.max(0, totalComments - 1)
           setTotalComments(newCount)
-          // Notify parent component about the count update
-          if (onCommentCountUpdate) {
-            onCommentCountUpdate(newCount)
-          }
-          return prev.filter((comment) => comment.id !== commentId)
-        } else {
-          return prev.map((comment) => ({
-            ...comment,
-            replies: comment.replies?.filter((reply) => reply.id !== commentId) || [],
-          }))
+          onCommentCountUpdate?.(newCount)
+          return prev.filter((c) => c.id !== commentId)
         }
+        return prev.map((c) => ({ ...c, replies: c.replies?.filter((r) => r.id !== commentId) || [] }))
       })
     } catch (err) {
       console.error("Error deleting comment:", err)
@@ -434,33 +385,29 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
     const now = new Date()
     const commentDate = new Date(dateString)
     const diffInMinutes = Math.floor((now - commentDate) / (1000 * 60))
-
     if (diffInMinutes < 1) return "Μόλις τώρα"
     if (diffInMinutes < 60) return `${diffInMinutes} λεπτά πριν`
-
     const diffInHours = Math.floor(diffInMinutes / 60)
     if (diffInHours < 24) return `${diffInHours} ώρες πριν`
-
     const diffInDays = Math.floor(diffInHours / 24)
     if (diffInDays < 7) return `${diffInDays} μέρες πριν`
-
     return commentDate.toLocaleDateString("el-GR")
   }
 
   if (loading) {
     return (
       <div
-        className="relative overflow-hidden rounded-2xl shadow-lg ring-1 ring-gray-200 p-8"
+        className="relative overflow-hidden rounded-2xl shadow-2xl border border-zinc-700/50 p-8"
         style={{
-          background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          background: "rgba(0,0,0,0.4)",
+          backdropFilter: "blur(20px) saturate(160%)",
+          WebkitBackdropFilter: "blur(20px) saturate(160%)",
         }}
       >
         <div className="flex items-center justify-center">
           <div className="flex items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-            <span className="text-gray-500">Φόρτωση σχολίων...</span>
+            <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+            <span className="text-zinc-400">Φόρτωση σχολίων...</span>
           </div>
         </div>
       </div>
@@ -469,27 +416,26 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
 
   return (
     <>
-      {/* Profanity Warning Popup */}
       <ProfanityWarningPopup open={showProfanityWarning} onClose={() => setShowProfanityWarning(false)} />
 
       <section
-        className="relative overflow-hidden rounded-2xl shadow-lg ring-1 ring-gray-200"
+        className="relative overflow-hidden rounded-2xl shadow-2xl border border-zinc-700/50"
         style={{
-          background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          background: "rgba(0,0,0,0.4)",
+          backdropFilter: "blur(20px) saturate(160%)",
+          WebkitBackdropFilter: "blur(20px) saturate(160%)",
         }}
       >
         <div className="p-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 rounded-xl bg-blue-100">
-              <MessageCircle className="h-5 w-5 text-blue-600" />
+            <div className="p-2 rounded-xl bg-blue-500/20">
+              <MessageCircle className="h-5 w-5 text-blue-300" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-neutral-200">
               Σχόλια ({totalComments})
               {totalComments !== comments.length && (
-                <span className="text-sm font-normal text-gray-500 ml-2">(εμφανίζονται {comments.length})</span>
+                <span className="text-sm font-normal text-zinc-400 ml-2">(εμφανίζονται {comments.length})</span>
               )}
             </h2>
           </div>
@@ -498,7 +444,7 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
           {profile?.id ? (
             <form onSubmit={handleSubmitComment} className="mb-8">
               <div className="flex gap-4">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden flex-shrink-0 border border-zinc-700">
                   {profile.avatar_url ? (
                     <img
                       src={profile.avatar_url || "/placeholder.svg"}
@@ -506,17 +452,17 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User className="h-5 w-5 text-gray-400" />
+                    <User className="h-5 w-5 text-zinc-400" />
                   )}
                 </div>
                 <div className="flex-1">
                   {replyingTo && (
-                    <div className="mb-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                      <span className="text-sm text-blue-700">Απάντηση σε σχόλιο</span>
+                    <div className="mb-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/30 text-blue-200">
+                      <span className="text-sm">Απάντηση σε σχόλιο</span>
                       <button
                         type="button"
                         onClick={() => setReplyingTo(null)}
-                        className="ml-2 text-blue-600 hover:text-blue-800"
+                        className="ml-2 text-blue-300 hover:text-blue-200"
                       >
                         ✕
                       </button>
@@ -527,13 +473,13 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
                       placeholder={replyingTo ? "Γράψτε την απάντησή σας..." : "Γράψτε ένα σχόλιο..."}
-                      className="w-full p-4 bg-white border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      className="w-full p-4 bg-black/30 border border-zinc-700/50 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-neutral-200 placeholder:text-zinc-500"
                       rows={3}
                     />
                     <button
                       type="submit"
                       disabled={!newComment.trim() || submitting}
-                      className="absolute bottom-3 right-3 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="absolute bottom-3 right-3 p-2 bg-blue-600/80 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </button>
@@ -542,17 +488,17 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
               </div>
             </form>
           ) : (
-            <div className="mb-8 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
-              <p className="text-gray-600">Συνδεθείτε για να αφήσετε ένα σχόλιο</p>
+            <div className="mb-8 p-4 bg-black/30 rounded-xl border border-zinc-700/50 text-center">
+              <p className="text-zinc-300">Συνδεθείτε για να αφήσετε ένα σχόλιο</p>
             </div>
           )}
 
           {/* Comments List */}
           {totalComments === 0 ? (
             <div className="text-center py-12">
-              <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Δεν υπάρχουν σχόλια ακόμη</h3>
-              <p className="text-gray-500">Γίνετε ο πρώτος που θα σχολιάσει αυτή την ανάρτηση!</p>
+              <MessageCircle className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-neutral-200 mb-2">Δεν υπάρχουν σχόλια ακόμη</h3>
+              <p className="text-zinc-400">Γίνετε ο πρώτος που θα σχολιάσει αυτή την ανάρτηση!</p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -584,16 +530,16 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
                 <div ref={loadMoreRef} className="flex justify-center py-6">
                   {loadingMore ? (
                     <div className="flex items-center gap-3">
-                      <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-                      <span className="text-gray-500 text-sm">Φόρτωση περισσότερων σχολίων...</span>
+                      <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+                      <span className="text-zinc-400 text-sm">Φόρτωση περισσότερων σχολίων...</span>
                     </div>
                   ) : (
                     <button
                       onClick={loadMoreComments}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium text-sm"
+                      className="flex items-center gap-2 px-4 py-2 bg-black/30 text-neutral-300 rounded-xl hover:bg-black/50 transition-colors font-medium text-sm border border-zinc-700/50"
                     >
                       <ChevronDown className="h-4 w-4" />
-                      Φόρτωση περισσότερων ({totalComments - comments.length} ακόμη)
+                      Φόρτωση περισσότερων ({Math.max(0, totalComments - comments.length)} ακόμη)
                     </button>
                   )}
                 </div>
@@ -602,7 +548,7 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
               {/* End of Comments */}
               {!hasMore && comments.length > 0 && (
                 <div className="text-center py-6">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-full text-sm">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-black/30 text-zinc-300 rounded-full text-sm border border-zinc-700/50">
                     <MessageCircle className="h-4 w-4" />
                     Έχετε δει όλα τα σχόλια!
                   </div>
@@ -638,25 +584,22 @@ function CommentItem({
   const isOwner = currentUserId === comment.user_id
 
   const toggleReplies = () => {
-    setExpandedReplies((prev) => ({
-      ...prev,
-      [comment.id]: !prev[comment.id],
-    }))
+    setExpandedReplies((prev) => ({ ...prev, [comment.id]: !prev[comment.id] }))
   }
 
   return (
-    <div className={`${isReply ? "ml-12 mt-4" : ""}`}>
+    <div className={isReply ? "ml-12 mt-4" : ""}>
       <div
-        className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors"
+        className="p-4 rounded-xl border border-zinc-700/50 hover:border-zinc-600 transition-colors"
         style={{
-          background: isReply
-            ? "linear-gradient(135deg, rgba(248,250,252,0.8) 0%, rgba(241,245,249,0.8) 100%)"
-            : "rgba(255,255,255,0.8)",
+          background: isReply ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.35)",
+          backdropFilter: "blur(10px) saturate(140%)",
+          WebkitBackdropFilter: "blur(10px) saturate(140%)",
         }}
       >
         <div className="flex gap-3">
           {/* Avatar */}
-          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden flex-shrink-0 border border-zinc-700">
             {comment.user?.avatar_url ? (
               <img
                 src={comment.user.avatar_url || "/placeholder.svg"}
@@ -664,7 +607,7 @@ function CommentItem({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <User className="h-5 w-5 text-gray-400" />
+              <User className="h-5 w-5 text-zinc-400" />
             )}
           </div>
 
@@ -672,10 +615,10 @@ function CommentItem({
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-900 text-sm">
+                <span className="font-semibold text-neutral-200 text-sm">
                   {comment.user?.full_name || comment.user?.email || "Άγνωστος χρήστης"}
                 </span>
-                <span className="text-xs text-gray-500 flex items-center gap-1">
+                <span className="text-xs text-zinc-400 flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {formatRelativeTime(comment.created_at)}
                 </span>
@@ -684,28 +627,29 @@ function CommentItem({
               {/* Actions Menu */}
               <div className="relative">
                 <button
-                  onClick={() => setShowActions(!showActions)}
-                  className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+                  onClick={() => setShowActions((s) => !s)}
+                  className="p-1 rounded-md hover:bg-white/10 transition-colors"
+                  aria-haspopup="menu"
+                  aria-expanded={showActions}
                 >
-                  <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                  <MoreHorizontal className="h-4 w-4 text-zinc-400" />
                 </button>
 
                 {showActions && (
-                  <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[120px]">
+                  <div className="absolute right-0 top-8 bg-black/70 border border-zinc-700/50 rounded-lg shadow-xl py-1 z-20 min-w-[140px] backdrop-blur-md">
                     {!isReply && (
                       <button
                         onClick={() => {
                           onReply(comment.id)
                           setShowActions(false)
                         }}
-                        className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-white/10 flex items-center gap-2"
                       >
                         <Reply className="h-3 w-3" />
                         Απάντηση
                       </button>
                     )}
 
-                    {/* Only comment owner can edit/delete their own comments */}
                     {isOwner && (
                       <>
                         <button
@@ -713,7 +657,7 @@ function CommentItem({
                             onEdit(comment)
                             setShowActions(false)
                           }}
-                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-white/10 flex items-center gap-2"
                         >
                           <Edit3 className="h-3 w-3" />
                           Επεξεργασία
@@ -723,7 +667,7 @@ function CommentItem({
                             onDelete(comment.id)
                             setShowActions(false)
                           }}
-                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          className="w-full px-3 py-2 text-left text-sm text-rose-300 hover:bg-rose-500/10 flex items-center gap-2"
                         >
                           <Trash2 className="h-3 w-3" />
                           Διαγραφή
@@ -734,7 +678,7 @@ function CommentItem({
                     {!isOwner && (
                       <button
                         onClick={() => setShowActions(false)}
-                        className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-white/10 flex items-center gap-2"
                       >
                         <Flag className="h-3 w-3" />
                         Αναφορά
@@ -751,13 +695,12 @@ function CommentItem({
                 <textarea
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
-                  className="w-full p-3 bg-white border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
+                  className="w-full p-3 bg黑"
                 />
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleEditComment(comment.id)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                    className="px-3 py-1 bg-blue-600/80 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
                   >
                     Αποθήκευση
                   </button>
@@ -766,25 +709,24 @@ function CommentItem({
                       setEditingComment(null)
                       setEditText("")
                     }}
-                    className="px-3 py-1 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors text-sm"
+                    className="px-3 py-1 bg-zinc-700 text-neutral-200 rounded-md hover:bg-zinc-600 transition-colors text-sm"
                   >
                     Ακύρωση
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+              <p className="text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap">{comment.content}</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Replies Section */}
       {!isReply && comment.replies && comment.replies.length > 0 && (
         <div className="mt-4">
           <button
             onClick={toggleReplies}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors mb-3"
+            className="flex items-center gap-2 text-sm text-zinc-300 hover:text-neutral-200 transition-colors mb-3"
           >
             <ChevronDown
               className={`h-4 w-4 transition-transform ${expandedReplies[comment.id] ? "rotate-180" : ""}`}
@@ -812,11 +754,10 @@ function CommentItem({
                 />
               ))}
 
-              {/* Load More Replies */}
               {comment.hasMoreReplies && (
                 <button
                   onClick={() => onLoadMoreReplies(comment.id)}
-                  className="ml-12 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                  className="ml-12 text-sm text-blue-300 hover:text-blue-200 transition-colors"
                 >
                   Φόρτωση περισσότερων απαντήσεων...
                 </button>
@@ -826,8 +767,7 @@ function CommentItem({
         </div>
       )}
 
-      {/* Click outside to close actions */}
-      {showActions && <div className="fixed inset-0 z-5" onClick={() => setShowActions(false)} />}
+      {showActions && <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />}
     </div>
   )
 }

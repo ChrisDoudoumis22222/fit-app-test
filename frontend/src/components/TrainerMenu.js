@@ -1,4 +1,5 @@
-/* TrainerMenu.js – desktop rail + mobile nav  (2025‑07‑19) */
+/* TrainerMenu.js – desktop rail + mobile nav  (2025‑07‑25)
+   ----------------------------------------------------------------------- */
 
 "use client";
 
@@ -18,6 +19,38 @@ import {
   Home, CalendarDays, Briefcase as BriefcaseIcon,
   Settings as SettingsIcon, MoreHorizontal,
 } from "lucide-react";
+
+/* ------------------------------------------------------------------ */
+/*                              Avatars                               */
+/* ------------------------------------------------------------------ */
+const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
+
+const safeAvatar = (url) =>
+  url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : AVATAR_PLACEHOLDER;
+
+function Avatar({ url, className = "h-9 w-9", ring = false }) {
+  const ringCls = ring ? "ring-2 ring-white/20 shadow-lg" : "";
+  if (url) {
+    return (
+      <img
+        src={safeAvatar(url)}
+        alt="avatar"
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = AVATAR_PLACEHOLDER;
+        }}
+        className={`${className} rounded-full object-cover bg-white ${ringCls}`}
+      />
+    );
+  }
+  return (
+    <div className={`${className} rounded-full bg-white/10 flex items-center justify-center ${ringCls}`}>
+      <UserIcon className="h-4 w-4 text-gray-400" />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 
 const COLLAPSED = 72;
 const EXPANDED  = 240;
@@ -40,20 +73,25 @@ export default function TrainerMenu() {
     document.documentElement.style.setProperty("--side-w", `${w}px`);
   };
   useEffect(() => syncVar(open), [open]);
-  useEffect(() => { const h = () => { if (window.innerWidth < 1024) setOpen(false); syncVar(open); }; window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, [open]);
+  useEffect(() => { 
+    const h = () => { if (window.innerWidth < 1024) setOpen(false); syncVar(open); }; 
+    window.addEventListener("resize", h); 
+    return () => window.removeEventListener("resize", h); 
+  }, [open]);
   useEffect(() => setReady(true), []);
 
   if (!profileLoaded || !profile || profile.role !== "trainer") return null;
 
   /* nav data */
   const navMain = [
-    { id: "dash",  label: "Πίνακας",        href: "/trainer",            icon: BarChart3 },
-    { id: "serv",  label: "Υπηρεσίες",      href: "/trainer/services",   icon: Briefcase },
-    { id: "posts", label: "Αναρτήσεις",     href: "/trainer/posts",      icon: FileText  },
-    { id: "allp",  label: "Όλες οι Αναρτ.", href: "/posts",              icon: Globe    },
-    { id: "mark",  label: "Marketplace",    href: "/services",           icon: ShoppingBag },
-    { id: "books", label: "Κρατήσεις",      href: "/trainer/bookings",   icon: CalendarCheck },
-    { id: "pay",   label: "Πληρωμές",       href: "/trainer/payments",   icon: CreditCard },
+    { id: "dash",     label: "Πίνακας",        href: "/trainer",            icon: BarChart3 },
+    { id: "schedule", label: "Πρόγραμμα",      href: "/trainer/schedule",   icon: CalendarDays }, // 👈 NEW
+    { id: "serv",     label: "Υπηρεσίες",      href: "/trainer/services",   icon: Briefcase },
+    { id: "posts",    label: "Αναρτήσεις",     href: "/trainer/posts",      icon: FileText  },
+    { id: "allp",     label: "Όλες οι Αναρτ.", href: "/posts",              icon: Globe    },
+    { id: "mark",     label: "Marketplace",    href: "/services",           icon: ShoppingBag },
+    { id: "books",    label: "Κρατήσεις",      href: "/trainer/bookings",   icon: CalendarCheck },
+    { id: "pay",      label: "Πληρωμές",       href: "/trainer/payments",   icon: CreditCard },
   ];
   const navSettings = [
     { id: "profile",  label: "Πληροφορίες", href: "/trainer#profile",  icon: UserIcon },
@@ -63,9 +101,10 @@ export default function TrainerMenu() {
     { id: "security", label: "Ασφάλεια",    href: "/trainer#security", icon: ShieldCheck },
   ];
 
-  /* bottom nav buttons */
+  /* bottom nav buttons (mobile) */
   const bottomNav = [
     { href: "/trainer",           label: "Επισκόπηση", icon: Home },
+    { href: "/trainer/schedule",  label: "Πρόγραμμα",  icon: CalendarDays }, // 👈 NEW
     { href: "/trainer/services",  label: "Υπηρεσίες",  icon: BriefcaseIcon },
     { href: "/trainer/bookings",  label: "Κρατήσεις",  icon: CalendarDays },
     { href: "/trainer#profile",   label: "Ρυθμίσεις",  icon: SettingsIcon },
@@ -100,7 +139,7 @@ export default function TrainerMenu() {
           <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
         </div>
 
-        <img src={profile.avatar_url || undefined} alt="avatar" className="h-9 w-9 rounded-full object-cover bg-white" />
+        <Avatar url={profile.avatar_url} className="h-9 w-9" />
       </motion.header>
 
       {/* -------- MOBILE DRAWER -------- */}
@@ -121,7 +160,7 @@ export default function TrainerMenu() {
   );
 }
 
-/* ------------- Desktop rail helpers (unchanged) ------------- */
+/* ------------- Desktop rail helpers ------------- */
 function DesktopRail({ open, setOpen, ready, navMain, navSettings, active, profile, logout }) {
   return (
     <motion.aside
@@ -204,7 +243,8 @@ function NavList({ items, open, active }) {
 function FooterBlock({ open, profile, onLogout }) {
   return (
     <div className="flex items-center gap-3 p-4 hover:bg-white/10 cursor-pointer">
-      <img src={profile.avatar_url || undefined} alt="avatar" className="h-9 w-9 rounded-full object-cover bg-white" />
+      <Avatar url={profile.avatar_url} className="h-9 w-9" />
+
       <AnimatePresence>
         {open && (
           <motion.div
@@ -217,9 +257,10 @@ function FooterBlock({ open, profile, onLogout }) {
           </motion.div>
         )}
       </AnimatePresence>
+
       {open && (
         <button onClick={onLogout} className="ml-auto rounded-lg p-2 hover:bg-white/10">
-          <LogOut className="h-5 w-5 text-red-400" />
+          <LogOut className="h-4 w-4 text-red-400" />
         </button>
       )}
     </div>
@@ -258,14 +299,18 @@ function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, profile
   );
 }
 
-const Section = ({ children }) => <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">{children}</p>;
+const Section = ({ children }) => (
+  <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">{children}</p>
+);
 
 function DrawerHeader({ close }) {
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-800">
       <div className="flex items-center gap-3">
         <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
-        <span className="text-lg font-bold text-white">Trainer<span className="font-light text-gray-400">Hub</span></span>
+        <span className="text-lg font-bold text-white">
+          Trainer<span className="font-light text-gray-400">Hub</span>
+        </span>
       </div>
       <button onClick={close} className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10">
         <X className="h-5 w-5" />
@@ -298,16 +343,23 @@ function DrawerFooter({ profile, close, logout }) {
   return (
     <div className="space-y-4 bg-gradient-to-t from-black/90 to-black/70 p-4 shadow-inner">
       <div className="flex items-center gap-3">
-        <img src={profile.avatar_url || undefined} alt="avatar" className="h-11 w-11 rounded-full object-cover bg-white" />
+        <Avatar url={profile.avatar_url} className="h-11 w-11" ring />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-white">{profile.full_name || "Trainer"}</p>
           <p className="truncate text-xs text-gray-400">{profile.email}</p>
         </div>
       </div>
-      <Link to="/trainer#profile" onClick={close} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800">
+      <Link
+        to="/trainer#profile"
+        onClick={close}
+        className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800"
+      >
         <Settings className="h-5 w-5" /> Ρυθμίσεις προφίλ
       </Link>
-      <button onClick={() => { logout(); close(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-800/20 px-4 py-3 text-red-300 hover:bg-red-700/30">
+      <button
+        onClick={() => { logout(); close(); }}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-800/20 px-4 py-3 text-red-300 hover:bg-red-700/30"
+      >
         <LogOut className="h-5 w-5" /> Αποσύνδεση
       </button>
     </div>
@@ -316,10 +368,9 @@ function DrawerFooter({ profile, close, logout }) {
 
 /* ------------- Bottom nav ------------- */
 function NavBtn({ href, label, icon: Icon, active, onClick }) {
-  const cls = active ? "text-indigo-400" : "text-white/60 hover:bg-white/10";
+  const cls  = active ? "text-indigo-400" : "text-white/60 hover:bg-white/10";
   const base = "flex flex-1 flex-col items-center justify-center gap-1 py-3";
   const body = (<><Icon className="h-6 w-6" /><span className="text-xs font-medium">{label}</span></>);
-
   return href ? (
     <Link to={href} className={`${base} ${cls}`}>{body}</Link>
   ) : (

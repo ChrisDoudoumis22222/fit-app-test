@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Shield,
   AlertCircle,
+  User as UserIcon, // 👈 for fallback avatar icon
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { supabase } from "../supabaseClient"
@@ -31,6 +32,32 @@ import TrainerMenu from "../components/TrainerMenu"
 import { SERVICE_PLACEHOLDER } from "../utils/placeholderServiceImg"
 
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar"
+
+/* ---------- shared avatar helpers (same idea as in UserMenu) ---------- */
+const safeAvatar = (url) =>
+  url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : AVATAR_PLACEHOLDER
+
+function Avatar({ url, alt = "avatar", className = "w-16 h-16", ring = true }) {
+  const ringCls = ring ? "ring-2 ring-white/20 shadow-lg" : ""
+  if (url) {
+    return (
+      <img
+        src={safeAvatar(url)}
+        alt={alt}
+        onError={(e) => {
+          e.currentTarget.onerror = null
+          e.currentTarget.src = AVATAR_PLACEHOLDER
+        }}
+        className={`${className} rounded-full object-cover bg-white ${ringCls}`}
+      />
+    )
+  }
+  return (
+    <div className={`${className} rounded-full bg-white/10 flex items-center justify-center ${ringCls}`}>
+      <UserIcon className="h-6 w-6 text-gray-400" />
+    </div>
+  )
+}
 
 export default function ServiceDetailPage() {
   /* -------------------- Router & Auth -------------------- */
@@ -293,7 +320,7 @@ export default function ServiceDetailPage() {
           </motion.button>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* ---------------- Enhanced Left column ---------------- */}
+          {/* ---------------- Enhanced Left column ---------------- */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -492,11 +519,8 @@ export default function ServiceDetailPage() {
                 <div className="mb-6 pb-6 border-b border-white/10">
                   <div className="flex items-start gap-4">
                     <div className="relative">
-                      <img
-                        src={trainer.avatar_url || AVATAR_PLACEHOLDER}
-                        alt={trainer.full_name}
-                        className="w-16 h-16 rounded-full object-cover ring-2 ring-white/20 shadow-lg"
-                      />
+                      {/* 👇 use Avatar component (fallback to placeholder/User icon) */}
+                      <Avatar url={trainer.avatar_url} alt={trainer.full_name} className="w-16 h-16" ring />
                       <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-400 rounded-full border-2 border-black flex items-center justify-center">
                         <Shield className="h-2.5 w-2.5 text-black" />
                       </div>

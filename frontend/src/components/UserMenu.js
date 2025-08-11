@@ -1,4 +1,4 @@
-/* UserMenu.js – black‑glass rail + bottom nav  (2025‑07‑19)
+/* UserMenu.js – black‑glass rail + bottom nav  (2025‑07‑25)
    ----------------------------------------------------------------------- */
 
 "use client";
@@ -23,6 +23,39 @@ import {
 const COLLAPSED = 72;
 const EXPANDED  = 240;
 const LOGO_SRC  = "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
+
+/* ------------------------------------------------------------------ */
+/*                              Avatars                               */
+/* ------------------------------------------------------------------ */
+
+/** Same placeholder used in ServicesMarketplacePage when an image fails */
+const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
+
+/** add a cache‑busting param when we DO have a URL */
+const safeAvatar = (url) =>
+  url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : AVATAR_PLACEHOLDER;
+
+/** Re‑usable avatar component
+ *  • shows the user’s image (with fallback to placeholder.svg), OR
+ *  • if no image URL exists, shows the Lucide <User/> icon inside a soft circle
+ */
+function Avatar({ url, className = "h-9 w-9" }) {
+  if (url) {
+    return (
+      <img
+        src={safeAvatar(url)}
+        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = AVATAR_PLACEHOLDER; }}
+        alt="avatar"
+        className={`${className} rounded-full object-cover bg-white`}
+      />
+    );
+  }
+  return (
+    <div className={`${className} rounded-full bg-white/10 flex items-center justify-center`}>
+      <UserIcon className="h-4 w-4 text-gray-400" />
+    </div>
+  );
+}
 
 document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
 
@@ -97,7 +130,7 @@ export default function UserMenu() {
           <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
         </div>
 
-        <img src={profile.avatar_url || undefined} alt="avatar" className="h-9 w-9 rounded-full object-cover bg-white" />
+        <Avatar url={profile.avatar_url} className="h-9 w-9" />
       </motion.header>
 
       {/* -------- Mobile drawer (opens from bottom bar) -------- */}
@@ -201,7 +234,8 @@ function NavList({ items, open, active }) {
 function FooterBlock({ open, profile, onLogout }) {
   return (
     <div className="flex items-center gap-3 p-4 hover:bg-white/10 cursor-pointer">
-      <img src={profile.avatar_url || undefined} alt="avatar" className="h-9 w-9 rounded-full object-cover bg-white" />
+      <Avatar url={profile.avatar_url} className="h-9 w-9" />
+
       <AnimatePresence>
         {open && (
           <motion.div
@@ -214,6 +248,7 @@ function FooterBlock({ open, profile, onLogout }) {
           </motion.div>
         )}
       </AnimatePresence>
+
       {open && (
         <button onClick={onLogout} className="ml-auto rounded-lg p-2 hover:bg-white/10">
           <LogOut className="h-4 w-4 text-red-400" />
@@ -256,14 +291,18 @@ function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, profile
   );
 }
 
-const Section = ({ children }) => <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">{children}</p>;
+const Section = ({ children }) => (
+  <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">{children}</p>
+);
 
 function DrawerHeader({ close }) {
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-800">
       <div className="flex items-center gap-3">
         <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
-        <span className="text-lg font-bold text-white">User<span className="font-light text-gray-400">Hub</span></span>
+        <span className="text-lg font-bold text-white">
+          User<span className="font-light text-gray-400">Hub</span>
+        </span>
       </div>
       <button onClick={close} className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10">
         <X className="h-5 w-5" />
@@ -296,16 +335,31 @@ function DrawerFooter({ profile, close, logout }) {
   return (
     <div className="space-y-4 bg-gradient-to-t from-black/90 to-black/70 p-4 shadow-inner">
       <div className="flex items-center gap-3">
-        <img src={profile.avatar_url || undefined} alt="avatar" className="h-11 w-11 rounded-full object-cover bg-white" />
+        <Avatar url={profile.avatar_url} className="h-11 w-11" />
+
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-white">{profile.full_name || "Χρήστης"}</p>
+          <p className="truncate text-sm font-medium text-white">
+            {profile.full_name || "Χρήστης"}
+          </p>
           <p className="truncate text-xs text-gray-400">{profile.email}</p>
         </div>
       </div>
-      <Link to="/user#profile" onClick={close} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800">
+
+      <Link
+        to="/user#profile"
+        onClick={close}
+        className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800"
+      >
         <Settings className="h-5 w-5" /> Ρυθμίσεις προφίλ
       </Link>
-      <button onClick={() => { logout(); close(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-800/20 px-4 py-3 text-red-300 hover:bg-red-700/30">
+
+      <button
+        onClick={() => {
+          logout();
+          close();
+        }}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-800/20 px-4 py-3 text-red-300 hover:bg-red-700/30"
+      >
         <LogOut className="h-5 w-5" /> Αποσύνδεση
       </button>
     </div>

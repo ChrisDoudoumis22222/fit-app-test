@@ -1,26 +1,26 @@
 "use client"
-
-import { useEffect, useState } from "react"
+import { useEffect, useState, memo } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
-  ArrowLeft,
   Calendar,
   MapPin,
-  Phone,
   Award,
   Clock,
   Heart,
   Share2,
   MessageCircle,
-  Eye,
   User,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
   ExternalLink,
   Loader2,
   AlertCircle,
+  Star,
+  Zap,
+  Activity,
 } from "lucide-react"
-
+import { motion } from "framer-motion"
 import { supabase } from "../supabaseClient"
 import { useAuth } from "../AuthProvider"
 import UserMenu from "../components/UserMenu"
@@ -30,11 +30,183 @@ import CommentsSection from "../components/CommentsSection"
 const POST_PLACEHOLDER = "/placeholder.svg?height=400&width=600&text=Post+Image"
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=80&width=80&text=Avatar"
 
+/* Enhanced Athletic Background - Matching the dashboard style */
+const AthleticBackground = memo(() => (
+  <>
+    <style>{`
+      @keyframes pulse-performance {
+         0%, 100% { opacity: 0.1; transform: scale(1); }
+         50% { opacity: 0.3; transform: scale(1.05); }
+       }
+      @keyframes drift-metrics {
+         0% { transform: translateX(-100px) translateY(0px); }
+         50% { transform: translateX(50px) translateY(-30px); }
+         100% { transform: translateX(100px) translateY(0px); }
+       }
+      @keyframes athletic-grid {
+         0% { transform: translate(0, 0) rotate(0deg); }
+         100% { transform: translate(60px, 60px) rotate(0.5deg); }
+       }
+      @keyframes performance-wave {
+        0% { transform: translateY(0px) scaleY(1); }
+        50% { transform: translateY(-10px) scaleY(1.1); }
+        100% { transform: translateY(0px) scaleY(1); }
+      }
+      @keyframes data-flow {
+         0% { transform: translateX(-100%) translateY(0px); opacity: 0; }
+         50% { opacity: 0.3; }
+         100% { transform: translateX(100vw) translateY(-20px); opacity: 0; }
+       }
+    `}</style>
+    <div
+      className="fixed inset-0 z-0 pointer-events-none opacity-15"
+      style={{
+        backgroundImage: `
+          linear-gradient(rgba(113,113,122,0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(113,113,122,0.08) 1px, transparent 1px)
+        `,
+        backgroundSize: "60px 60px",
+        animation: "athletic-grid 25s linear infinite",
+        maskImage: "radial-gradient(circle at 50% 50%, black 0%, transparent 75%)",
+      }}
+    />
+    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+      <div
+        className="absolute top-1/5 left-1/5 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-zinc-600/8 rounded-full blur-3xl"
+        style={{ animation: "pulse-performance 12s ease-in-out infinite" }}
+      />
+      <div
+        className="absolute top-3/5 right-1/5 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-gray-700/8 rounded-full blur-3xl"
+        style={{ animation: "pulse-performance 15s ease-in-out infinite reverse" }}
+      />
+      <div
+        className="absolute top-1/2 left-1/2 w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] bg-zinc-800/8 rounded-full blur-3xl"
+        style={{ animation: "drift-metrics 20s ease-in-out infinite" }}
+      />
+    </div>
+    <div className="fixed inset-0 z-0 pointer-events-none">
+      <svg className="w-full h-full opacity-5" viewBox="0 0 1200 800">
+        <path
+          d="M0,400 Q300,350 600,400 T1200,400"
+          stroke="rgba(113,113,122,0.3)"
+          strokeWidth="2"
+          fill="none"
+          style={{ animation: "performance-wave 8s ease-in-out infinite" }}
+        />
+        <path
+          d="M0,450 Q300,400 600,450 T1200,450"
+          stroke="rgba(113,113,122,0.2)"
+          strokeWidth="1"
+          fill="none"
+          style={{ animation: "performance-wave 10s ease-in-out infinite reverse" }}
+        />
+      </svg>
+    </div>
+    <div className="fixed inset-0 z-0 pointer-events-none">
+      {[...Array(5)].map((_, i) => (
+        <div
+          key={i}
+          className="absolute w-2 h-0.5 bg-gradient-to-r from-transparent via-zinc-500/20 to-transparent"
+          style={{
+            top: `${20 + i * 15}%`,
+            animation: `data-flow ${8 + i * 2}s linear infinite`,
+            animationDelay: `${i * 1.5}s`,
+          }}
+        />
+      ))}
+    </div>
+  </>
+))
+
+/* Animated Counter Component */
+const AnimatedCounter = memo(({ value, duration = 1000 }) => {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    let start = 0
+    const end = Number.parseInt(value) || 0
+    if (start === end) return
+
+    const timer = setInterval(() => {
+      start += Math.ceil(end / (duration / 16))
+      if (start >= end) {
+        setCount(end)
+        clearInterval(timer)
+      } else {
+        setCount(start)
+      }
+    }, 16)
+
+    return () => clearInterval(timer)
+  }, [value, duration])
+
+  return <span>{count}</span>
+})
+
+/* Small, consistent stat chip */
+const StatChip = ({ icon: Icon, count, tint = "neutral", size = "md" }) => {
+  const pad = size === "sm" ? "px-2.5 py-1" : "px-3 py-1.5"
+  const text = size === "sm" ? "text-xs" : "text-sm"
+  const iconTint =
+    tint === "like" ? "text-red-400" : tint === "comment" ? "text-blue-400" : "text-white/80"
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full
+                  border border-white/15 bg-black/35 text-white/90
+                  backdrop-blur-md shadow-sm ${pad} ${text}`}
+    >
+      <Icon className={`h-4 w-4 ${iconTint}`} />
+      <span>{count}</span>
+    </span>
+  )
+}
+
+/* Star Rating like the Marketplace page (supports half stars) */
+function StarRating({ rating = 0, reviewCount = 0, size = "sm" }) {
+  const starSize = size === "lg" ? "h-5 w-5" : "h-4 w-4"
+  const full = Math.floor(rating)
+  const half = rating % 1 >= 0.5
+  const empty = 5 - full - (half ? 1 : 0)
+
+  const stars = []
+  for (let i = 0; i < full; i++) {
+    stars.push(<Star key={`full-${i}`} className={`${starSize} fill-yellow-400 text-yellow-400`} />)
+  }
+  if (half) {
+    stars.push(
+      <div key="half" className={`relative ${starSize}`}>
+        <Star className={`${starSize} text-zinc-600 absolute`} />
+        <div className="overflow-hidden w-1/2">
+          <Star className={`${starSize} fill-yellow-400 text-yellow-400`} />
+        </div>
+      </div>,
+    )
+  }
+  for (let i = 0; i < empty; i++) {
+    stars.push(<Star key={`empty-${i}`} className={`${starSize} text-zinc-600`} />)
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">{stars}</div>
+      <span className={`${size === "lg" ? "text-base" : "text-sm"} text-zinc-400`}>
+        {rating > 0 ? (
+          <>
+            {rating.toFixed(1)} ({reviewCount} {reviewCount === 1 ? "κριτική" : "κριτικές"})
+          </>
+        ) : (
+          "Χωρίς κριτικές"
+        )}
+      </span>
+    </div>
+  )
+}
+
+/* Page */
 export default function PostDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { profile, loading: authLoading } = useAuth()
-
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -44,6 +216,8 @@ export default function PostDetailPage() {
   const [isLiking, setIsLiking] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [commentsCount, setCommentsCount] = useState(0)
+  const [touchStart, setTouchStart] = useState(null)
+  const [touchEnd, setTouchEnd] = useState(null)
 
   const Menu = profile?.role === "trainer" ? TrainerMenu : UserMenu
 
@@ -61,7 +235,6 @@ export default function PostDetailPage() {
               avatar_url,
               bio,
               specialty,
-              phone,
               location,
               experience_years,
               created_at
@@ -73,18 +246,33 @@ export default function PostDetailPage() {
         if (error) {
           setError(error.message)
         } else {
-          setPost(data)
-          setLikeCount(data.likes || 0)
-          setCommentsCount(data.comments_count || 0)
+          // compute rating + reviews from trainer_reviews like the marketplace page
+          let trainerData = data.trainer ?? {}
+          if (trainerData?.id) {
+            const { data: revs } = await supabase
+              .from("trainer_reviews")
+              .select("rating")
+              .eq("trainer_id", trainerData.id)
 
-          // Check if user has liked this post
-          if (profile?.id) {
-            const likedPosts = JSON.parse(localStorage.getItem(`liked_posts_${profile.id}`) || "[]")
-            setIsLiked(likedPosts.includes(data.id))
+            const ratings = (revs ?? [])
+              .map((r) => Number(r.rating))
+              .filter((n) => !Number.isNaN(n))
+            const reviewCount = ratings.length
+            const avgRating = reviewCount ? ratings.reduce((a, b) => a + b, 0) / reviewCount : 0
+            trainerData = { ...trainerData, rating: avgRating, reviewCount }
           }
 
-          if (data.trainer_id) {
-            fetchRelatedPosts(data.trainer_id, id)
+          const updated = { ...data, trainer: trainerData }
+          setPost(updated)
+          setLikeCount(updated.likes || 0)
+          setCommentsCount(updated.comments_count || 0)
+
+          if (profile?.id) {
+            const likedPosts = JSON.parse(localStorage.getItem(`liked_posts_${profile.id}`) || "[]")
+            setIsLiked(likedPosts.includes(updated.id))
+          }
+          if (updated.trainer_id) {
+            fetchRelatedPosts(updated.trainer_id, id)
           }
         }
       } catch (err) {
@@ -120,36 +308,29 @@ export default function PostDetailPage() {
       alert("Παρακαλώ συνδεθείτε για να κάνετε like")
       return
     }
-
     if (isLiking) return
 
     setIsLiking(true)
-
     try {
       const likedPosts = JSON.parse(localStorage.getItem(`liked_posts_${profile.id}`) || "[]")
-
       if (isLiked) {
-        // Unlike
         const { error } = await supabase.rpc("decrement_likes", { post_id: id })
         if (error) {
           const { data: currentPost } = await supabase.from("posts").select("likes").eq("id", id).single()
           const newLikes = Math.max(0, (currentPost?.likes || 1) - 1)
           await supabase.from("posts").update({ likes: newLikes }).eq("id", id)
         }
-
         const updatedLikedPosts = likedPosts.filter((postId) => postId !== id)
         localStorage.setItem(`liked_posts_${profile.id}`, JSON.stringify(updatedLikedPosts))
         setIsLiked(false)
         setLikeCount((prev) => Math.max(0, prev - 1))
       } else {
-        // Like
         const { error } = await supabase.rpc("increment_likes", { post_id: id })
         if (error) {
           const { data: currentPost } = await supabase.from("posts").select("likes").eq("id", id).single()
           const newLikes = (currentPost?.likes || 0) + 1
           await supabase.from("posts").update({ likes: newLikes }).eq("id", id)
         }
-
         const updatedLikedPosts = [...likedPosts, id]
         localStorage.setItem(`liked_posts_${profile.id}`, JSON.stringify(updatedLikedPosts))
         setIsLiked(true)
@@ -182,7 +363,7 @@ export default function PostDetailPage() {
       try {
         await navigator.clipboard.writeText(window.location.href)
         alert("Ο σύνδεσμος αντιγράφηκε στο clipboard!")
-      } catch (clipboardErr) {
+      } catch {
         alert("Δεν ήταν δυνατή η κοινοποίηση")
       }
     }
@@ -202,30 +383,42 @@ export default function PostDetailPage() {
     const now = new Date()
     const postDate = new Date(dateString)
     const diffInHours = Math.floor((now - postDate) / (1000 * 60 * 60))
-
     if (diffInHours < 1) return "Μόλις τώρα"
     if (diffInHours < 24) return `${diffInHours}ω πριν`
     if (diffInHours < 48) return "Χθες"
-
     const diffInDays = Math.floor(diffInHours / 24)
     if (diffInDays < 7) return `${diffInDays} μέρες πριν`
-
     return formatDate(dateString)
   }
 
-  const handleCommentCountUpdate = (newCount) => {
-    setCommentsCount(newCount)
-  }
+  const handleCommentCountUpdate = (newCount) => setCommentsCount(newCount)
 
+  /* Loading */
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
+        <AthleticBackground />
         <Menu />
         <div className="flex items-center justify-center h-[75vh]">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-            <p className="text-gray-500">Φόρτωση ανάρτησης...</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center gap-6 p-8 rounded-3xl border border-zinc-700/50"
+            style={{
+              background: "rgba(0,0,0,0.4)",
+              backdropFilter: "blur(20px) saturate(160%)",
+              WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            }}
+          >
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin text-zinc-400" />
+              <div className="absolute inset-0 h-12 w-12 animate-ping rounded-full bg-zinc-400/20" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-semibold text-zinc-100">Φόρτωση ανάρτησης</h3>
+              <p className="text-zinc-400">Προετοιμασία του περιεχομένου...</p>
+            </div>
+          </motion.div>
         </div>
       </div>
     )
@@ -233,20 +426,31 @@ export default function PostDetailPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
+        <AthleticBackground />
         <Menu />
         <div className="flex items-center justify-center h-[75vh]">
-          <div className="text-center p-8 rounded-2xl bg-red-50 border border-red-200 max-w-md">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-red-800 mb-2">Σφάλμα φόρτωσης</h3>
-            <p className="text-red-600 mb-4">{error}</p>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center p-8 rounded-3xl max-w-md border border-red-500/30"
+            style={{
+              background: "rgba(0,0,0,0.4)",
+              backdropFilter: "blur(20px) saturate(160%)",
+              WebkitBackdropFilter: "blur(20px) saturate(160%)",
+              boxShadow: "0 8px 32px rgba(220, 38, 38, 0.2)",
+            }}
+          >
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-red-400 mb-2">Σφάλμα φόρτωσης</h3>
+            <p className="text-red-300 mb-4">{error}</p>
             <button
               onClick={() => navigate(-1)}
-              className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
+              className="px-6 py-3 bg-red-600/20 text-red-200 rounded-xl hover:bg-red-600/30 transition-all duration-300 font-medium border border-red-500/30"
             >
               Επιστροφή
             </button>
-          </div>
+          </motion.div>
         </div>
       </div>
     )
@@ -254,19 +458,29 @@ export default function PostDetailPage() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
+        <AthleticBackground />
         <Menu />
         <div className="flex items-center justify-center h-[75vh]">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Η ανάρτηση δεν βρέθηκε</h3>
-            <p className="text-gray-500 mb-4">Η ανάρτηση που ψάχνετε δεν υπάρχει ή έχει διαγραφεί.</p>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center p-8 rounded-3xl max-w-md border border-zinc-700/50"
+            style={{
+              background: "rgba(0,0,0,0.4)",
+              backdropFilter: "blur(20px) saturate(160%)",
+              WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            }}
+          >
+            <h3 className="text-xl font-semibold text-zinc-100 mb-2">Η ανάρτηση δεν βρέθηκε</h3>
+            <p className="text-zinc-400 mb-4">Η ανάρτηση που ψάχνετε δεν υπάρχει ή έχει διαγραφεί.</p>
             <button
               onClick={() => navigate("/posts")}
-              className="px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-colors font-medium"
+              className="px-6 py-3 bg-zinc-700/20 text-zinc-100 rounded-xl hover:bg-zinc-600/30 transition-all duration-300 font-medium border border-zinc-600/30"
             >
               Προβολή όλων των αναρτήσεων
             </button>
-          </div>
+          </motion.div>
         </div>
       </div>
     )
@@ -276,246 +490,316 @@ export default function PostDetailPage() {
   const images = post.image_urls?.length ? post.image_urls : [post.image_url].filter(Boolean)
   const hasMultipleImages = images.length > 1
 
+  const handleTouchStart = (e) => {
+    setTouchEnd(null)
+    setTouchStart(e.targetTouches[0].clientX)
+  }
+  const handleTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX)
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return
+    const distance = touchStart - touchEnd
+    const isLeftSwipe = distance > 50
+    const isRightSwipe = distance < -50
+    if (isLeftSwipe && currentImageIndex < images.length - 1) setCurrentImageIndex((p) => p + 1)
+    if (isRightSwipe && currentImageIndex > 0) setCurrentImageIndex((p) => p - 1)
+  }
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
+      <AthleticBackground />
       <Menu />
 
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 mb-6 px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl hover:bg-white hover:shadow-md transition-all duration-200 text-gray-700 font-medium"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Επιστροφή
-        </button>
-
+      <main className="mx-auto max-w-6xl px-4 py-8">
         {/* Main Post Card */}
-        <article
-          className="relative overflow-hidden rounded-3xl shadow-xl ring-1 ring-gray-200 mb-8"
+        <motion.article
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="relative overflow-hidden rounded-3xl shadow-2xl border border-zinc-700/50 mb-8 hover:border-zinc-600/70 transition-all duration-500"
           style={{
-            background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-            backdropFilter: "blur(20px) saturate(180%)",
-            WebkitBackdropFilter: "blur(20px) saturate(180%)",
-            boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
           }}
         >
-          {/* Hero Image Section */}
+          {/* Hero with images */}
           {images.length > 0 && (
-            <div className="relative h-96 overflow-hidden">
-              <img
-                src={images[currentImageIndex] || POST_PLACEHOLDER}
-                alt={post.title}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <div className="relative h-[60vh] overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
+              <div
+                className="relative w-full h-full flex transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(-${currentImageIndex * 100}%)` }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
+                {images.map((image, idx) => (
+                  <motion.img
+                    key={idx}
+                    src={image || POST_PLACEHOLDER}
+                    alt={`${post.title} - Image ${idx + 1}`}
+                    className="w-full h-full object-cover flex-shrink-0"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5 }}
+                  />
+                ))}
+              </div>
 
-              {/* Image Navigation */}
+              {/* Arrows + dots */}
               {hasMultipleImages && (
                 <>
-                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/70 rounded-full text-white text-sm font-medium">
-                    {currentImageIndex + 1} / {images.length}
+                  {currentImageIndex > 0 && (
+                    <button
+                      onClick={() => setCurrentImageIndex((prev) => prev - 1)}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all duration-200"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                  )}
+
+                  {currentImageIndex < images.length - 1 && (
+                    <button
+                      onClick={() => setCurrentImageIndex((prev) => prev + 1)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all duration-200"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  )}
+
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+                    <div className="flex gap-2">
+                      {images.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentImageIndex(idx)}
+                          className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                            idx === currentImageIndex ? "bg-white scale-125" : "bg-white/50 hover:bg-white/70"
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="absolute bottom-4 right-4 flex gap-2">
-                    {images.map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setCurrentImageIndex(idx)}
-                        className={`w-2 h-2 rounded-full transition-all ${
-                          idx === currentImageIndex ? "bg-white" : "bg-white/50"
-                        }`}
-                      />
-                    ))}
+
+                  <div className="absolute top-6 right-6 z-20">
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 text-white text-sm font-medium">
+                      {currentImageIndex + 1} / {images.length}
+                    </span>
                   </div>
                 </>
               )}
 
-              {/* Like Badge */}
-              {likeCount > 0 && (
-                <div className="absolute top-4 right-4">
-                  <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-red-500/90 backdrop-blur-sm text-white text-sm font-medium shadow-lg">
-                    <Heart className="h-4 w-4 fill-current" />
-                    {likeCount}
-                  </span>
-                </div>
-              )}
+              {/* Stats overlay */}
+              <div className="absolute top-6 left-6 z-20 flex gap-3">
+                <StatChip icon={Heart} count={<AnimatedCounter value={likeCount} />} tint="like" />
+                <StatChip icon={MessageCircle} count={<AnimatedCounter value={commentsCount} />} tint="comment" />
+              </div>
 
-              {/* Comments Badge */}
-              {commentsCount > 0 && (
-                <div className="absolute top-4 left-4">
-                  <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-500/90 backdrop-blur-sm text-white text-sm font-medium shadow-lg">
-                    <MessageCircle className="h-4 w-4" />
-                    {commentsCount}
-                  </span>
-                </div>
-              )}
+              {/* Title overlay */}
+              <div className="absolute bottom-8 left-8 right-8 z-20">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 backdrop-blur-xl border border-blue-500/30 text-blue-200 text-sm font-medium">
+                      <Calendar className="h-4 w-4" />
+                      {formatRelativeTime(post.created_at)}
+                    </span>
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-bold text-zinc-100 leading-tight drop-shadow-lg">
+                    {post.title}
+                  </h1>
+                </motion.div>
+              </div>
             </div>
           )}
 
           {/* Content */}
-          <div className="p-8">
-            {/* Post Meta */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-gray-50 to-gray-100 ring-1 ring-gray-200/50">
-                <Calendar className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">{formatRelativeTime(post.created_at)}</span>
-              </div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-50 to-blue-100 ring-1 ring-blue-200/50">
-                <Eye className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-700">Προβολή λεπτομερειών</span>
-              </div>
-            </div>
+          <div className="p-8 md:p-12">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="max-w-none mb-8"
+            >
+              <p className="text-zinc-300 leading-relaxed text-lg whitespace-pre-wrap">{post.description}</p>
+            </motion.div>
 
-            {/* Title */}
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-black bg-clip-text text-transparent leading-tight mb-6">
-              {post.title}
-            </h1>
-
-            {/* Description */}
-            <div className="prose prose-lg max-w-none mb-8">
-              <p className="text-gray-600 leading-relaxed text-lg whitespace-pre-wrap">{post.description}</p>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-4 mb-8 pb-8 border-b border-gray-200">
-              <button
+            {/* Actions */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="flex flex-wrap items-center gap-4 p-6 rounded-2xl bg-black/20 backdrop-blur-xl border border-zinc-700/50 mb-8"
+            >
+              <motion.button
                 onClick={handleLike}
                 disabled={isLiking || !profile?.id}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
                   isLiked
-                    ? "bg-red-500 text-white hover:bg-red-600 shadow-lg"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-red-500/20 text-red-200 border border-red-500/30 hover:bg-red-500/30 shadow-lg shadow-red-500/25"
+                    : "bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50"
                 } ${isLiking ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""} ${isLiking ? "animate-pulse" : ""}`} />
-                {likeCount > 0 ? likeCount : "Αρέσει"}
-              </button>
+                <AnimatedCounter value={likeCount} />
+              </motion.button>
 
-              <button
+              <motion.button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-6 py-3 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition-all duration-200 font-medium"
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/30 rounded-xl font-medium transition-all duration-300 shadow-lg shadow-emerald-500/25"
               >
                 <Share2 className="h-5 w-5" />
                 Κοινοποίηση
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
                 onClick={() => document.getElementById("comments")?.scrollIntoView({ behavior: "smooth" })}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-all duration-200 font-medium"
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-xl font-medium transition-all duration-300 shadow-lg shadow-blue-500/25"
               >
                 <MessageCircle className="h-5 w-5" />
-                Σχόλια ({commentsCount || 0})
-              </button>
-            </div>
+                Σχόλια (<AnimatedCounter value={commentsCount} />)
+              </motion.button>
+            </motion.div>
 
             {/* Trainer Card */}
-            <div
-              className="relative overflow-hidden rounded-2xl shadow-lg ring-1 ring-gray-200 p-6"
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="relative overflow-hidden rounded-2xl border border-zinc-700/50 p-8 hover:border-zinc-600/70 transition-all duration-300"
               style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-                backdropFilter: "blur(20px) saturate(180%)",
-                WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                background: "rgba(0,0,0,0.4)",
+                backdropFilter: "blur(20px) saturate(160%)",
+                WebkitBackdropFilter: "blur(20px) saturate(160%)",
               }}
             >
               <div className="flex items-start gap-6">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden ring-4 ring-white shadow-lg">
+                  <div className="w-24 h-24 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden ring-4 ring-zinc-700/50 shadow-2xl border border-zinc-700/50">
                     {trainer.avatar_url ? (
                       <img
                         src={trainer.avatar_url || "/placeholder.svg"}
                         alt={trainer.full_name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src = AVATAR_PLACEHOLDER
+                        }}
                       />
                     ) : (
-                      <User className="h-8 w-8 text-gray-400" />
+                      <User className="h-10 w-10 text-zinc-400" />
                     )}
                   </div>
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
-                    <Award className="h-3 w-3 text-white" />
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-black flex items-center justify-center shadow-lg">
+                    <Award className="h-4 w-4 text-white" />
                   </div>
                 </div>
 
                 <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    {trainer.full_name || trainer.email || "Unknown Trainer"}
-                  </h3>
+                  {/* Name is clickable. Services button removed. Phone removed. Rating added like reference. */}
+                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <button
+                      onClick={() => navigate(`/trainer/${trainer.id}`)}
+                      className="text-left text-2xl font-bold text-zinc-100 hover:text-white hover:underline underline-offset-4 decoration-zinc-500"
+                    >
+                      {trainer.full_name || trainer.email || "Unknown Trainer"}
+                    </button>
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-sm font-medium">
+                      <Star className="h-3 w-3 fill-current" />
+                      Pro
+                    </span>
+                    <StarRating rating={Number(trainer.rating) || 0} reviewCount={Number(trainer.reviewCount) || 0} />
+                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {trainer.specialty && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Award className="h-4 w-4 text-blue-500" />
+                      <div className="flex items-center gap-3 text-zinc-300">
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                          <Award className="h-4 w-4 text-blue-400" />
+                        </div>
                         <span>{trainer.specialty}</span>
                       </div>
                     )}
-
                     {trainer.experience_years && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Clock className="h-4 w-4 text-green-500" />
+                      <div className="flex items-center gap-3 text-zinc-300">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                          <Clock className="h-4 w-4 text-emerald-400" />
+                        </div>
                         <span>{trainer.experience_years} χρόνια εμπειρίας</span>
                       </div>
                     )}
-
                     {trainer.location && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="h-4 w-4 text-red-500" />
+                      <div className="flex items-center gap-3 text-zinc-300">
+                        <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center">
+                          <MapPin className="h-4 w-4 text-rose-400" />
+                        </div>
                         <span>{trainer.location}</span>
                       </div>
                     )}
-
-                    {trainer.phone && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Phone className="h-4 w-4 text-purple-500" />
-                        <span>{trainer.phone}</span>
-                      </div>
-                    )}
+                    {/* Phone removed */}
                   </div>
 
-                  {trainer.bio && <p className="text-gray-600 text-sm leading-relaxed mb-4 italic">{trainer.bio}</p>}
+                  {trainer.bio && <p className="text-zinc-300 text-sm leading-relaxed mb-6 italic">{trainer.bio}</p>}
 
-                  <div className="flex gap-3">
-                    <button
+                  <div className="flex gap-4">
+                    <motion.button
                       onClick={() => navigate(`/trainer/${trainer.id}/posts`)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-colors font-medium text-sm"
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="flex items-center gap-2 px-6 py-3 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-xl font-medium transition-all duration-300"
                     >
                       <ExternalLink className="h-4 w-4" />
                       Όλες οι αναρτήσεις
-                    </button>
-                    {profile?.role === "user" && (
-                      <button
-                        onClick={() => navigate("/services")}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        Υπηρεσίες
-                      </button>
-                    )}
+                    </motion.button>
+                    {/* Services button removed */}
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </article>
+        </motion.article>
 
-        {/* Comments Section */}
-        <div id="comments">
+        {/* Comments */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          id="comments"
+        >
           <CommentsSection
             postId={id}
             initialCommentsCount={commentsCount}
             onCommentCountUpdate={handleCommentCountUpdate}
           />
-        </div>
+        </motion.div>
 
         {/* Related Posts */}
         {relatedPosts.length > 0 && (
-          <section className="mt-12">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                <Sparkles className="h-6 w-6 text-gray-600" />
-                Περισσότερα από αυτόν τον προπονητή
-              </h2>
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.0 }}
+            className="mt-12"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-blue-400" />
+                <h2 className="text-2xl font-bold text-zinc-100">Περισσότερα από αυτόν τον προπονητή</h2>
+              </div>
               <button
                 onClick={() => navigate(`/trainer/${trainer.id}/posts`)}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+                className="flex items-center gap-2 text-zinc-300 hover:text-zinc-100 transition-colors"
               >
                 <span className="text-sm font-medium">Προβολή όλων</span>
                 <ChevronRight className="h-4 w-4" />
@@ -523,37 +807,48 @@ export default function PostDetailPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {relatedPosts.map((relatedPost) => (
-                <RelatedPostCard key={relatedPost.id} post={relatedPost} onNavigate={navigate} />
+              {relatedPosts.map((relatedPost, index) => (
+                <RelatedPostCard key={relatedPost.id} post={relatedPost} onNavigate={navigate} index={index} />
               ))}
             </div>
-          </section>
+          </motion.section>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex gap-4 mt-12 justify-center">
-          <button
+        {/* Bottom Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1 }}
+          className="flex flex-col sm:flex-row gap-4 mt-12 justify-center"
+        >
+          <motion.button
             onClick={() => navigate("/posts")}
-            className="px-8 py-4 bg-gray-800 text-white rounded-2xl hover:bg-gray-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-2 px-8 py-4 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-2xl font-medium transition-all duration-300 shadow-lg"
           >
+            <Activity className="h-5 w-5" />
             Προβολή όλων των αναρτήσεων
-          </button>
+          </motion.button>
           {profile?.role === "user" && (
-            <button
+            <motion.button
               onClick={() => navigate("/services")}
-              className="px-8 py-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex items-center gap-2 px-8 py-4 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-2xl font-medium transition-all duration-300 shadow-lg"
             >
+              <Zap className="h-5 w-5" />
               Περιήγηση υπηρεσιών
-            </button>
+            </motion.button>
           )}
-        </div>
+        </motion.div>
       </main>
     </div>
   )
 }
 
-/* Related Post Card Component */
-function RelatedPostCard({ post, onNavigate }) {
+/* Related Post Card */
+function RelatedPostCard({ post, onNavigate, index }) {
   const postImage = post.image_urls?.[0] || post.image_url || POST_PLACEHOLDER
   const hasMultipleImages = post.image_urls?.length > 1
 
@@ -561,82 +856,68 @@ function RelatedPostCard({ post, onNavigate }) {
     const now = new Date()
     const postDate = new Date(dateString)
     const diffInHours = Math.floor((now - postDate) / (1000 * 60 * 60))
-
     if (diffInHours < 1) return "Μόλις τώρα"
     if (diffInHours < 24) return `${diffInHours}ω πριν`
     if (diffInHours < 48) return "Χθες"
-
     const diffInDays = Math.floor(diffInHours / 24)
     if (diffInDays < 7) return `${diffInDays} μέρες πριν`
-
     return new Date(dateString).toLocaleDateString("el-GR")
   }
 
   return (
-    <article
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1 }}
       onClick={() => onNavigate(`/post/${post.id}`)}
-      className="group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 hover:shadow-xl hover:scale-[1.02]"
+      whileHover={{ y: -4, scale: 1.02 }}
+      className="group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 hover:shadow-2xl border border-zinc-700/50 hover:border-zinc-600/70"
       style={{
-        background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        boxShadow: "0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+        background: "rgba(0,0,0,0.4)",
+        backdropFilter: "blur(20px) saturate(160%)",
+        WebkitBackdropFilter: "blur(20px) saturate(160%)",
+        boxShadow: "0 8px 25px -5px rgba(0,0,0,.3)",
       }}
     >
-      {/* Image */}
-      <div className="relative h-40 overflow-hidden">
+      <div className="relative h-48 overflow-hidden">
         <img
           src={postImage || "/placeholder.svg"}
           alt={post.title}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-        {/* Multiple Images Badge */}
         {hasMultipleImages && (
           <div className="absolute top-3 right-3">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-black/70 backdrop-blur-sm text-white text-xs font-medium">
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-black/70 backdrop-blur-sm text-zinc-100 text-xs font-medium border border-zinc-700/50">
               <Sparkles className="h-3 w-3" />+{post.image_urls.length - 1}
             </span>
           </div>
         )}
 
-        {/* Like Badge */}
-        {post.likes > 0 && (
-          <div className="absolute top-3 left-3">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-500/90 backdrop-blur-sm text-white text-xs font-medium">
-              <Heart className="h-3 w-3 fill-current" />
-              {post.likes}
-            </span>
-          </div>
-        )}
+        <div className="absolute top-3 left-3 flex gap-2">
+          {post.likes > 0 && <StatChip icon={Heart} count={post.likes} tint="like" size="sm" />}
+          {post.comments_count > 0 && (
+            <StatChip icon={MessageCircle} count={post.comments_count} tint="comment" size="sm" />
+          )}
+        </div>
 
-        {/* Comments Badge */}
-        {post.comments_count > 0 && (
-          <div className="absolute bottom-3 right-3">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-500/90 backdrop-blur-sm text-white text-xs font-medium">
-              <MessageCircle className="h-3 w-3" />
-              {post.comments_count}
-            </span>
-          </div>
-        )}
-
-        {/* Title Overlay */}
-        <div className="absolute bottom-3 left-3 right-3">
-          <h3 className="text-white font-semibold text-sm line-clamp-2 leading-tight">{post.title}</h3>
+        <div className="absolute bottom-4 left-4 right-4">
+          <h3 className="text-zinc-100 font-semibold text-lg line-clamp-2 leading-tight drop-shadow-lg">
+            {post.title}
+          </h3>
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-4">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500 flex items-center gap-1">
+          <span className="text-xs text-zinc-400 flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {formatRelativeTime(post.created_at)}
           </span>
-          <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+          <ChevronRight className="h-4 w-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
         </div>
       </div>
-    </article>
+    </motion.article>
   )
 }
