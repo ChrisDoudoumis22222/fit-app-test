@@ -1,4 +1,4 @@
-/* TrainerMenu.js – desktop rail + mobile nav  (2025‑07‑25)
+/* TrainerMenu.js – desktop rail + mobile nav  (2025-08-15)
    ----------------------------------------------------------------------- */
 
 "use client";
@@ -10,13 +10,13 @@ import { supabase }                       from "../supabaseClient";
 import { useAuth }                        from "../AuthProvider";
 import {
   /* rail / settings */
-  BarChart3, Briefcase, FileText, Globe, ShoppingBag,
+  BarChart3, FileText, Globe, ShoppingBag,
   CalendarCheck, CreditCard, User as UserIcon, ImagePlus,
   ShieldCheck, Settings, LogOut,
   /* drawer close */
   X,
-  /* bottom‑nav */
-  Home, CalendarDays, Briefcase as BriefcaseIcon,
+  /* bottom-nav */
+  Home, CalendarClock, CalendarDays,
   Settings as SettingsIcon, MoreHorizontal,
 } from "lucide-react";
 
@@ -73,10 +73,10 @@ export default function TrainerMenu() {
     document.documentElement.style.setProperty("--side-w", `${w}px`);
   };
   useEffect(() => syncVar(open), [open]);
-  useEffect(() => { 
-    const h = () => { if (window.innerWidth < 1024) setOpen(false); syncVar(open); }; 
-    window.addEventListener("resize", h); 
-    return () => window.removeEventListener("resize", h); 
+  useEffect(() => {
+    const h = () => { if (window.innerWidth < 1024) setOpen(false); syncVar(open); };
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
   }, [open]);
   useEffect(() => setReady(true), []);
 
@@ -85,11 +85,11 @@ export default function TrainerMenu() {
   /* nav data */
   const navMain = [
     { id: "dash",     label: "Πίνακας",        href: "/trainer",            icon: BarChart3 },
-    { id: "schedule", label: "Πρόγραμμα",      href: "/trainer/schedule",   icon: CalendarDays }, // 👈 NEW
-    { id: "serv",     label: "Υπηρεσίες",      href: "/trainer/services",   icon: Briefcase },
+    { id: "schedule", label: "Πρόγραμμα",      href: "/trainer/schedule",   icon: CalendarDays },
+    // removed Υπηρεσίες
     { id: "posts",    label: "Αναρτήσεις",     href: "/trainer/posts",      icon: FileText  },
     { id: "allp",     label: "Όλες οι Αναρτ.", href: "/posts",              icon: Globe    },
-    { id: "mark",     label: "Marketplace",    href: "/services",           icon: ShoppingBag },
+    { id: "mark",     label: "Προπονητές",    href: "/services",           icon: ShoppingBag },
     { id: "books",    label: "Κρατήσεις",      href: "/trainer/bookings",   icon: CalendarCheck },
     { id: "pay",      label: "Πληρωμές",       href: "/trainer/payments",   icon: CreditCard },
   ];
@@ -101,14 +101,13 @@ export default function TrainerMenu() {
     { id: "security", label: "Ασφάλεια",    href: "/trainer#security", icon: ShieldCheck },
   ];
 
-  /* bottom nav buttons (mobile) */
+  /* bottom nav buttons (mobile) – updated */
   const bottomNav = [
-    { href: "/trainer",           label: "Επισκόπηση", icon: Home },
-    { href: "/trainer/schedule",  label: "Πρόγραμμα",  icon: CalendarDays }, // 👈 NEW
-    { href: "/trainer/services",  label: "Υπηρεσίες",  icon: BriefcaseIcon },
-    { href: "/trainer/bookings",  label: "Κρατήσεις",  icon: CalendarDays },
-    { href: "/trainer#profile",   label: "Ρυθμίσεις",  icon: SettingsIcon },
-    { href: "drawer",             label: "Περισσότερα",icon: MoreHorizontal },
+    { href: "/trainer",           label: "Αρχική",    icon: Home },
+    { href: "/trainer/schedule",  label: "Πρόγραμμα", icon: CalendarClock }, // time icon
+    { href: "/trainer/bookings",  label: "Κρατήσεις", icon: CalendarDays },
+    { href: "/trainer#profile",   label: "Ρυθμίσεις", icon: SettingsIcon },
+    { href: "drawer",             label: "Περισσότερα", icon: MoreHorizontal },
   ];
 
   /* accurate route for active state */
@@ -125,22 +124,26 @@ export default function TrainerMenu() {
         active={location.pathname} profile={profile} logout={logout}
       />
 
-      {/* -------- MOBILE TOP BAR (logo + avatar, no hamburger) -------- */}
+      {/* -------- MOBILE TOP BAR (logo + avatar) -------- */}
       <motion.header
         initial={false}
         animate={{ opacity: drawer ? 0 : 1, pointerEvents: drawer ? "none" : "auto" }}
         className="lg:hidden fixed inset-x-0 top-0 z-40 flex items-center
-                   h-14 px-4 bg-black/80 backdrop-blur ring-1 ring-white/10 transition-opacity"
+                   px-4 bg-black/60 backdrop-blur-xl ring-1 ring-white/10 transition-opacity"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          height: "calc(4rem + env(safe-area-inset-top))",
+        }}
       >
-        {/* invisible spacer keeps logo centered */}
         <div className="w-10" />
-
         <div className="flex-1 flex justify-center">
           <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
         </div>
-
         <Avatar url={profile.avatar_url} className="h-9 w-9" />
       </motion.header>
+
+      {/* -------- MOBILE SPACER (for top bar) -------- */}
+      <div className="lg:hidden" style={{ height: "calc(4.75rem + env(safe-area-inset-top))" }} />
 
       {/* -------- MOBILE DRAWER -------- */}
       <MobileDrawer
@@ -149,7 +152,7 @@ export default function TrainerMenu() {
         activePath={location.pathname} profile={profile} logout={logout}
       />
 
-      {/* -------- MOBILE BOTTOM NAV -------- */}
+      {/* -------- MOBILE BOTTOM NAV (glass + slide-up on mount) -------- */}
       <BottomNav
         items={bottomNav}
         route={route}
@@ -168,8 +171,8 @@ function DesktopRail({ open, setOpen, ready, navMain, navSettings, active, profi
       animate={{ opacity: ready ? 1 : 0, width: open ? EXPANDED : COLLAPSED }}
       whileHover={{ width: EXPANDED }}
       transition={{
-        opacity: { duration: 0.6, ease: [0.4, 0, 0.2, 1] },
-        width:   { type: "spring", stiffness: 260, damping: 26 },
+        opacity: { duration: 1.0, ease: [0.4, 0, 0.2, 1] },            // slower fade-in
+        width:   { type: "spring", stiffness: 120, damping: 20, mass: 1.1 }, // slower width spring
       }}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
@@ -196,7 +199,7 @@ const Brand = ({ open }) => (
       {open && (
         <motion.span
           initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.3 }}  /* slightly slower label */
           className="max-w-[110px] truncate text-xl font-bold text-white"
         >
           Trainer<span className="font-light text-gray-400">Hub</span>
@@ -225,7 +228,7 @@ function NavList({ items, open, active }) {
                 {open && (
                   <motion.span
                     initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
-                    transition={{ duration: 0.2 }}
+                    transition={{ duration: 0.3 }}
                     className="truncate text-sm font-medium"
                   >
                     {label}
@@ -249,7 +252,7 @@ function FooterBlock({ open, profile, onLogout }) {
         {open && (
           <motion.div
             initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.3 }}
             className="min-w-0 text-sm text-white"
           >
             <p className="truncate font-medium">{profile.full_name || "Trainer"}</p>
@@ -275,13 +278,14 @@ function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, profile
       <motion.div
         key="overlay"
         initial={{ opacity: 0 }} animate={{ opacity: 0.55 }} exit={{ opacity: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }} /* slower overlay fade */
         className="fixed inset-0 z-40 bg-black backdrop-blur-sm"
         onClick={() => setOpen(false)}
       />
       <motion.aside
         key="drawer"
         initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }}
-        transition={{ type: "spring", damping: 24 }}
+        transition={{ type: "spring", stiffness: 110, damping: 20, mass: 1.1 }} /* slower drawer slide */
         className="fixed inset-y-0 left-0 z-50 w-[76vw] max-w-[320px] flex flex-col
                    bg-gradient-to-b from-black/90 to-black/70 border-r border-gray-800 shadow-2xl"
       >
@@ -366,35 +370,72 @@ function DrawerFooter({ profile, close, logout }) {
   );
 }
 
-/* ------------- Bottom nav ------------- */
+/* ------------- Bottom nav (MOBILE ONLY, glassmorphism + animation) ------------- */
+const CREAMY_WHITE = "#FFF5E6";
+
 function NavBtn({ href, label, icon: Icon, active, onClick }) {
-  const cls  = active ? "text-indigo-400" : "text-white/60 hover:bg-white/10";
-  const base = "flex flex-1 flex-col items-center justify-center gap-1 py-3";
-  const body = (<><Icon className="h-6 w-6" /><span className="text-xs font-medium">{label}</span></>);
+  if (active) {
+    const Body = (
+      <div
+        className="inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-black shadow-sm"
+        style={{ backgroundColor: CREAMY_WHITE }}
+      >
+        <Icon className="h-5 w-5" />
+        <span className="text-xs font-semibold leading-none">{label}</span>
+      </div>
+    );
+    return href ? (
+      <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
+    ) : (
+      <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>
+    );
+  }
+
+  const Body = (
+    <div className="flex items-center justify-center">
+      <Icon className="h-6 w-6 text-white/85" />
+    </div>
+  );
   return href ? (
-    <Link to={href} className={`${base} ${cls}`}>{body}</Link>
+    <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
   ) : (
-    <button onClick={onClick} className={`${base} ${cls}`}>{body}</button>
+    <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>
   );
 }
 
 function BottomNav({ items, route, drawerOpen, openDrawer }) {
   return (
-    <motion.footer
-      initial={false}
-      animate={{ opacity: drawerOpen ? 0 : 1, pointerEvents: drawerOpen ? "none" : "auto" }}
-      className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex border-t border-white/10 bg-black/90 backdrop-blur"
+    <motion.nav
+      initial={{ y: 36, opacity: 0 }}
+      animate={{ y: 0, opacity: drawerOpen ? 0 : 1, pointerEvents: drawerOpen ? "none" : "auto" }}
+      transition={{ duration: 0.85, ease: [0.25, 0.1, 0.25, 1] }} /* slower, smooth tween */
+      className="lg:hidden fixed inset-x-0 bottom-0 z-40 pointer-events-none"
     >
-      {items.map(({ href, label, icon }) => (
-        <NavBtn
-          key={label}
-          href={href !== "drawer" ? href : null}
-          label={label}
-          icon={icon}
-          active={href !== "drawer" && route === href}
-          onClick={href === "drawer" ? openDrawer : undefined}
-        />
-      ))}
-    </motion.footer>
+      <div
+        className="mx-auto w-[92%] max-w-md pointer-events-auto"
+        style={{ marginBottom: "calc(14px + env(safe-area-inset-bottom))" }}
+      >
+        <div className="relative flex items-center justify-between gap-2 rounded-lg 
+                border border-white/10 
+                bg-black/40 backdrop-blur-xl px-4 py-3 
+                shadow-[0_8px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]">
+          {/* glossy overlay for glass effect */}
+            <div className="pointer-events-none absolute inset-0 rounded-lg 
+                  bg-gradient-to-b from-black/30 via-black/10 to-transparent" />
+          <div className="relative z-10 flex w-full items-center justify-between">
+            {items.map(({ href, label, icon }) => (
+              <NavBtn
+                key={label}
+                href={href !== "drawer" ? href : null}
+                label={label}
+                icon={icon}
+                active={href !== "drawer" && route === href}
+                onClick={href === "drawer" ? openDrawer : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.nav>
   );
 }

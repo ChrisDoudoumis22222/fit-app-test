@@ -525,7 +525,7 @@ export default function PostDetailPage() {
         >
           {/* Hero with images */}
           {images.length > 0 && (
-            <div className="relative h-[60vh] overflow-hidden">
+            <div className="relative h-72 sm:h-[60vh] overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
               <div
                 className="relative w-full h-full flex transition-transform duration-300 ease-out"
@@ -553,7 +553,7 @@ export default function PostDetailPage() {
                   {currentImageIndex > 0 && (
                     <button
                       onClick={() => setCurrentImageIndex((prev) => prev - 1)}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all duration-200"
+                      className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all duration-200"
                     >
                       <ChevronLeft className="h-5 w-5" />
                     </button>
@@ -562,13 +562,13 @@ export default function PostDetailPage() {
                   {currentImageIndex < images.length - 1 && (
                     <button
                       onClick={() => setCurrentImageIndex((prev) => prev + 1)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all duration-200"
+                      className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all duration-200"
                     >
                       <ChevronRight className="h-5 w-5" />
                     </button>
                   )}
 
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+                  <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-20">
                     <div className="flex gap-2">
                       {images.map((_, idx) => (
                         <button
@@ -582,8 +582,8 @@ export default function PostDetailPage() {
                     </div>
                   </div>
 
-                  <div className="absolute top-6 right-6 z-20">
-                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 text-white text-sm font-medium">
+                  <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-20">
+                    <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 text-white text-xs sm:text-sm font-medium">
                       {currentImageIndex + 1} / {images.length}
                     </span>
                   </div>
@@ -591,26 +591,26 @@ export default function PostDetailPage() {
               )}
 
               {/* Stats overlay */}
-              <div className="absolute top-6 left-6 z-20 flex gap-3">
+              <div className="absolute top-4 sm:top-6 left-4 sm:left-6 z-20 flex gap-2 sm:gap-3">
                 <StatChip icon={Heart} count={<AnimatedCounter value={likeCount} />} tint="like" />
                 <StatChip icon={MessageCircle} count={<AnimatedCounter value={commentsCount} />} tint="comment" />
               </div>
 
               {/* Title overlay */}
-              <div className="absolute bottom-8 left-8 right-8 z-20">
+              <div className="absolute bottom-6 sm:bottom-8 left-4 sm:left-8 right-4 sm:right-8 z-20">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="space-y-4"
+                  className="space-y-3 sm:space-y-4"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 backdrop-blur-xl border border-blue-500/30 text-blue-200 text-sm font-medium">
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 backdrop-blur-xl border border-blue-500/30 text-blue-200 text-xs sm:text-sm font-medium">
                       <Calendar className="h-4 w-4" />
                       {formatRelativeTime(post.created_at)}
                     </span>
                   </div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-zinc-100 leading-tight drop-shadow-lg">
+                  <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-zinc-100 leading-tight drop-shadow-lg">
                     {post.title}
                   </h1>
                 </motion.div>
@@ -619,14 +619,14 @@ export default function PostDetailPage() {
           )}
 
           {/* Content */}
-          <div className="p-8 md:p-12">
+          <div className="p-6 sm:p-8 md:p-12">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="max-w-none mb-8"
+              className="max-w-none mb-6 sm:mb-8"
             >
-              <p className="text-zinc-300 leading-relaxed text-lg whitespace-pre-wrap">{post.description}</p>
+              <p className="text-zinc-300 leading-relaxed text-base sm:text-lg whitespace-pre-wrap">{post.description}</p>
             </motion.div>
 
             {/* Actions */}
@@ -634,14 +634,14 @@ export default function PostDetailPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.7 }}
-              className="flex flex-wrap items-center gap-4 p-6 rounded-2xl bg-black/20 backdrop-blur-xl border border-zinc-700/50 mb-8"
+              className="flex flex-wrap items-center gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-black/20 backdrop-blur-xl border border-zinc-700/50 mb-6 sm:mb-8"
             >
               <motion.button
                 onClick={handleLike}
                 disabled={isLiking || !profile?.id}
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium transition-all duration-300 ${
                   isLiked
                     ? "bg-red-500/20 text-red-200 border border-red-500/30 hover:bg-red-500/30 shadow-lg shadow-red-500/25"
                     : "bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50"
@@ -655,7 +655,7 @@ export default function PostDetailPage() {
                 onClick={handleShare}
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-6 py-3 bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/30 rounded-xl font-medium transition-all duration-300 shadow-lg shadow-emerald-500/25"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/30 rounded-xl font-medium transition-all duration-300 shadow-lg shadow-emerald-500/25"
               >
                 <Share2 className="h-5 w-5" />
                 Κοινοποίηση
@@ -665,28 +665,28 @@ export default function PostDetailPage() {
                 onClick={() => document.getElementById("comments")?.scrollIntoView({ behavior: "smooth" })}
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-xl font-medium transition-all duration-300 shadow-lg shadow-blue-500/25"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-xl font-medium transition-all duration-300 shadow-lg shadow-blue-500/25"
               >
                 <MessageCircle className="h-5 w-5" />
                 Σχόλια (<AnimatedCounter value={commentsCount} />)
               </motion.button>
             </motion.div>
 
-            {/* Trainer Card */}
+            {/* Trainer Card — MOBILE-RESPONSIVE */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.8 }}
-              className="relative overflow-hidden rounded-2xl border border-zinc-700/50 p-8 hover:border-zinc-600/70 transition-all duration-300"
+              className="relative overflow-hidden rounded-2xl border border-zinc-700/50 p-6 sm:p-8 hover:border-zinc-600/70 transition-all duration-300"
               style={{
                 background: "rgba(0,0,0,0.4)",
                 backdropFilter: "blur(20px) saturate(160%)",
                 WebkitBackdropFilter: "blur(20px) saturate(160%)",
               }}
             >
-              <div className="flex items-start gap-6">
-                <div className="relative">
-                  <div className="w-24 h-24 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden ring-4 ring-zinc-700/50 shadow-2xl border border-zinc-700/50">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
+                <div className="relative shrink-0">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden ring-4 ring-zinc-700/50 shadow-2xl border border-zinc-700/50">
                     {trainer.avatar_url ? (
                       <img
                         src={trainer.avatar_url || "/placeholder.svg"}
@@ -701,34 +701,38 @@ export default function PostDetailPage() {
                       <User className="h-10 w-10 text-zinc-400" />
                     )}
                   </div>
-                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-black flex items-center justify-center shadow-lg">
-                    <Award className="h-4 w-4 text-white" />
+                  <div className="absolute -bottom-2 -right-2 w-7 h-7 sm:w-8 sm:h-8 bg-emerald-500 rounded-full border-4 border-black flex items-center justify-center shadow-lg">
+                    <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
                   </div>
                 </div>
 
-                <div className="flex-1">
-                  {/* Name is clickable. Services button removed. Phone removed. Rating added like reference. */}
-                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                <div className="flex-1 w-full">
+                  {/* Name + badges */}
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 mb-3 text-center sm:text-left">
                     <button
                       onClick={() => navigate(`/trainer/${trainer.id}`)}
-                      className="text-left text-2xl font-bold text-zinc-100 hover:text-white hover:underline underline-offset-4 decoration-zinc-500"
+                      className="text-xl sm:text-2xl font-bold text-zinc-100 hover:text-white hover:underline underline-offset-4 decoration-zinc-500"
                     >
                       {trainer.full_name || trainer.email || "Unknown Trainer"}
                     </button>
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-sm font-medium">
-                      <Star className="h-3 w-3 fill-current" />
-                      Pro
-                    </span>
-                    <StarRating rating={Number(trainer.rating) || 0} reviewCount={Number(trainer.reviewCount) || 0} />
+                    <div className="flex justify-center sm:justify-start">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-xs sm:text-sm font-medium">
+                        <Star className="h-3 w-3 fill-current" />
+                        Pro
+                      </span>
+                    </div>
+                    <div className="flex justify-center sm:justify-start">
+                      <StarRating rating={Number(trainer.rating) || 0} reviewCount={Number(trainer.reviewCount) || 0} />
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-5 sm:mb-6">
                     {trainer.specialty && (
                       <div className="flex items-center gap-3 text-zinc-300">
                         <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
                           <Award className="h-4 w-4 text-blue-400" />
                         </div>
-                        <span>{trainer.specialty}</span>
+                        <span className="text-sm sm:text-base">{trainer.specialty}</span>
                       </div>
                     )}
                     {trainer.experience_years && (
@@ -736,7 +740,7 @@ export default function PostDetailPage() {
                         <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
                           <Clock className="h-4 w-4 text-emerald-400" />
                         </div>
-                        <span>{trainer.experience_years} χρόνια εμπειρίας</span>
+                        <span className="text-sm sm:text-base">{trainer.experience_years} χρόνια εμπειρίας</span>
                       </div>
                     )}
                     {trainer.location && (
@@ -744,25 +748,28 @@ export default function PostDetailPage() {
                         <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center">
                           <MapPin className="h-4 w-4 text-rose-400" />
                         </div>
-                        <span>{trainer.location}</span>
+                        <span className="text-sm sm:text-base">{trainer.location}</span>
                       </div>
                     )}
-                    {/* Phone removed */}
                   </div>
 
-                  {trainer.bio && <p className="text-zinc-300 text-sm leading-relaxed mb-6 italic">{trainer.bio}</p>}
+                  {trainer.bio && (
+                    <p className="text-zinc-300 text-sm sm:text-base leading-relaxed mb-5 sm:mb-6 italic text-center sm:text-left">
+                      {trainer.bio}
+                    </p>
+                  )}
 
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full">
                     <motion.button
                       onClick={() => navigate(`/trainer/${trainer.id}/posts`)}
                       whileHover={{ scale: 1.05, y: -2 }}
                       whileTap={{ scale: 0.95 }}
-                      className="flex items-center gap-2 px-6 py-3 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-xl font-medium transition-all duration-300"
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-xl font-medium transition-all duration-300"
                     >
                       <ExternalLink className="h-4 w-4" />
                       Όλες οι αναρτήσεις
                     </motion.button>
-                    {/* Services button removed */}
+                    {/* Services button intentionally removed */}
                   </div>
                 </div>
               </div>
@@ -792,21 +799,21 @@ export default function PostDetailPage() {
             transition={{ delay: 1.0 }}
             className="mt-12"
           >
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-6 sm:mb-8">
               <div className="flex items-center gap-3">
                 <Sparkles className="h-6 w-6 text-blue-400" />
-                <h2 className="text-2xl font-bold text-zinc-100">Περισσότερα από αυτόν τον προπονητή</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-zinc-100">Περισσότερα από αυτόν τον προπονητή</h2>
               </div>
               <button
                 onClick={() => navigate(`/trainer/${trainer.id}/posts`)}
-                className="flex items-center gap-2 text-zinc-300 hover:text-zinc-100 transition-colors"
+                className="flex items-center gap-2 text-zinc-300 hover:text-zinc-100 transition-colors self-start sm:self-auto"
               >
                 <span className="text-sm font-medium">Προβολή όλων</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
               {relatedPosts.map((relatedPost, index) => (
                 <RelatedPostCard key={relatedPost.id} post={relatedPost} onNavigate={navigate} index={index} />
               ))}
@@ -819,13 +826,13 @@ export default function PostDetailPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.1 }}
-          className="flex flex-col sm:flex-row gap-4 mt-12 justify-center"
+          className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-10 sm:mt-12 justify-center"
         >
           <motion.button
             onClick={() => navigate("/posts")}
             whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.95 }}
-            className="flex items-center gap-2 px-8 py-4 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-2xl font-medium transition-all duration-300 shadow-lg"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-2xl font-medium transition-all duration-300 shadow-lg"
           >
             <Activity className="h-5 w-5" />
             Προβολή όλων των αναρτήσεων
@@ -835,10 +842,10 @@ export default function PostDetailPage() {
               onClick={() => navigate("/services")}
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-2 px-8 py-4 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-2xl font-medium transition-all duration-300 shadow-lg"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-2xl font-medium transition-all duration-300 shadow-lg"
             >
               <Zap className="h-5 w-5" />
-              Περιήγηση υπηρεσιών
+              Περιήγηση προπονητών
             </motion.button>
           )}
         </motion.div>

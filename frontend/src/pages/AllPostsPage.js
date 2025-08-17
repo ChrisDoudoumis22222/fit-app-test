@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
-import { motion } from "framer-motion";
 
 /* ────────────────────────────  icons  ──────────────────────────────────── */
 import {
@@ -49,7 +49,7 @@ const BaseBackground = memo(() => (
   </div>
 ));
 
-// Athletic Background Component (matching trainer dashboard)
+// Athletic Background Component
 const AthleticBackground = memo(() => (
   <>
     <style>{`
@@ -66,10 +66,6 @@ const AthleticBackground = memo(() => (
          0% { transform: translate(0, 0) rotate(0deg); }
          100% { transform: translate(60px, 60px) rotate(0.5deg); }
        }
-      @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(30px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
       @keyframes float {
         0%, 100% { transform: translateY(0px) rotate(0deg); }
         33% { transform: translateY(-10px) rotate(120deg); }
@@ -108,7 +104,7 @@ const AthleticBackground = memo(() => (
   </>
 ));
 
-/* Small particles background (JS-friendly: no TS, no CSS var gymnastics) */
+/* Small particles background */
 const AnimatedParticles = memo(() => {
   const [particles, setParticles] = useState([]);
 
@@ -133,8 +129,8 @@ const AnimatedParticles = memo(() => {
             left: p.left,
             top: p.top,
             animationName: "float",
-            animationDuration: p.duration, // override default
-            animationDelay: p.delay, // per particle
+            animationDuration: p.duration,
+            animationDelay: p.delay,
             animationTimingFunction: "ease-in-out",
             animationIterationCount: "infinite",
           }}
@@ -148,7 +144,7 @@ const AnimatedParticles = memo(() => {
 /*  Main Page Component                                                     */
 /* ======================================================================== */
 export default function AllPostsPage() {
-  const { session, profile } = useAuth();
+  const { profile } = useAuth();
   const navigate = useNavigate();
 
   /* ------------------------- remote & ui state ------------------------ */
@@ -179,7 +175,7 @@ export default function AllPostsPage() {
     );
     if (loadMoreRef.current) io.observe(loadMoreRef.current);
     return () => io.disconnect();
-  }, [hasMore, loadingMore, loading, displayed]); // this is fine; we want it to retrack when list changes
+  }, [hasMore, loadingMore, loading, displayed]); // retrack when list changes
 
   /* ------------------------- initial fetch ---------------------------- */
   useEffect(() => {
@@ -191,6 +187,7 @@ export default function AllPostsPage() {
     try {
       isRefresh ? setRefreshing(true) : setLoading(true);
       setError(null);
+
       const { data, error } = await supabase
         .from("posts")
         .select(`
@@ -363,104 +360,117 @@ export default function AllPostsPage() {
 
   /* ---------------------------- render  -------------------------------- */
   if (loading) return <Screen state="loading" role={profile?.role} />;
-  if (error)
-    return <Screen state="error" role={profile?.role} err={error} retry={() => fetchPosts()} />;
+  if (error) return <Screen state="error" role={profile?.role} err={error} retry={() => fetchPosts()} />;
 
   const totalLikes = allPosts.reduce((sum, p) => sum + p.like_count, 0);
   const totalComments = allPosts.reduce((sum, p) => sum + p.comment_count, 0);
 
   return (
     <div className="relative min-h-screen text-gray-100">
-      {/* base + animated background, both behind content */}
+      {/* background */}
       <BaseBackground />
       <AthleticBackground />
       <AnimatedParticles />
 
-      {profile?.role === "trainer" ? <TrainerMenu /> : <UserMenu />}
+      {/* spacing variables like the other page */}
+      <style>{`
+        :root { --side-w: 0px; --nav-h: 64px; }
+        @media (min-width: 640px){ :root { --nav-h: 72px; } }
+        @media (min-width: 1024px){ :root { --side-w: 280px; --nav-h: 0px; } }
+        @media (min-width: 1280px){ :root { --side-w: 320px; } }
+      `}</style>
 
-      {/* Hero & Stats */}
-      <Hero
-        totalPosts={allPosts.length}
-        totalTrainers={new Set(allPosts.map((p) => p.trainer?.id)).size}
-        totalLikes={totalLikes}
-        totalComments={totalComments}
-      />
+      {/* padded wrapper to avoid overlap with top nav / left sidebar + 80px bottom space */}
+      <div className="relative min-h-screen overflow-x-hidden">
+        <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] pb-[80px] transition-[padding]">
+          {/* Menus live inside the padded area */}
+          {profile?.role === "trainer" ? <TrainerMenu /> : <UserMenu />}
 
-      {/* Controls Bar */}
-      <Controls
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        sortBy={sortBy}
-        setSortBy={setSortBy}
-        refreshing={refreshing}
-        onRefresh={() => fetchPosts(true)}
-      />
+          {/* Hero & Stats */}
+          <Hero
+            totalPosts={allPosts.length}
+            totalTrainers={new Set(allPosts.map((p) => p.trainer?.id)).size}
+            totalLikes={totalLikes}
+            totalComments={totalComments}
+          />
 
-      {/* Results */}
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-8 space-y-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3"
-        >
-          <h2 className="text-2xl font-bold text-neutral-300 flex items-center gap-3">
-            <Sparkles className="h-6 w-6 text-blue-400" />
-            Αναρτήσεις
-          </h2>
-          <span className="text-lg font-normal text-zinc-400 bg-zinc-800/50 px-3 py-1 rounded-full border border-zinc-700/50">
-            {displayed.length} από {filteredAndSorted().length}
-          </span>
-        </motion.div>
+          {/* Controls Bar */}
+          <Controls
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            refreshing={refreshing}
+            onRefresh={() => fetchPosts(true)}
+          />
 
-        {displayed.length === 0 ? (
-          <Empty noPosts={allPosts.length === 0} />
-        ) : (
-          <>
-            <div
-              className={
-                viewMode === "grid"
-                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                  : "flex flex-col space-y-6"
-              }
+          {/* Results */}
+          <main className="relative z-10 mx-auto max-w-7xl px-4 py-8 space-y-6 pb-[80px]">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3"
             >
-              {displayed.map((p, i) => (
-                <PostCard
-                  key={p.id}
-                  post={p}
-                  viewMode={viewMode}
-                  index={i}
-                  currentUserId={profile?.id}
-                  isLiking={likingPosts.has(p.id)}
-                  formatRelativeTime={relTime}
-                  onPostClick={(id) => navigate(`/post/${id}`)}
-                  onLike={(liked) => handleLike(p.id, liked)}
-                  onShare={() => handleShare(p)}
-                  onComment={() => handleComment(p.id)}
-                />
-              ))}
-            </div>
-            {(hasMore || loadingMore) && (
-              <div ref={loadMoreRef} className="flex justify-center py-10">
-                {loadingMore ? (
-                  <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
-                ) : (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleLoadMore}
-                    className="flex items-center gap-2 px-6 py-3 bg-zinc-800/50 text-neutral-300 rounded-xl hover:bg-zinc-700/50 border border-zinc-700/50 backdrop-blur-xl transition-all"
-                  >
-                    <ChevronDown className="h-5 w-5" />
-                    Φόρτωση περισσότερων
-                  </motion.button>
+              <h2 className="text-2xl font-bold text-neutral-300 flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-blue-400" />
+                Αναρτήσεις
+              </h2>
+              <span className="text-lg font-normal text-zinc-400 bg-zinc-800/50 px-3 py-1 rounded-full border border-zinc-700/50">
+                {displayed.length} από {filteredAndSorted().length}
+              </span>
+            </motion.div>
+
+            {displayed.length === 0 ? (
+              <Empty noPosts={allPosts.length === 0} />
+            ) : (
+              <>
+                <div
+                  className={
+                    viewMode === "grid"
+                      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+                      : "flex flex-col space-y-6"
+                  }
+                >
+                  {displayed.map((p, i) => (
+                    <PostCard
+                      key={p.id}
+                      post={p}
+                      viewMode={viewMode}
+                      index={i}
+                      currentUserId={profile?.id}
+                      isLiking={likingPosts.has(p.id)}
+                      formatRelativeTime={relTime}
+                      onPostClick={(id) => navigate(`/post/${id}`)}
+                      onLike={(liked) => handleLike(p.id, liked)}
+                      onShare={() => handleShare(p)}
+                      onComment={() => handleComment(p.id)}
+                    />
+                  ))}
+                </div>
+                {(hasMore || loadingMore) && (
+                  <div ref={loadMoreRef} className="flex justify-center py-10">
+                    {loadingMore ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+                    ) : (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleLoadMore}
+                        className="flex items-center gap-2 px-6 py-3 bg-zinc-800/50 text-neutral-300 rounded-xl hover:bg-zinc-700/50 border border-zinc-700/50 backdrop-blur-xl transition-all"
+                      >
+                        <ChevronDown className="h-5 w-5" />
+                        Φόρτωση περισσότερων
+                      </motion.button>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
-          </>
-        )}
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }
@@ -889,46 +899,63 @@ const Screen = memo(({ state, role, err, retry }) => {
       <div className="relative min-h-screen text-gray-100">
         <BaseBackground />
         <AthleticBackground />
-        <Menu />
-        <div className="relative z-10 flex items-center justify-center h-[75vh]">
-          <div className="flex items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
-            <span className="text-neutral-300">Φόρτωση αναρτήσεων...</span>
+        {/* spacing vars + padded wrapper even on loading */}
+        <style>{`
+          :root { --side-w: 0px; --nav-h: 64px; }
+          @media (min-width: 640px){ :root { --nav-h: 72px; } }
+          @media (min-width: 1024px){ :root { --side-w: 280px; --nav-h: 0px; } }
+          @media (min-width: 1280px){ :root { --side-w: 320px; } }
+        `}</style>
+        <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] pb-[80px] transition-[padding]">
+          <Menu />
+          <div className="relative z-10 flex items-center justify-center h-[75vh]">
+            <div className="flex items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+              <span className="text-neutral-300">Φόρτωση αναρτήσεων...</span>
+            </div>
           </div>
         </div>
       </div>
     );
-    }
+  }
 
   return (
     <div className="relative min-h-screen text-gray-100">
       <BaseBackground />
       <AthleticBackground />
-      <Menu />
-      <div className="relative z-10 flex items-center justify-center h-[75vh]">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center p-8 rounded-2xl max-w-md"
-          style={{
-            background: "rgba(0, 0, 0, 0.4)",
-            backdropFilter: "blur(20px) saturate(160%)",
-            WebkitBackdropFilter: "blur(20px) saturate(160%)",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-          }}
-        >
-          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-red-400 mb-2">Σφάλμα φόρτωσης</h3>
-          <p className="text-red-300 mb-6">{err}</p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={retry}
-            className="px-6 py-3 bg-red-600 text-neutral-200 rounded-xl hover:bg-red-500 transition-colors"
+      <style>{`
+        :root { --side-w: 0px; --nav-h: 64px; }
+        @media (min-width: 640px){ :root { --nav-h: 72px; } }
+        @media (min-width: 1024px){ :root { --side-w: 280px; --nav-h: 0px; } }
+        @media (min-width: 1280px){ :root { --side-w: 320px; } }
+      `}</style>
+      <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] pb-[80px] transition-[padding]">
+        <Menu />
+        <div className="relative z-10 flex items-center justify-center h-[75vh]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center p-8 rounded-2xl max-w-md"
+            style={{
+              background: "rgba(0, 0, 0, 0.4)",
+              backdropFilter: "blur(20px) saturate(160%)",
+              WebkitBackdropFilter: "blur(20px) saturate(160%)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+            }}
           >
-            Δοκιμή ξανά
-          </motion.button>
-        </motion.div>
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-red-400 mb-2">Σφάλμα φόρτωσης</h3>
+            <p className="text-red-300 mb-6">{err}</p>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={retry}
+              className="px-6 py-3 bg-red-600 text-neutral-200 rounded-xl hover:bg-red-500 transition-colors"
+            >
+              Δοκιμή ξανά
+            </motion.button>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

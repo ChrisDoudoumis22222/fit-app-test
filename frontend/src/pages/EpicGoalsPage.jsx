@@ -44,6 +44,20 @@ const ZincBackground = () => (
         0%, 100% { opacity: 0.06; transform: scale(1); }
         50% { opacity: 0.15; transform: scale(1.05); }
       }
+      /* mobile-safe viewport helpers & reverse spin utility */
+      @supports (height: 100dvh) {
+        :root { --vh-unit: 100dvh; }
+      }
+      @supports not (height: 100dvh) {
+        :root { --vh-unit: 100svh; }
+      }
+      @keyframes spin-reverse {
+        from { transform: rotate(360deg); }
+        to { transform: rotate(0deg); }
+      }
+      .animate-spin-reverse {
+        animation: spin-reverse 1s linear infinite;
+      }
     `}</style>
     <div className="fixed inset-0 z-0 pointer-events-none bg-gradient-to-br from-black via-zinc-900 to-black" />
     <div className="absolute left-1/4 -top-40 w-56 sm:w-96 aspect-square rounded-full bg-gradient-to-r from-zinc-600/10 to-gray-700/10 blur-2xl animate-[zinc-pulse_18s_ease-in-out_infinite]" />
@@ -295,16 +309,16 @@ export default function EpicGoalsPage() {
     return (
       <>
         <UserMenu />
-        <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black relative">
+        <div className="min-h-[var(--vh-unit)] bg-gradient-to-br from-black via-zinc-900 to-black relative">
           <ZincBackground />
-          <div className="flex items-center justify-center min-h-screen relative z-10">
+          <div className="flex items-center justify-center min-h-[var(--vh-unit)] relative z-10 px-4">
             <Toast toast={toast} onClose={() => setToast(null)} />
             <div className="flex flex-col items-center gap-6">
               <div className="relative">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 border-4 border-zinc-700/30 border-t-zinc-500 rounded-full animate-spin" />
-                <div className="absolute inset-3 border-2 border-zinc-800/30 border-t-zinc-600 rounded-full animate-spin animate-reverse" />
+                <div className="w-14 h-14 sm:w-20 sm:h-20 border-4 border-zinc-700/30 border-t-zinc-500 rounded-full animate-spin" />
+                <div className="absolute inset-3 border-2 border-zinc-800/30 border-t-zinc-600 rounded-full animate-spin-reverse" />
               </div>
-              <div className="text-center px-4">
+              <div className="text-center px-2">
                 <p className="text-white text-lg sm:text-xl font-bold">Φόρτωση Στόχων</p>
                 <p className="text-zinc-400 text-sm">Προετοιμασία του ταξιδιού σου...</p>
               </div>
@@ -319,9 +333,9 @@ export default function EpicGoalsPage() {
     return (
       <>
         <UserMenu />
-        <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black relative text-white flex items-center justify-center">
+        <div className="min-h-[var(--vh-unit)] bg-gradient-to-br from-black via-zinc-900 to-black relative text-white flex items-center justify-center px-4">
           <ZincBackground />
-          <p className="text-center text-zinc-400 px-4">
+          <p className="text-center text-zinc-400">
             Δεν υπάρχει ενεργός χρήστης. Συνδέσου για να δεις/διαχειριστείς στόχους.
           </p>
         </div>
@@ -331,13 +345,13 @@ export default function EpicGoalsPage() {
 
   /* ---------- UI ---------- */
   return (
-    <div className="relative bg-gradient-to-br from-black via-zinc-900 to-black min-h-screen text-gray-100">
+    <div className="relative bg-gradient-to-br from-black via-zinc-900 to-black min-h-screen text-gray-100 overflow-x-hidden">
       <ZincBackground />
       <UserMenu />
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       <main className="relative z-10 w-full lg:pl-[var(--side-w)]">
-        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 space-y-8">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 space-y-8 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:pb-10">
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} className="relative">
             <div className="flex items-center gap-3 sm:gap-6 mb-8">
@@ -349,8 +363,8 @@ export default function EpicGoalsPage() {
               >
                 <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-300" />
               </motion.button>
-              <div>
-                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-3">
+              <div className="min-w-0">
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-3 leading-tight">
                   Οι Στόχοι μου
                 </h1>
                 <p className="text-zinc-400 text-base sm:text-lg lg:text-xl">
@@ -368,12 +382,12 @@ export default function EpicGoalsPage() {
             </div>
           </motion.div>
 
-          {/* New goal */}
+          {/* New goal (desktop/tablet) */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="flex justify-center mb-10"
+            className="hidden sm:flex justify-center mb-10"
           >
             <motion.button
               onClick={() => {
@@ -457,10 +471,16 @@ export default function EpicGoalsPage() {
 
                       {/* info */}
                       <div className="mb-4 sm:mb-6">
-                        <h3 className={`text-lg sm:text-xl font-bold mb-2 ${isCompleted ? "text-emerald-300" : "text-white"} break-words`}>
+                        <h3
+                          className={`text-lg sm:text-xl font-bold mb-2 ${
+                            isCompleted ? "text-emerald-300" : "text-white"
+                          } break-words`}
+                        >
                           {goal.title}
                         </h3>
-                        <p className="text-zinc-400 text-sm leading-relaxed break-words">{goal.description}</p>
+                        <p className="text-zinc-400 text-sm leading-relaxed break-words sm:line-clamp-none line-clamp-4">
+                          {goal.description}
+                        </p>
 
                         {goal.category === "custom" && (
                           <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-400 border border-zinc-700/40 rounded-full px-2 py-0.5">
@@ -571,6 +591,22 @@ export default function EpicGoalsPage() {
               </motion.button>
             </motion.div>
           )}
+        </div>
+
+        {/* Sticky mobile "Create" FAB */}
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] inset-x-4 z-40 sm:hidden">
+          <motion.button
+            onClick={() => {
+              setEditingGoal(null);
+              setShowCreateForm(true);
+            }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-zinc-700 to-zinc-800 text-white font-semibold border border-zinc-600/40 shadow-lg"
+          >
+            <Plus className="w-5 h-5" />
+            Νέος Στόχος
+          </motion.button>
         </div>
       </main>
 
@@ -754,7 +790,7 @@ function GoalFormModal({ open, onClose, initial, onSubmit }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 1 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="relative w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-[480px] md:max-w-[520px] bg-gradient-to-br from-black/80 via-zinc-900/90 to-black/80 backdrop-blur-2xl rounded-t-3xl sm:rounded-3xl border border-zinc-700/50 shadow-[0_25px_60px_rgba(0,0,0,0.5)] overflow-y-auto"
+          className="relative w-full h-[100svh] supports-[height:100dvh]:h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-[480px] md:max-w-[520px] bg-gradient-to-br from-black/80 via-zinc-900/90 to-black/80 backdrop-blur-2xl rounded-t-3xl sm:rounded-3xl border border-zinc-700/50 shadow-[0_25px_60px_rgba(0,0,0,0.5)] overflow-y-auto"
         >
           {/* drag-handle for mobile */}
           <div className="sm:hidden sticky top-0 z-20 flex justify-center pt-3">
@@ -773,11 +809,11 @@ function GoalFormModal({ open, onClose, initial, onSubmit }) {
                 >
                   <Target className="w-6 h-6 sm:w-7 sm:h-7 text-zinc-200" />
                 </motion.div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-lg sm:text-2xl font-bold text-white">
                     {initial ? "Επεξεργασία Στόχου" : "Νέος Στόχος"}
                   </h3>
-                  <p className="text-zinc-400 text-xs sm:text-sm">
+                  <p className="text-zinc-400 text-xs sm:text-sm truncate">
                     {initial ? "Ενημέρωσε τον στόχο σου" : "Δημιούργησε έναν νέο στόχο"}
                   </p>
                 </div>

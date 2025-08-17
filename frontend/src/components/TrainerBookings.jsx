@@ -1,9 +1,9 @@
-/*  components/TrainerBookings.jsx – glass-masonry list + details modal  v3.3
+/*  components/TrainerBookings.jsx – trainer_bookings only  v4.0
     -------------------------------------------------------------------------
-    •  Όλα τα “βαριά” κομμάτια (Details / Accept / Decline) σε React.lazy + Suspense
-    •  <BookingCard/> γίνεται React.memo ώστε να μη ξανα-render-άρεται άσκοπα
-    •  useCallback για σταθερά handlers, lazy-loading avatars (loading="lazy")
-    •  Skeleton & empty states μένουν ελαφριά· ίδιο UI / palette
+    • Διαβάζει ΜΟΝΟ από public.trainer_bookings
+    • Ενώνει προφίλ χρηστών (avatar_url) και χρησιμοποιεί user_name/user_email αν υπάρχουν
+    • Κουμπιά Αποδοχή/Απόρριψη ανοίγουν τα lazy modals
+    • Μετά την ενέργεια, γίνεται refresh ΜΟΝΟ της συγκεκριμένης εγγραφής από trainer_bookings
 */
 
 "use client"
@@ -20,7 +20,6 @@ import { supabase } from "../supabaseClient"
 import {
   Loader2,
   User as UserIcon,
-  AlertTriangle,
   CalendarClock,
   CheckCircle,
   Clock,
@@ -37,60 +36,88 @@ const DeclineModal = lazy(() => import("./DeclineBookingModal"))
 const DetailsModal = lazy(() => import("./BookingDetailsModal"))
 
 /* mini spinner */
-const Spinner = () => (
-  <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
-)
+const Spinner = () => <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
 
 /* status → UI maps */
 const badgeTone = {
-  confirmed: "bg-emerald-500/15 text-emerald-200",
-  pending: "bg-amber-400/15  text-amber-200",
+  accepted:  "bg-emerald-500/15 text-emerald-200",
+  pending:   "bg-amber-400/15  text-amber-200",
+  declined:  "bg-rose-500/15   text-rose-200",
   cancelled: "bg-rose-500/15   text-rose-200",
 }
 const badgeIcon = {
-  confirmed: CheckCircle,
-  pending: Clock,
+  accepted:  CheckCircle,
+  pending:   Clock,
+  declined:  Ban,
   cancelled: Ban,
 }
 
 export default function TrainerBookings({ trainerId: propId }) {
-  /* -------- trainer UUID -------- */
   const { profile } = useAuth()
-  const authUUID = supabase.auth.getUser()?.data?.user?.id
-  const trainerId = propId || profile?.id || authUUID
+  const trainerId = propId || profile?.id || null
 
-  /* -------- state -------- */
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  /* -------- fetch once -------- */
   useEffect(() => {
     if (!trainerId) return
     ;(async () => {
       setLoading(true)
       setError("")
       try {
-        /* bookings */
+        // 1) Fetch bookings for this trainer (lightweight column set)
         const { data: bookings, error: bErr } = await supabase
-          .from("bookings")
-          .select("*")
+          .from("trainer_bookings")
+          .select(`
+            id,
+            user_id,
+            trainer_id,
+            status,
+            created_at,
+            date,
+            start_time,
+            end_time,
+            duration_min,
+            note,
+            user_email,
+            user_name,
+            trainer_name
+          `)
           .eq("trainer_id", trainerId)
-          .order("booking_date", { ascending: false })
+          .order("date", { ascending: false })
+          .order("start_time", { ascending: false })
         if (bErr) throw bErr
 
-        /* users */
-        const ids = [...new Set(bookings.map((b) => b.user_id))]
-        const { data: users, error: uErr } = await supabase
-          .from("profiles")
-          .select("id, full_name, avatar_url, email")
-          .in("id", ids)
-        if (uErr) throw uErr
+        // 2) Attach user avatar/full_name from profiles (if available)
+        const userIds = Array.from(new Set((bookings ?? []).map(b => b.user_id)))
+        let userMap = {}
+        if (userIds.length) {
+          const { data: users, error: uErr } = await supabase
+            .from("profiles")
+            .select("id, full_name, avatar_url, email")
+            .in("id", userIds)
+          if (uErr) throw uErr
+          userMap = Object.fromEntries((users ?? []).map(u => [u.id, u]))
+        }
 
-        const map = Object.fromEntries(users.map((u) => [u.id, u]))
-        setRows(
-          bookings.map((b) => ({ ...b, client: map[b.user_id] || null }))
-        )
+        // 3) Normalize rows for UI
+        const normalized = (bookings ?? []).map(b => {
+          const slot = b.date && b.start_time ? `${b.date}T${b.start_time}` : null
+          const fromProfiles = userMap[b.user_id] || {}
+          return {
+            ...b,
+            // prefer denormalized name/email; fallback to profiles.*
+            client: {
+              full_name: b.user_name || fromProfiles.full_name || null,
+              avatar_url: fromProfiles.avatar_url || null,
+              email: b.user_email || fromProfiles.email || null,
+            },
+            slot_time: slot,
+          }
+        })
+
+        setRows(normalized)
       } catch (e) {
         console.error(e)
         setError(e.message)
@@ -109,7 +136,7 @@ export default function TrainerBookings({ trainerId: propId }) {
   return (
     <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
       {rows.map((b) => (
-        <BookingCard key={b.id} booking={b} trainerId={trainerId} />
+        <BookingCard key={b.id} booking={b} />
       ))}
     </div>
   )
@@ -117,11 +144,7 @@ export default function TrainerBookings({ trainerId: propId }) {
 
 /* ========== helper views ========== */
 const Msg = ({ label, spin = false, error = false }) => (
-  <p
-    className={`flex items-center gap-2 py-10 ${
-      error ? "text-red-400" : "text-gray-400"
-    }`}
-  >
+  <p className={`flex items-center gap-2 py-10 ${error ? "text-red-400" : "text-gray-400"}`}>
     {spin && <Spinner />} {label}
   </p>
 )
@@ -138,9 +161,7 @@ const Skeleton = () => (
     ))}
     <style jsx>{`
       @keyframes shimmer {
-        100% {
-          transform: translateX(100%);
-        }
+        100% { transform: translateX(100%); }
       }
     `}</style>
   </div>
@@ -150,29 +171,30 @@ const Empty = () => (
   <div className="flex min-h-[260px] w-full items-center justify-center rounded-3xl border border-white/10 bg-gradient-to-br from-[#1a1c21]/85 to-[#121417]/85 backdrop-blur-lg">
     <div className="flex flex-col items-center gap-6">
       <CalendarX className="h-16 w-16 text-gray-500" />
-      <p className="text-center text-lg text-gray-300">
-        Δεν υπάρχουν κρατήσεις ακόμη.
-      </p>
+      <p className="text-center text-lg text-gray-300">Δεν υπάρχουν κρατήσεις ακόμη.</p>
     </div>
   </div>
 )
 
 /* ========== BookingCard (memo) ========== */
-const BookingCard = memo(function BookingCard({ booking, trainerId }) {
-  const { id, client, status, booking_date, accepted_at, slot_time } =
-    booking
+const BookingCard = memo(function BookingCard({ booking }) {
+  const { id, client, status, created_at, slot_time } = booking
 
   const fmt = (ts) =>
-    new Date(ts).toLocaleString("el-GR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+    ts
+      ? new Date(ts).toLocaleString("el-GR", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—"
 
-  const whenReq = fmt(booking_date)
-  const whenAcc = status === "confirmed" ? fmt(accepted_at) : null
+  const whenReq = fmt(created_at)
+  const whenAcc =
+    status === "accepted" ? fmt(booking.updated_at || booking.accepted_at) : null
+
   const session = slot_time
     ? new Date(slot_time).toLocaleString("el-GR", {
         weekday: "short",
@@ -181,8 +203,9 @@ const BookingCard = memo(function BookingCard({ booking, trainerId }) {
       })
     : null
 
-  const Icon = badgeIcon[status] || CalendarClock
-  const tone = badgeTone[status] || "bg-gray-600/15 text-gray-300"
+  const normalized = (status || "pending").toLowerCase()
+  const Icon = badgeIcon[normalized] || CalendarClock
+  const tone = badgeTone[normalized] || "bg-gray-600/15 text-gray-300"
 
   /* dialogs */
   const [showAcc, setAcc] = useState(false)
@@ -193,15 +216,20 @@ const BookingCard = memo(function BookingCard({ booking, trainerId }) {
   const openDetails = useCallback(() => setDet(true), [])
   const closeDetails = useCallback(() => setDet(false), [])
 
+  // Refresh only this row from trainer_bookings
   const refresh = useCallback(async () => {
-    const { data } = await supabase
-      .from("bookings")
-      .select("status, accepted_at")
-      .eq("id", id)
-      .single()
-    if (data) {
-      booking.status = data.status
-      booking.accepted_at = data.accepted_at
+    try {
+      const { data } = await supabase
+        .from("trainer_bookings")
+        .select("status, updated_at")
+        .eq("id", id)
+        .maybeSingle()
+      if (data) {
+        booking.status = (data.status || "pending").toLowerCase()
+        booking.updated_at = data.updated_at || null
+      }
+    } catch (e) {
+      console.error("refresh row failed:", e)
     }
   }, [id, booking])
 
@@ -235,22 +263,21 @@ const BookingCard = memo(function BookingCard({ booking, trainerId }) {
             <p className="truncate text-2xl font-semibold text-gray-100">
               {client?.full_name || "Χρήστης"}
             </p>
+            {client?.email && (
+              <p className="truncate text-sm text-gray-400">{client.email}</p>
+            )}
             {session && (
               <p className="text-lg capitalize text-gray-400">{session}</p>
             )}
 
             <div className="mt-3 space-y-1 text-sm text-gray-400">
               <p>
-                <span className="inline-block w-24 text-gray-500">
-                  Αίτημα:
-                </span>{" "}
+                <span className="inline-block w-24 text-gray-500">Αίτημα:</span>{" "}
                 {whenReq}
               </p>
               {whenAcc && (
                 <p>
-                  <span className="inline-block w-24 text-gray-500">
-                    Αποδοχή:
-                  </span>{" "}
+                  <span className="inline-block w-24 text-gray-500">Αποδοχή:</span>{" "}
                   {whenAcc}
                 </p>
               )}
@@ -258,29 +285,24 @@ const BookingCard = memo(function BookingCard({ booking, trainerId }) {
           </div>
 
           {/* badge/actions */}
-          <div
-            className="flex shrink-0 flex-col items-end gap-3"
-            onClick={stop}
-          >
+          <div className="flex shrink-0 flex-col items-end gap-3" onClick={stop}>
             <Badge className={`flex items-center gap-2 px-4 py-1.5 ${tone}`}>
               <Icon className="h-5 w-5" />
-              {status === "confirmed"
-                ? "Επιβεβαιωμένη"
-                : status === "pending"
+              {normalized === "accepted"
+                ? "Αποδεκτή"
+                : normalized === "pending"
                 ? "Σε αναμονή"
+                : normalized === "declined"
+                ? "Απορρίφθηκε"
                 : "Ακυρώθηκε"}
             </Badge>
 
-            {status === "pending" && (
+            {normalized === "pending" && (
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => setAcc(true)}>
                   Αποδοχή
                 </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setDec(true)}
-                >
+                <Button size="sm" variant="secondary" onClick={() => setDec(true)}>
                   Απόρριψη
                 </Button>
               </div>
@@ -294,7 +316,6 @@ const BookingCard = memo(function BookingCard({ booking, trainerId }) {
         <Suspense fallback={null}>
           <AcceptModal
             bookingId={id}
-            trainerId={trainerId}
             close={() => setAcc(false)}
             onDone={refresh}
           />
@@ -304,7 +325,6 @@ const BookingCard = memo(function BookingCard({ booking, trainerId }) {
         <Suspense fallback={null}>
           <DeclineModal
             bookingId={id}
-            trainerId={trainerId}
             close={() => setDec(false)}
             onDone={refresh}
           />
@@ -314,7 +334,7 @@ const BookingCard = memo(function BookingCard({ booking, trainerId }) {
         <Suspense fallback={null}>
           <DetailsModal
             booking={booking}
-            trainerId={trainerId}
+            trainerId={booking.trainer_id}
             onDone={refresh}
             close={closeDetails}
           />

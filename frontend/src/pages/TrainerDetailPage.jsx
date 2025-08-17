@@ -4,17 +4,11 @@ import { useNavigate, useParams } from "react-router-dom"
 import { motion, useScroll, useTransform, AnimatePresence, useInView } from "framer-motion"
 import {
   ArrowLeft,
-  MapPin,
   Wifi,
-  WifiOff,
-  BadgeCheck,
-  Tag,
   CalendarIcon,
-  Sun,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Award,
   ChevronUp,
   ChevronDown,
   Calendar,
@@ -24,20 +18,28 @@ import {
   Star,
   Heart,
   MessageCircle,
-  Shield,
   Trophy,
   Users,
   Target,
-  ExternalLink,
-  FileText,
   Mail,
   Bell,
+  MapPin,
+  Tag,
+  Sun,
+  Shield,
+  Award,
+  BadgeCheck,
+  ExternalLink,
+  Edit2,
+  Trash2,
 } from "lucide-react"
 import { supabase } from "../supabaseClient"
 
-// Add useAuth hook - you'll need to implement this or import it
+// Import the booking component with explicit file extension
+import { AllInOneBooking } from "../components/all-in-one-booking.tsx";
+
+// Add useAuth hook
 const useAuth = () => {
-  // This is a placeholder - replace with your actual auth implementation
   const [session, setSession] = useState(null)
   useEffect(() => {
     // Get initial session
@@ -55,7 +57,7 @@ const useAuth = () => {
   return { session }
 }
 
-// Enhanced global styles to remove ALL white backgrounds and ensure dark theme
+// Enhanced global styles
 const globalStyles = `
   html, body {
     margin: 0 !important;
@@ -93,7 +95,7 @@ if (typeof document !== "undefined") {
   document.head.appendChild(styleElement)
 }
 
-/* Icons & categories (same map as marketplace page) */
+/* Icons & categories */
 import { FaDumbbell, FaUsers, FaAppleAlt, FaLaptop, FaRunning, FaMusic, FaHeartbeat } from "react-icons/fa"
 import { MdFitnessCenter, MdSelfImprovement, MdHealthAndSafety, MdPsychology } from "react-icons/md"
 import { GiMuscleUp, GiSwordsPower, GiWeightLiftingUp, GiBoxingGlove } from "react-icons/gi"
@@ -250,306 +252,6 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
 function diffMin(a, b) {
   const d = timeToMinutes(hhmm(b)) - timeToMinutes(hhmm(a))
   return Number.isFinite(d) ? Math.max(0, d) : null
-}
-
-// Enhanced Booking Success Modal Component
-function BookingSuccessModal({ isOpen, onClose, bookingDetails, trainerName }) {
-  if (!isOpen) return null
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: 50 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.8, y: 50 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="relative max-w-md w-full bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-3xl border border-zinc-700/50 shadow-2xl overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Animated background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-emerald-600/10 animate-pulse" />
-          {/* Glow effect */}
-          <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-emerald-500/20 via-green-500/20 to-emerald-600/20 blur-xl opacity-50" />
-          <div className="relative z-10 p-8">
-            {/* Success Icon */}
-            <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-emerald-500 to-green-600 rounded-full flex items-center justify-center shadow-2xl"
-            >
-              <CheckCircle2 className="h-10 w-10 text-white" />
-            </motion.div>
-            {/* Title */}
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-2xl font-bold text-center text-zinc-100 mb-4"
-            >
-              Επιτυχής Κράτηση! 🎉
-            </motion.h2>
-            {/* Booking Details */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-zinc-800/50 rounded-2xl p-6 mb-6 border border-zinc-700/30"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <UserIcon className="h-5 w-5 text-emerald-400" />
-                  <span className="text-zinc-300">
-                    Προπονητής: <span className="text-zinc-100 font-semibold">{trainerName}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CalendarIcon className="h-5 w-5 text-emerald-400" />
-                  <span className="text-zinc-300">
-                    Ημερομηνία: <span className="text-zinc-100 font-semibold">{fmtDate(bookingDetails.date)}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-emerald-400" />
-                  <span className="text-zinc-300">
-                    Ώρα:{" "}
-                    <span className="text-zinc-100 font-semibold">
-                      {bookingDetails.start_time} - {bookingDetails.end_time}
-                    </span>
-                  </span>
-                </div>
-                {bookingDetails.is_online && (
-                  <div className="flex items-center gap-3">
-                    <Wifi className="h-5 w-5 text-emerald-400" />
-                    <span className="text-zinc-300">
-                      Τύπος: <span className="text-zinc-100 font-semibold">Online συνεδρία</span>
-                    </span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-            {/* Information Message */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6 mb-6"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                  <Bell className="h-4 w-4 text-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-blue-100 font-semibold mb-2">Τι συμβαίνει τώρα;</h3>
-                  <div className="text-blue-200/80 text-sm space-y-2">
-                    <p>• Ο προπονητής θα λάβει την αίτησή σας άμεσα</p>
-                    <p>• Θα εξετάσει τη διαθεσιμότητά του και θα αποδεχτεί ή θα απορρίψει την κράτηση</p>
-                    <p>• Θα λάβετε email ειδοποίηση με την απάντησή του</p>
-                    <p>• Μπορείτε να παρακολουθείτε την κατάσταση στο προφίλ σας</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-            {/* Email Notification Info */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-6"
-            >
-              <div className="flex items-center gap-3">
-                <Mail className="h-5 w-5 text-amber-400" />
-                <div className="text-amber-100 text-sm">
-                  <span className="font-semibold">Θα σας ειδοποιήσουμε:</span> Η απάντηση θα σταλεί στο email σας εντός
-                  24 ωρών
-                </div>
-              </div>
-            </motion.div>
-            {/* Close Button */}
-            <motion.button
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              onClick={onClose}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full py-4 px-6 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold rounded-2xl transition-all duration-200 shadow-lg"
-            >
-              Εντάξει, κατάλαβα!
-            </motion.button>
-          </div>
-          {/* Close X button */}
-          <motion.button
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.8 }}
-            onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 bg-zinc-700/50 hover:bg-zinc-600/50 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all"
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <X className="h-4 w-4" />
-          </motion.button>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  )
-}
-
-// Success/Error Banner Component
-function NotificationBanner({ type, title, message, onClose, onRetry }) {
-  const [isVisible, setIsVisible] = useState(true)
-
-  useEffect(() => {
-    if (type === "success") {
-      const timer = setTimeout(() => {
-        setIsVisible(false)
-        setTimeout(onClose, 300) // Wait for animation to complete
-      }, 5000) // Auto-hide success after 5 seconds
-      return () => clearTimeout(timer)
-    }
-  }, [type, onClose])
-
-  const handleClose = () => {
-    setIsVisible(false)
-    setTimeout(onClose, 300)
-  }
-
-  const bannerConfig = {
-    success: {
-      bgColor: "bg-gradient-to-r from-emerald-500/20 via-green-500/20 to-emerald-600/20",
-      borderColor: "border-emerald-400/30",
-      textColor: "text-emerald-100",
-      iconColor: "text-emerald-400",
-      icon: CheckCircle2,
-      glowColor: "shadow-emerald-500/20",
-    },
-    error: {
-      bgColor: "bg-gradient-to-r from-red-500/20 via-rose-500/20 to-red-600/20",
-      borderColor: "border-red-400/30",
-      textColor: "text-red-100",
-      iconColor: "text-red-400",
-      icon: AlertTriangle,
-      glowColor: "shadow-red-500/20",
-    },
-  }
-
-  const config = bannerConfig[type]
-  const Icon = config.icon
-
-  return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.div
-          initial={{ opacity: 0, y: -100, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -100, scale: 0.95 }}
-          transition={{
-            type: "spring",
-            stiffness: 300,
-            damping: 30,
-            opacity: { duration: 0.3 },
-          }}
-          className="fixed top-4 left-4 right-4 z-[100] mx-auto max-w-md sm:max-w-lg lg:max-w-xl"
-        >
-          <div
-            className={`
-            relative overflow-hidden rounded-2xl border backdrop-blur-xl shadow-2xl
-            ${config.bgColor} ${config.borderColor} ${config.glowColor}
-          `}
-          >
-            {/* Animated background gradient */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-zinc-500/5 to-transparent animate-pulse" />
-            {/* Glow effect */}
-            <div className={`absolute inset-0 rounded-2xl blur-xl opacity-30 ${config.bgColor}`} />
-            <div className="relative p-4 sm:p-6">
-              <div className="flex items-start gap-3 sm:gap-4">
-                {/* Animated Icon */}
-                <motion.div
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                  className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/20 flex items-center justify-center ${config.iconColor}`}
-                >
-                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                </motion.div>
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <motion.h3
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className={`text-sm sm:text-base font-semibold ${config.textColor} mb-1`}
-                  >
-                    {title}
-                  </motion.h3>
-                  <motion.p
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className={`text-xs sm:text-sm ${config.textColor} opacity-90 leading-relaxed`}
-                  >
-                    {message}
-                  </motion.p>
-                  {/* Retry button for errors */}
-                  {type === "error" && onRetry && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.5 }}
-                      onClick={onRetry}
-                      className={`
-                        mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium
-                        bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-600/50 hover:border-zinc-500/50
-                        ${config.textColor} transition-all duration-200
-                      `}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      Δοκίμασε ξανά
-                    </motion.button>
-                  )}
-                </div>
-                {/* Close button */}
-                <motion.button
-                  initial={{ opacity: 0, scale: 0 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.6 }}
-                  onClick={handleClose}
-                  className={`
-                    flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-black/20 hover:bg-black/40
-                    flex items-center justify-center ${config.textColor} transition-all duration-200
-                  `}
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                </motion.button>
-              </div>
-              {/* Progress bar for success messages */}
-              {type === "success" && (
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ duration: 5, ease: "linear" }}
-                  className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-emerald-400 to-green-500 origin-left"
-                  style={{ transformOrigin: "left" }}
-                />
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
 }
 
 // Premium UI Components
@@ -740,373 +442,6 @@ function AvailabilityGrid({ rows }) {
         )
       })}
     </div>
-  )
-}
-
-/* =================== Enhanced Open Slots Booking Panel =================== */
-function OpenSlotBookingPanel({
-  trainerId,
-  trainerName,
-  holidays,
-  sessionUserId,
-  msg,
-  setMsg,
-  weeklyAvailability = [],
-  onSlotsAvailable,
-}) {
-  const [note, setNote] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [rows, setRows] = useState([])
-  const [submitting, setSubmitting] = useState(false)
-  const [notification, setNotification] = useState(null)
-  const [showAllDays, setShowAllDays] = useState(false)
-  const [showSuccessModal, setShowSuccessModal] = useState(false)
-  const [lastBookingDetails, setLastBookingDetails] = useState(null)
-
-  const startISO = useMemo(() => localDateISO(0), [])
-  const endISO = useMemo(() => localDateISO(29), [])
-
-  const usableStatus = (s) => {
-    const v = (s ?? "").toString().trim().toLowerCase()
-    return ["", "open", "available", "free", "publish", "published", "true", "1"].includes(v)
-  }
-
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      setMsg?.(null)
-      const { data: open = [], error: e1 } = await supabase
-        .from("trainer_open_slots")
-        .select("date,start_time,end_time,is_online,status")
-        .eq("trainer_id", trainerId)
-        .gte("date", startISO)
-        .lte("date", endISO)
-        .order("date", { ascending: true })
-        .order("start_time", { ascending: true })
-
-      if (!alive) return
-      if (e1) {
-        console.warn("[open slots] error:", e1)
-        setRows([])
-        setLoading(false)
-        setMsg?.({ type: "error", text: e1.message })
-        return
-      }
-
-      const { data: booked = [], error: e2 } = await supabase
-        .from("trainer_bookings")
-        .select("date,start_time,end_time,status")
-        .eq("trainer_id", trainerId)
-        .gte("date", startISO)
-        .lte("date", endISO)
-        .in("status", ["pending", "accepted"])
-
-      if (e2) console.warn("[booked] error:", e2)
-
-      const isHoliday = (d) => (holidays || []).some((h) => within(d, h.starts_on, h.ends_on))
-
-      let filtered = (open || []).filter((r) => {
-        if (!usableStatus(r.status)) return false
-        if (isHoliday(r.date)) return false
-        const overlap = (booked || []).some(
-          (b) => b.date === r.date && overlaps(r.start_time, r.end_time, b.start_time, b.end_time),
-        )
-        return !overlap
-      })
-
-      if (filtered.length === 0 && (weeklyAvailability || []).length > 0) {
-        const start = new Date(`${startISO}T00:00:00`)
-        const weekdayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
-        const derived = []
-        for (let i = 0; i < 30; i++) {
-          const d = new Date(start)
-          d.setDate(start.getDate() + i)
-          const iso = d.toISOString().slice(0, 10)
-          if (isHoliday(iso)) continue
-          const weekdayKey = weekdayNames[d.getDay()]
-          const daySlots = (weeklyAvailability || []).filter((x) => x.weekday === weekdayKey)
-          for (const s of daySlots) {
-            const overlap = (booked || []).some(
-              (b) => b.date === iso && overlaps(s.start_time, s.end_time, b.start_time, b.end_time),
-            )
-            if (!overlap) {
-              derived.push({
-                date: iso,
-                start_time: hhmm(s.start_time),
-                end_time: hhmm(s.end_time),
-                is_online: !!s.is_online,
-                status: "open",
-              })
-            }
-          }
-        }
-        filtered = derived.sort(
-          (a, b) =>
-            a.date.localeCompare(b.date) || timeToMinutes(hhmm(a.start_time)) - timeToMinutes(hhmm(b.start_time)),
-        )
-      }
-
-      // At the end of the useEffect, notify parent about slot availability
-      if (onSlotsAvailable) {
-        onSlotsAvailable(filtered.length > 0)
-      }
-
-      setRows(filtered)
-      setLoading(false)
-    })()
-    return () => {
-      alive = false
-    }
-  }, [trainerId, startISO, endISO, holidays, weeklyAvailability, setMsg, onSlotsAvailable])
-
-  const grouped = useMemo(() => {
-    const map = new Map()
-    for (const r of rows) {
-      const key = r.date
-      if (!map.has(key)) map.set(key, [])
-      map.get(key).push(r)
-    }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
-  }, [rows])
-
-  async function createBookingFromOpen(dateStr, startStr, endStr, slot) {
-    if (!sessionUserId) {
-      setNotification({
-        type: "error",
-        title: "Απαιτείται σύνδεση",
-        message: "Παρακαλώ συνδεθείτε για να πραγματοποιήσετε κράτηση.",
-      })
-      return
-    }
-
-    setSubmitting(true)
-    setMsg?.(null)
-
-    try {
-      // Calculate duration properly
-      const startMinutes = timeToMinutes(hhmm(startStr))
-      const endMinutes = timeToMinutes(hhmm(endStr))
-      const duration = endMinutes - startMinutes
-
-      // Get user email for notifications
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("email, full_name")
-        .eq("id", sessionUserId)
-        .single()
-
-      const payload = {
-        trainer_id: trainerId,
-        user_id: sessionUserId,
-        date: dateStr,
-        start_time: hhmm(startStr),
-        end_time: hhmm(endStr),
-        duration_min: duration > 0 ? duration : 60,
-        break_before_min: 0,
-        break_after_min: 0,
-        note: note.trim() || null,
-        status: "pending",
-        is_online: !!slot.is_online,
-        created_at: new Date().toISOString(),
-        user_email: userProfile?.email || null,
-        user_name: userProfile?.full_name || null,
-      }
-
-      console.log("Creating booking with payload:", payload)
-
-      const { data, error } = await supabase.from("trainer_bookings").insert([payload]).select().single()
-
-      if (error) {
-        console.error("Supabase booking error:", error)
-        setNotification({
-          type: "error",
-          title: "Η κράτηση απέτυχε",
-          message: `Κάτι πήγε στραβά κατά την κράτηση. ${error.message || "Παρακαλώ δοκιμάστε ξανά."}`,
-        })
-        return
-      }
-
-      console.log("Booking created successfully:", data)
-
-      // Store booking details for the success modal
-      setLastBookingDetails({
-        date: dateStr,
-        start_time: hhmm(startStr),
-        end_time: hhmm(endStr),
-        is_online: !!slot.is_online,
-        booking_id: data.id,
-      })
-
-      // Show success modal instead of notification
-      setShowSuccessModal(true)
-      setNote("")
-
-      // Remove the booked slot from available slots
-      setRows((prev) =>
-        prev.filter(
-          (s) => !(s.date === dateStr && hhmm(s.start_time) === hhmm(startStr) && hhmm(s.end_time) === hhmm(endStr)),
-        ),
-      )
-
-      // Optional: Send notification email to trainer (you can implement this server-side)
-      try {
-        // This would typically be handled by a server-side function or webhook
-        console.log("Booking notification should be sent to trainer and user")
-      } catch (emailError) {
-        console.warn("Email notification failed:", emailError)
-        // Don't fail the booking if email fails
-      }
-    } catch (err) {
-      console.error("Booking catch error:", err)
-      setNotification({
-        type: "error",
-        title: "Απροσδόκητο σφάλμα",
-        message: `Κάτι πήγε στραβά. ${err.message || "Παρακαλώ δοκιμάστε ξανά αργότερα."}`,
-      })
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleRetry = () => {
-    setNotification(null)
-  }
-
-  return (
-    <>
-      {/* Notification Banner */}
-      {notification && (
-        <NotificationBanner
-          type={notification.type}
-          title={notification.title}
-          message={notification.message}
-          onClose={() => setNotification(null)}
-          onRetry={notification.type === "error" ? handleRetry : undefined}
-        />
-      )}
-
-      {/* Success Modal */}
-      <BookingSuccessModal
-        isOpen={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
-        bookingDetails={lastBookingDetails}
-        trainerName={trainerName}
-      />
-
-      <PremiumCard hover={false} id="booking-section">
-        <div className="p-4 sm:p-6 lg:p-8 xl:p-10 2xl:p-12">
-          <ScrollReveal>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl flex items-center justify-center">
-                <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-zinc-200" />
-              </div>
-              <h2 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-bold text-zinc-200">Κράτηση συνεδρίας</h2>
-            </div>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.2}>
-            <div className="mb-6 lg:mb-8">
-              <label className="block text-sm lg:text-base font-medium text-zinc-300 mb-2">
-                Σημείωση (προαιρετική)
-              </label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-                className="w-full bg-zinc-800/40 border border-zinc-600/50 text-zinc-200 placeholder-zinc-400 focus:border-zinc-500 rounded-xl px-3 py-2 lg:px-4 lg:py-3 text-sm lg:text-base resize-none"
-                placeholder="Στόχοι, περιορισμοί, προτίμηση για εξοπλισμό κ.λπ."
-              />
-            </div>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.4}>
-            <div className="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-3 sm:p-4 lg:p-6 xl:p-8">
-              <p className="text-sm sm:text-base lg:text-lg text-zinc-300 mb-4 lg:mb-6">
-                Διαθέσιμες ώρες (επόμενες 30 ημέρες):
-              </p>
-
-              {loading ? (
-                <div className="flex items-center justify-center py-8 sm:py-12 lg:py-16">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 border-2 border-zinc-600/30 border-t-zinc-500 rounded-full animate-spin" />
-                  <span className="ml-3 text-zinc-400 text-sm sm:text-lg lg:text-xl">Φόρτωση…</span>
-                </div>
-              ) : grouped.length === 0 ? (
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-100 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 flex flex-col sm:flex-row items-center justify-center gap-3 text-center">
-                  <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 flex-shrink-0" />
-                  <span className="text-sm sm:text-lg lg:text-xl">Δεν υπάρχουν ανοικτά ραντεβού στο διάστημα.</span>
-                </div>
-              ) : (
-                <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-                  {/* Show only first 3 days or all days based on showAllDays state */}
-                  {(showAllDays ? grouped : grouped.slice(0, 3)).map(([dateStr, list], dateIndex) => (
-                    <ScrollReveal key={dateStr} delay={0.6 + dateIndex * 0.1}>
-                      <div className="rounded-lg border border-zinc-700/50 bg-zinc-900/30 p-3 sm:p-4 lg:p-6 xl:p-8">
-                        <div className="text-sm sm:text-base lg:text-lg xl:text-xl font-medium text-zinc-200 mb-3 sm:mb-4 lg:mb-6 flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 xl:h-7 xl:w-7 text-zinc-400" />
-                          {fmtDate(dateStr)}
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2 sm:gap-3 lg:gap-4">
-                          {list.map((s, idx) => (
-                            <motion.button
-                              key={`${dateStr}-${s.start_time}-${idx}`}
-                              disabled={submitting}
-                              onClick={() => createBookingFromOpen(dateStr, s.start_time, s.end_time, s)}
-                              whileHover={{ scale: 1.05, y: -2 }}
-                              whileTap={{ scale: 0.95 }}
-                              className="group relative px-2 py-2 sm:px-3 sm:py-3 lg:px-4 lg:py-4 xl:px-5 xl:py-5 rounded-lg bg-gradient-to-r from-zinc-600/20 to-zinc-700/20 border border-zinc-500/30 hover:border-zinc-400/50 text-zinc-200 text-xs sm:text-sm lg:text-base font-medium transition-all disabled:opacity-60 overflow-hidden min-h-[3rem] sm:min-h-[3.5rem] lg:min-h-[4rem]"
-                              title={`${hhmm(s.start_time)}–${hhmm(s.end_time)}`}
-                            >
-                              <div className="absolute inset-0 bg-gradient-to-r from-zinc-500/20 to-zinc-600/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              <div className="relative flex flex-col items-center justify-center gap-1">
-                                <Clock className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
-                                <span className="text-xs sm:text-sm lg:text-base font-bold leading-tight">
-                                  {hhmm(s.start_time)}–{hhmm(s.end_time)}
-                                </span>
-                              </div>
-                              {s.is_online && (
-                                <div className="absolute top-1 right-1">
-                                  <Wifi className="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4" />
-                                </div>
-                              )}
-                            </motion.button>
-                          ))}
-                        </div>
-                      </div>
-                    </ScrollReveal>
-                  ))}
-
-                  {/* Show More/Less Button */}
-                  {grouped.length > 3 && (
-                    <div className="text-center pt-4">
-                      <motion.button
-                        onClick={() => setShowAllDays(!showAllDays)}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-600/50 hover:border-zinc-500/50 text-zinc-200 font-medium transition-all"
-                      >
-                        {showAllDays ? (
-                          <>
-                            <ChevronUp className="h-4 w-4" />
-                            Εμφάνιση λιγότερων
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="h-4 w-4" />
-                            Εμφάνιση περισσότερων ({grouped.length - 3} ακόμα)
-                          </>
-                        )}
-                      </motion.button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </ScrollReveal>
-          <div className="h-2" />
-        </div>
-      </PremiumCard>
-    </>
   )
 }
 
@@ -1371,9 +706,9 @@ function PostsSection({ trainerId }) {
               <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-xl flex items-center justify-center">
                 <MessageCircle className="h-6 w-6 lg:h-7 lg:w-7 text-zinc-200" />
               </div>
-              <div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-zinc-200">Αναρτήσεις & Περιεχόμενο</h2>
-                <p className="text-zinc-400">Τελευταίες ενημερώσεις και συμβουλές</p>
+              <div className="flex-1">
+                <div className="h-6 bg-zinc-700/50 rounded w-1/3 mb-2"></div>
+                <div className="h-4 bg-zinc-700/50 rounded w-1/2"></div>
               </div>
             </div>
             <div className="text-center py-12">
@@ -1505,27 +840,35 @@ const PostCard = ({ post, index, onClick, formatRelativeTime }) => {
   )
 }
 
-// Reviews Section Component
-function ReviewsSection({ trainerId, stats }) {
+// Premium Reviews Section Component
+function PremiumReviews({ trainerId, stats }) {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [showReviewForm, setShowReviewForm] = useState(false)
   const [newReview, setNewReview] = useState({ rating: 5, comment: "" })
   const [submitting, setSubmitting] = useState(false)
+  const [editingReview, setEditingReview] = useState(null)
+  const [editReview, setEditReview] = useState({ rating: 5, comment: "" })
   const { session } = useAuth()
 
   useEffect(() => {
     const fetchReviews = async () => {
       try {
         const { data, error } = await supabase
-          .from("trainer_reviews")
-          .select(`
-            id, rating, comment, created_at,
-            profiles!trainer_reviews_user_id_fkey (full_name, avatar_url)
-          `)
-          .eq("trainer_id", trainerId)
-          .order("created_at", { ascending: false })
-          .limit(10)
+  .from("trainer_reviews")
+  .select(`
+    id,
+    rating,
+    comment,
+    created_at,
+    user:profiles!trainer_reviews_user_id_fkey (
+      full_name,
+      avatar_url
+    )
+  `)
+  .eq("trainer_id", trainerId)
+  .order("created_at", { ascending: false })
+  .limit(10)
 
         if (!error && data) {
           setReviews(data)
@@ -1540,79 +883,176 @@ function ReviewsSection({ trainerId, stats }) {
     fetchReviews()
   }, [trainerId])
 
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return "Σήμερα";
+    if (diffDays === 1) return "Χθες";
+    if (diffDays < 7) return `${diffDays} μέρες πριν`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} εβδομάδες πριν`;
+    return `${Math.floor(diffDays / 30)} μήνες πριν`;
+  };
+
   const handleSubmitReview = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!session?.user?.id) {
-      alert("Παρακαλώ συνδεθείτε για να αφήσετε κριτική")
-      return
+      alert("Παρακαλώ συνδεθείτε για να αφήσετε κριτική");
+      return;
     }
 
-    setSubmitting(true)
+    setSubmitting(true);
     try {
       const { data, error } = await supabase.from("trainer_reviews").insert({
         trainer_id: trainerId,
         user_id: session.user.id,
         rating: newReview.rating,
         comment: newReview.comment.trim(),
-        created_at: new Date().toISOString(),
-      })
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      // Refresh reviews
       const { data: updatedReviews } = await supabase
         .from("trainer_reviews")
         .select(`
-          id, rating, comment, created_at,
+          id, rating, comment, created_at, user_id,
           profiles!trainer_reviews_user_id_fkey (full_name, avatar_url)
         `)
         .eq("trainer_id", trainerId)
         .order("created_at", { ascending: false })
-        .limit(10)
+        .limit(10);
 
       if (updatedReviews) {
-        setReviews(updatedReviews)
+        setReviews(updatedReviews);
       }
 
-      setNewReview({ rating: 5, comment: "" })
-      setShowReviewForm(false)
+      setNewReview({ rating: 5, comment: "" });
+      setShowReviewForm(false);
+      alert("Η κριτική σας υποβλήθηκε επιτυχώς!");
     } catch (err) {
-      console.error("Error submitting review:", err)
-      alert("Σφάλμα κατά την υποβολή της κριτικής")
+      console.error("Error submitting review:", err);
+      alert("Σφάλμα κατά την υποβολή της κριτικής: " + err.message);
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
+
+  const handleEditReview = async (e) => {
+    e.preventDefault();
+    if (!editingReview) return;
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from("trainer_reviews")
+        .update({
+          rating: editReview.rating,
+          comment: editReview.comment.trim(),
+        })
+        .eq("id", editingReview.id)
+        .eq("user_id", session.user.id);
+
+      if (error) throw error;
+
+      const { data: updatedReviews } = await supabase
+        .from("trainer_reviews")
+        .select(`
+          id, rating, comment, created_at, user_id,
+          profiles!trainer_reviews_user_id_fkey (full_name, avatar_url)
+        `)
+        .eq("trainer_id", trainerId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (updatedReviews) {
+        setReviews(updatedReviews);
+      }
+
+      setEditingReview(null);
+      setEditReview({ rating: 5, comment: "" });
+      alert("Η κριτική σας ενημερώθηκε επιτυχώς!");
+    } catch (err) {
+      console.error("Error updating review:", err);
+      alert("Σφάλμα κατά την ενημέρωση της κριτικής: " + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId) => {
+    if (!confirm("Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την κριτική;")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("trainer_reviews")
+        .delete()
+        .eq("id", reviewId)
+        .eq("user_id", session.user.id);
+
+      if (error) throw error;
+
+      setReviews(reviews.filter((review) => review.id !== reviewId));
+      alert("Η κριτική διαγράφηκε επιτυχώς!");
+    } catch (err) {
+      console.error("Error deleting review:", err);
+      alert("Σφάλμα κατά τη διαγραφή της κριτικής: " + err.message);
+    }
+  };
+
+  const startEditReview = (review) => {
+    setEditingReview(review);
+    setEditReview({ rating: review.rating, comment: review.comment });
+  };
+
+  const cancelEdit = () => {
+    setEditingReview(null);
+    setEditReview({ rating: 5, comment: "" });
+  };
 
   return (
-    <PremiumCard>
-      <div className="p-6 lg:p-8">
+    <section className="py-16 lg:py-24">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollReveal>
-          <div className="flex items-center justify-between mb-6 lg:mb-8">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-yellow-600 to-yellow-700 rounded-xl flex items-center justify-center">
-                <Star className="h-6 w-6 lg:h-7 lg:w-7 text-zinc-200" />
+          <div className="text-center mb-12 lg:mb-16">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extralight text-white mb-4 lg:mb-6 tracking-tight">
+              Κριτικές
+            </h2>
+            <div className="flex items-center justify-center gap-2 sm:gap-4 mb-3 sm:mb-4">
+              <div className="flex items-center gap-1 sm:gap-2">
+                {[...Array(5)].map((_, i) => (
+                  <Star 
+                    key={i} 
+                    className={`w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 ${i < Math.floor(stats.avgRating) ? 'text-slate-300 fill-current' : 'text-slate-700'}`} 
+                  />
+                ))}
               </div>
-              <div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-zinc-200">Κριτικές & Αξιολογήσεις</h2>
-                <p className="text-zinc-400">
-                  {stats.avgRating > 0 ? `${stats.avgRating.toFixed(1)} αστέρια` : "Χωρίς αξιολόγηση"} •{" "}
-                  {stats.reviewsCount} κριτικές
-                </p>
-              </div>
+              <span className="text-xl sm:text-2xl font-extralight text-white">{stats.avgRating.toFixed(1)}</span>
+              <span className="text-slate-400 text-sm sm:text-base">({stats.reviewsCount} κριτικές)</span>
             </div>
-            {session?.user?.id && (
+            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+              Αυθεντικές κριτικές από ικανοποιημένους πελάτες
+            </p>
+          </div>
+        </ScrollReveal>
+
+        {session?.user?.id && (
+          <ScrollReveal delay={0.2}>
+            <div className="flex justify-center mb-8">
               <motion.button
                 onClick={() => setShowReviewForm(!showReviewForm)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-yellow-700 text-zinc-200 rounded-xl font-medium hover:from-yellow-700 hover:to-yellow-800 transition-all"
+                className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-medium hover:from-slate-700 hover:to-slate-800 transition-all"
               >
                 Αφήστε κριτική
               </motion.button>
-            )}
-          </div>
-        </ScrollReveal>
+            </div>
+          </ScrollReveal>
+        )}
 
         {/* Review Form */}
         <AnimatePresence>
@@ -1621,12 +1061,21 @@ function ReviewsSection({ trainerId, stats }) {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="mb-8 p-6 bg-zinc-800/30 border border-zinc-700/50 rounded-xl"
+              className="relative group overflow-hidden rounded-2xl lg:rounded-3xl
+                bg-gradient-to-br from-slate-800/20 via-slate-900/30 to-black/40
+                backdrop-blur-xl 
+                border border-slate-700/30 
+                shadow-2xl shadow-black/40
+                hover:border-slate-500/40 hover:shadow-slate-500/10
+                transition-all duration-500 p-6 mb-12"
             >
-              <form onSubmit={handleSubmitReview} className="space-y-4">
+              {/* Silver metallic shine */}
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-200/[0.03] via-transparent to-slate-400/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+              
+              <form onSubmit={handleSubmitReview} className="relative z-10 space-y-4">
                 <div>
-                  <label className="block text-zinc-200 font-medium mb-2">Αξιολόγηση</label>
-                  <div className="flex gap-2">
+                  <label className="block text-slate-300 font-medium mb-2">Αξιολόγηση</label>
+                  <div className="flex gap-2 justify-center">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
@@ -1636,7 +1085,7 @@ function ReviewsSection({ trainerId, stats }) {
                       >
                         <Star
                           className={`h-6 w-6 ${
-                            star <= newReview.rating ? "text-yellow-400 fill-current" : "text-zinc-600"
+                            star <= newReview.rating ? 'text-slate-300 fill-current' : 'text-slate-700'
                           }`}
                         />
                       </button>
@@ -1644,30 +1093,30 @@ function ReviewsSection({ trainerId, stats }) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-zinc-200 font-medium mb-2">Σχόλιο</label>
+                  <label className="block text-slate-300 font-medium mb-2">Σχόλιο</label>
                   <textarea
                     value={newReview.comment}
                     onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
                     rows={4}
-                    className="w-full bg-zinc-900/50 border border-zinc-600/50 text-zinc-200 placeholder-zinc-400 focus:border-zinc-500 rounded-lg px-4 py-3 resize-none"
+                    className="w-full bg-slate-900/50 border border-slate-700/40 text-slate-300 placeholder-slate-500 focus:border-slate-600 rounded-xl px-4 py-3 resize-none"
                     placeholder="Μοιραστείτε την εμπειρία σας..."
                     required
                   />
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 justify-center">
                   <motion.button
                     type="submit"
                     disabled={submitting}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="px-6 py-2 bg-gradient-to-r from-yellow-600 to-yellow-700 text-zinc-200 rounded-lg font-medium hover:from-yellow-700 hover:to-yellow-800 disabled:opacity-50 transition-all"
+                    className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-medium hover:from-slate-700 hover:to-slate-800 disabled:opacity-50 transition-all"
                   >
                     {submitting ? "Υποβολή..." : "Υποβολή κριτικής"}
                   </motion.button>
                   <button
                     type="button"
                     onClick={() => setShowReviewForm(false)}
-                    className="px-6 py-2 bg-zinc-700/50 text-zinc-300 rounded-lg hover:bg-zinc-600/50 transition-all"
+                    className="px-6 py-3 bg-slate-800/50 text-slate-300 rounded-xl hover:bg-slate-700/50 transition-all"
                   >
                     Ακύρωση
                   </button>
@@ -1678,70 +1127,104 @@ function ReviewsSection({ trainerId, stats }) {
         </AnimatePresence>
 
         {/* Reviews List */}
-        {loading ? (
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="animate-pulse p-4 bg-zinc-800/30 rounded-xl">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-zinc-700/50 rounded-full"></div>
-                  <div className="flex-1">
-                    <div className="h-4 bg-zinc-700/50 rounded w-1/4 mb-2"></div>
-                    <div className="h-3 bg-zinc-700/50 rounded w-1/6"></div>
-                  </div>
-                </div>
-                <div className="h-16 bg-zinc-700/50 rounded"></div>
-              </div>
-            ))}
-          </div>
-        ) : reviews.length === 0 ? (
-          <div className="text-center py-12">
-            <Star className="h-16 w-16 text-zinc-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-zinc-200 mb-2">Δεν υπάρχουν κριτικές ακόμα</h3>
-            <p className="text-zinc-400">Γίνετε ο πρώτος που θα αφήσει κριτική για αυτόν τον προπονητή!</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {reviews.map((review, index) => (
-              <ScrollReveal key={review.id} delay={index * 0.1}>
-                <div className="p-6 bg-zinc-800/30 border border-zinc-700/50 rounded-xl">
-                  <div className="flex items-start gap-4">
-                    <Avatar
-                      url={review.profiles?.avatar_url}
-                      alt={review.profiles?.full_name}
-                      className="w-12 h-12 flex-shrink-0"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <h4 className="text-zinc-200 font-semibold">{review.profiles?.full_name || "Ανώνυμος"}</h4>
-                          <div className="flex items-center gap-2">
-                            <div className="flex">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`h-4 w-4 ${
-                                    i < review.rating ? "text-yellow-400 fill-current" : "text-zinc-600"
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-zinc-400 text-sm">
-                              {new Date(review.created_at).toLocaleDateString("el-GR")}
-                            </span>
-                          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+          {reviews.map((review, index) => (
+            <ScrollReveal key={review.id} delay={index * 0.1}>
+              <div className="relative group overflow-hidden rounded-2xl lg:rounded-3xl
+                bg-gradient-to-br from-slate-800/20 via-slate-900/30 to-black/40
+                backdrop-blur-xl 
+                border border-slate-700/30 
+                shadow-2xl shadow-black/40
+                hover:border-slate-500/40 hover:shadow-slate-500/10
+                transition-all duration-500 p-4 sm:p-6 lg:p-8 h-full">
+                
+                {/* Silver metallic shine */}
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-200/[0.03] via-transparent to-slate-400/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                
+                <div className="flex flex-col h-full">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                    <div className="relative">
+                      <Avatar
+                        url={review.profiles?.avatar_url}
+                        alt={review.profiles?.full_name}
+                        className="w-10 h-10 sm:w-12 sm:h-12"
+                      />
+                      {session?.user?.id === review.user_id && (
+                        <div className="absolute top-0 right-0 flex gap-2">
+                          <button
+                            onClick={() => startEditReview(review)}
+                            className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-700/50 rounded-lg transition-all"
+                            title="Επεξεργασία κριτικής"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteReview(review.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700/50 rounded-lg transition-all"
+                            title="Διαγραφή κριτικής"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-white font-medium text-sm sm:text-base">{review.user?.full_name || "Ανώνυμος"}</h4>
+                      <div className="flex items-center gap-2">
+                        <div className="flex">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-3 h-3 sm:w-4 sm:h-4 ${i < review.rating ? 'text-slate-300 fill-current' : 'text-slate-700'}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-slate-500 text-xs sm:text-sm">{formatDate(review.created_at)}</span>
                       </div>
-                      <p className="text-zinc-300 leading-relaxed">{review.comment}</p>
+                    </div>
+                  </div>
+
+                  {/* Quote */}
+                  <div className="flex-1">
+                    <svg 
+                      className="w-6 h-6 sm:w-8 sm:h-8 text-slate-700 mb-3 sm:mb-4" 
+                      viewBox="0 0 24 24" 
+                      fill="currentColor"
+                    >
+                      <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
+                    </svg>
+                    <p className="text-slate-300 leading-relaxed text-sm sm:text-base lg:text-lg">
+                      {review.comment}
+                    </p>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between pt-4 sm:pt-6 mt-4 sm:mt-6 border-t border-slate-700/30">
+                    <div className="flex items-center gap-1 sm:gap-2 text-slate-500">
+                      <svg 
+                        className="w-3 h-3 sm:w-4 sm:h-4" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor"
+                      >
+                        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                      </svg>
+                      <span className="text-xs sm:text-sm">Χρήσιμη κριτική</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-slate-400">
+                      <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="text-xs sm:text-sm font-medium">Επαληθευμένη</span>
                     </div>
                   </div>
                 </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        )}
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
       </div>
-    </PremiumCard>
-  )
+    </section>
+  );
 }
 
 // Add this function to display real star ratings
@@ -1978,194 +1461,140 @@ export default function TrainerDetailPage() {
   const hasCert = certs.length > 0 || hasDiploma
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-zinc-200 relative overflow-hidden pb-32 lg:pb-20">
-      <ScrollProgress />
+    <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-zinc-200 relative overflow-hidden">
       <FloatingElements />
+      <ScrollProgress />
       <ScrollToTop />
 
-      {/* Hero Section - Removed top padding */}
-      <section className="relative min-h-screen flex items-center">
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-black to-zinc-900" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(113,113,122,0.15),transparent_70%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(82,82,91,0.1),transparent_70%)]" />
+      {/* Hero Section */}
+      <motion.section style={{ y: heroY }} className="relative pt-8 sm:pt-12 lg:pt-16 pb-12 sm:pb-16 lg:pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-16 items-center">
+            {/* Left Column - Info */}
+            <div className="space-y-6 lg:space-y-8">
+              <ScrollReveal>
+                <motion.button
+                  onClick={() => navigate(-1)}
+                  whileHover={{ x: -5 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-600/50 text-sm font-medium transition-all"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Πίσω
+                </motion.button>
+              </ScrollReveal>
 
-        <motion.div
-          style={{ y: heroY }}
-          className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 w-full"
-        >
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-            <div className="space-y-6 lg:space-y-8 text-center lg:text-left">
-              <div className="space-y-4 lg:space-y-6">
-                <ScrollReveal direction="left" delay={0.2}>
-                  <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className="p-2 rounded-full bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-600/50 text-zinc-200 transition-all"
+              <ScrollReveal delay={0.2}>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <h1
+                      className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold
+ text-zinc-100 leading-tight"
                     >
-                      <Heart className="h-5 w-5" />
-                    </motion.button>
-                    <StarRating rating={stats.avgRating} reviewCount={stats.reviewsCount} />
-                  </div>
-                </ScrollReveal>
-
-                {/* Avatar for mobile - show between rating and name */}
-                <div className="flex justify-center lg:hidden">
-                  <ResponsiveAvatar url={data.avatar_url} alt={data.full_name} isNew={isNewTrainer} />
-                </div>
-
-                <ScrollReveal direction="left" delay={0.4}>
-                  <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight flex flex-col lg:flex-row items-center lg:items-start gap-3 lg:gap-4">
-                    <span className="bg-gradient-to-r from-zinc-200 via-zinc-100 to-zinc-300 bg-clip-text text-transparent">
-                      {data.full_name}
-                    </span>
-                    {hasCert && (
+                      {data.full_name || "Προπονητής"}
+                    </h1>
+                    {data.is_online && (
                       <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ delay: 0.5, type: "spring" }}
-                        className="relative group"
-                      >
-                        <BadgeCheck
-                          className="h-8 w-8 lg:h-12 lg:w-12 text-blue-400 flex-shrink-0 cursor-help"
-                          title="Πιστοποιημένος προπονητής"
-                        />
-                        {/* Tooltip */}
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-72 p-4 bg-zinc-900/95 backdrop-blur-xl border border-zinc-600/50 text-zinc-200 text-sm rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none z-50 shadow-2xl">
-                          <div className="relative">
-                            {/* Arrow pointing up */}
-                            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-zinc-900/95"></div>
-                            <div className="font-medium text-zinc-200 mb-2 flex items-center gap-2">
-                              <BadgeCheck className="h-4 w-4 text-blue-400" />
-                              Πιστοποιημένος Προπονητής
-                            </div>
-                            <div className="text-zinc-300 leading-relaxed">
-                              Αυτό το σύμβολο δείχνει ότι ο προπονητής έχει ανεβάσει το δίπλωμά του στο Peak Velocity
-                              και έχει επαληθευτεί από την πλατφόρμα μας.
-                            </div>
-                          </div>
+                        animate={{ scale: [1, 1.1, 1], opacity: [0.7, 1, 0.7] }}
+                        transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                        className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full"
+                        title="Online τώρα"
+                      />
+                    )}
+                  </div>
+
+                  {cat && (
+                    <div className="flex items-center gap-3">
+                      {CatIcon && (
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-zinc-600 to-zinc-700 rounded-xl flex items-center justify-center">
+                          <CatIcon className="h-4 w-4 sm:h-5 sm:w-5 text-zinc-200" />
                         </div>
-                      </motion.div>
-                    )}
-                  </h1>
-                </ScrollReveal>
-
-                <ScrollReveal direction="left" delay={0.4}>
-                  <p className="text-lg lg:text-xl xl:text-2xl text-zinc-300 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-                    {data.bio ||
-                      "Επαγγελματίας προπονητής με πάθος για την υγεία και τη φυσική κατάσταση. Εξατομικευμένα προγράμματα για κάθε επίπεδο και στόχο."}
-                  </p>
-                </ScrollReveal>
-              </div>
-
-              <ScrollReveal direction="left" delay={0.6}>
-                <div className="flex flex-wrap justify-center lg:justify-start gap-3 lg:gap-4">
-                  <span
-                    className={`inline-flex items-center gap-2 px-4 py-2 lg:px-6 lg:py-3 rounded-full text-sm lg:text-base font-medium ${
-                      data.is_online
-                        ? "bg-emerald-600/20 text-emerald-200 border border-emerald-500/30"
-                        : "bg-zinc-600/20 text-zinc-300 border border-zinc-500/30"
-                    }`}
-                  >
-                    {data.is_online ? (
-                      <Wifi className="h-4 w-4 lg:h-5 lg:w-5" />
-                    ) : (
-                      <WifiOff className="h-4 w-4 lg:h-5 lg:w-5" />
-                    )}
-                    {data.is_online ? "Διαδικτυακά" : "Δια ζώσης"}
-                  </span>
-                  {data.location && (
-                    <span className="inline-flex items-center gap-2 px-4 py-2 lg:px-6 lg:py-3 rounded-full bg-zinc-600/20 text-zinc-200 border border-zinc-500/30 text-sm lg:text-base font-medium">
-                      <MapPin className="h-4 w-4 lg:h-5 lg:w-5" /> {data.location}
-                    </span>
+                      )}
+                      <span className="text-lg sm:text-xl lg:text-2xl text-zinc-300 font-medium">{cat.label}</span>
+                    </div>
                   )}
-                  {Number.isFinite(data.experience_years) && (
-                    <span className="inline-flex items-center gap-2 px-4 py-2 lg:px-6 lg:py-3 rounded-full bg-zinc-600/20 text-zinc-200 border border-zinc-500/30 text-sm lg:text-base font-medium">
-                      <Award className="h-4 w-4 lg:h-5 lg:w-5" /> {data.experience_years} έτη εμπειρίας
-                    </span>
+
+                  {data.location && (
+                    <div className="flex items-center gap-2 text-zinc-400">
+                      <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <span className="text-sm sm:text-base">{data.location}</span>
+                    </div>
+                  )}
+
+                  {stats.avgRating > 0 && (
+                    <div className="flex items-center gap-2">
+                      <StarRating rating={stats.avgRating} reviewCount={stats.reviewsCount} />
+                    </div>
                   )}
                 </div>
               </ScrollReveal>
 
-              {cat && (
-                <ScrollReveal direction="left" delay={0.75}>
-                  <div className="inline-flex items-center gap-3 px-6 py-4 rounded-full bg-zinc-700/30 border border-zinc-600/30 text-zinc-200 font-medium">
-                    {CatIcon ? (
-                      <CatIcon className="h-6 w-6 lg:h-7 lg:w-7" />
-                    ) : (
-                      <Tag className="h-6 w-6 lg:h-7 lg:w-7" />
-                    )}
-                    <span className="text-base lg:text-lg">{cat.label}</span>
+              <ScrollReveal delay={0.4}>
+                <p className="text-base sm:text-lg lg:text-xl text-zinc-300 leading-relaxed max-w-2xl">
+                  {data.bio || "Δεν υπάρχει περιγραφή."}
+                </p>
+              </ScrollReveal>
+
+              {tags.length > 0 && (
+                <ScrollReveal delay={0.6}>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.slice(0, 6).map((tag, idx) => (
+                      <motion.span
+                        key={idx}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.8 + idx * 0.1 }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-800/50 border border-zinc-600/50 text-zinc-300 text-sm font-medium"
+                      >
+                        <Tag className="h-3 w-3" />
+                        {tag}
+                      </motion.span>
+                    ))}
                   </div>
                 </ScrollReveal>
               )}
 
-              {currentVacation && (
-                <ScrollReveal direction="left" delay={0.9}>
-                  <div className="inline-flex items-center gap-3 px-6 py-4 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-100">
-                    <Sun className="h-5 w-5 lg:h-6 lg:w-6" />
-                    <span className="text-sm lg:text-base">
-                      Σε άδεια {fmtDate(currentVacation.starts_on)}–{fmtDate(currentVacation.ends_on)}
-                      {currentVacation.reason && <span className="text-amber-200/80">• {currentVacation.reason}</span>}
-                    </span>
-                  </div>
+              {hasAvailableSlots && (
+                <ScrollReveal delay={0.8}>
+                  <motion.button
+                    onClick={scrollToBooking}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-zinc-200 bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-600 hover:to-zinc-700 border border-zinc-600/50 shadow-xl backdrop-blur-xl font-semibold text-lg transition-all focus:outline-none focus:ring-2 focus:ring-zinc-500/80"
+                  >
+                    <Calendar className="h-5 w-5" />
+                    Κάνε κράτηση τώρα
+                  </motion.button>
                 </ScrollReveal>
               )}
-
-{/* Enhanced CTA Buttons — centered on mobile, same size/height */}
-<ScrollReveal direction="left" delay={1.05}>
-  <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start justify-center sm:justify-start">
-    {hasAvailableSlots && (
-      <motion.button
-        onClick={scrollToBooking}
-        whileHover={{ scale: 1.05, y: -2 }}
-        whileTap={{ scale: 0.97 }}
-        className="inline-flex items-center justify-center gap-2
-                   h-12 px-6 rounded-full text-zinc-200 text-base font-semibold
-                   whitespace-nowrap select-none
-                   bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-600 hover:to-zinc-700
-                   border border-zinc-600/50 shadow-xl backdrop-blur-xl
-                   focus:outline-none focus:ring-2 focus:ring-zinc-500/80 transition-all
-                   min-w-[240px]"
-      >
-        <Calendar className="h-5 w-5" />
-        <span>Κάνε κράτηση τώρα</span>
-      </motion.button>
-    )}
-
-    <motion.button
-      onClick={() =>
-        document.getElementById("reviews-section")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        })
-      }
-      whileHover={{ scale: 1.05, y: -2 }}
-      whileTap={{ scale: 0.97 }}
-      className="inline-flex items-center justify-center gap-2
-                 h-12 px-6 rounded-full text-zinc-300 text-base font-semibold
-                 whitespace-nowrap select-none
-                 bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-600/50 hover:border-zinc-500/50
-                 backdrop-blur-xl transition-all
-                 min-w-[240px]"
-    >
-      <Star className="h-5 w-5" />
-      <span>Αφήστε κριτική</span>
-    </motion.button>
-  </div>
-</ScrollReveal>
-
             </div>
 
-            <div className="hidden lg:flex justify-end">
+            {/* Right Column - Avatar */}
+            <div className="flex justify-center lg:justify-end">
               <ResponsiveAvatar url={data.avatar_url} alt={data.full_name} isNew={isNewTrainer} />
             </div>
           </div>
-        </motion.div>
-      </section>
+        </div>
+      </motion.section>
+
+      {/* Vacation Notice */}
+      {currentVacation && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+          <ScrollReveal>
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-100 px-6 py-4 flex items-center gap-4">
+              <Sun className="h-6 w-6 flex-shrink-0" />
+              <div>
+                <p className="font-semibold">Σε διακοπές</p>
+                <p className="text-sm opacity-90">
+                  {fmtDate(currentVacation.starts_on)} - {fmtDate(currentVacation.ends_on)}
+                  {currentVacation.reason && ` • ${currentVacation.reason}`}
+                </p>
+              </div>
+            </div>
+          </ScrollReveal>
+        </div>
+      )}
 
       {/* Main Content */}
-      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 space-y-16 lg:space-y-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 lg:space-y-12 pb-16 lg:pb-24">
         {/* Stats Section */}
         <StatsSection
           data={data}
@@ -2174,168 +1603,93 @@ export default function TrainerDetailPage() {
           reviewsCount={stats.reviewsCount}
         />
 
-        {/* Posts Section - Moved above availability */}
-        <PostsSection trainerId={data.id} />
-
-        {/* Reviews Section */}
-        <div id="reviews-section">
-          <ReviewsSection trainerId={data.id} stats={stats} />
-        </div>
+        {/* Certifications */}
+        {hasCert && (
+          <PremiumCard>
+            <div className="p-6 lg:p-8">
+              <ScrollReveal>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-green-600 to-green-700 rounded-xl flex items-center justify-center">
+                    <Shield className="h-6 w-6 lg:h-7 lg:w-7 text-zinc-200" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl lg:text-3xl font-bold text-zinc-200">Πιστοποιήσεις & Προσόντα</h2>
+                    <p className="text-zinc-400">Επαγγελματική εκπαίδευση και αναγνώριση</p>
+                  </div>
+                </div>
+              </ScrollReveal>
+              <div className="space-y-4">
+                {hasDiploma && (
+                  <ScrollReveal delay={0.2}>
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-zinc-800/30 border border-zinc-700/50">
+                      <Award className="h-5 w-5 text-green-400" />
+                      <span className="text-zinc-200 font-medium">Επίσημο Δίπλωμα</span>
+                      {isUrl(data.diploma_url) && (
+                        <motion.a
+                          href={data.diploma_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          whileHover={{ scale: 1.05 }}
+                          className="ml-auto text-zinc-400 hover:text-zinc-200 transition-colors"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </motion.a>
+                      )}
+                    </div>
+                  </ScrollReveal>
+                )}
+                {certs.map((cert, idx) => (
+                  <ScrollReveal key={idx} delay={0.3 + idx * 0.1}>
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-zinc-800/30 border border-zinc-700/50">
+                      <BadgeCheck className="h-5 w-5 text-blue-400" />
+                      <span className="text-zinc-200">{cert}</span>
+                    </div>
+                  </ScrollReveal>
+                ))}
+              </div>
+            </div>
+          </PremiumCard>
+        )}
 
         {/* Availability */}
-        <PremiumCard direction="left">
-          <div className="p-6 lg:p-8">
-            <ScrollReveal>
-              <div className="flex items-center gap-4 mb-6 lg:mb-8">
-                <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-green-600 to-green-700 rounded-xl flex items-center justify-center">
-                  <CalendarIcon className="h-6 w-6 lg:h-7 lg:w-7 text-zinc-200" />
+        {availability.length > 0 && (
+          <PremiumCard>
+            <div className="p-6 lg:p-8">
+              <ScrollReveal>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
+                    <Clock className="h-6 w-6 lg:h-7 lg:w-7 text-zinc-200" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl lg:text-3xl font-bold text-zinc-200">Εβδομαδιαία Διαθεσιμότητα</h2>
+                    <p className="text-zinc-400">Γενικό πρόγραμμα εργασίας</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-2xl lg:text-3xl font-bold text-zinc-200">Εβδομαδιαία Διαθεσιμότητα</h2>
-                  <p className="text-zinc-400">Οι συνήθεις ώρες προπόνησης</p>
-                </div>
-              </div>
-            </ScrollReveal>
-            <AvailabilityGrid rows={availability} />
-          </div>
-        </PremiumCard>
+              </ScrollReveal>
+              <AvailabilityGrid rows={availability} />
+            </div>
+          </PremiumCard>
+        )}
 
-        {/* Booking Panel */}
-        <OpenSlotBookingPanel
+        {/* Booking Section - Imported Component */}
+        <AllInOneBooking
           trainerId={data.id}
           trainerName={data.full_name}
           holidays={holidays}
-          sessionUserId={session?.user?.id || null}
-          msg={msg}
-          setMsg={setMsg}
+          sessionUserId={session?.user?.id}
           weeklyAvailability={availability}
           onSlotsAvailable={setHasAvailableSlots}
         />
 
-        {/* Certifications & Diploma - COMPLETELY FIXED SECTION */}
-        <PremiumCard direction="right">
-          <div className="p-6 lg:p-8">
-            <ScrollReveal>
-              <div className="flex items-center gap-4 mb-6 lg:mb-8">
-                <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center relative group">
-                  <BadgeCheck
-                    className={`h-6 w-6 lg:h-7 lg:w-7 ${hasCert ? "text-zinc-200" : "text-zinc-400"} cursor-help`}
-                  />
-                  {/* Tooltip for section header */}
-                  {hasCert && (
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-64 p-3 bg-zinc-900/95 backdrop-blur-xl border border-zinc-600/50 text-zinc-200 text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none z-50 shadow-xl">
-                      <div className="relative">
-                        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[4px] border-b-zinc-900/95"></div>
-                        <div className="text-zinc-300 leading-relaxed">
-                          Επαληθευμένα διπλώματα και πιστοποιήσεις από το Peak Velocity
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <h2 className="text-2xl lg:text-3xl font-bold text-zinc-200">Πιστοποιήσεις & Διπλώματα</h2>
-                  <p className="text-zinc-400">Επαγγελματικά προσόντα και εκπαίδευση</p>
-                </div>
-              </div>
-            </ScrollReveal>
+        {/* Posts Section */}
+        <PostsSection trainerId={data.id} />
 
-            {/* Show both certifications and diploma with proper visibility */}
-            <div className="space-y-8">
-              {/* Certifications Section */}
-              {certs.length > 0 && (
-                <div>
-                  <ScrollReveal>
-                    <h3 className="text-lg font-semibold text-zinc-200 mb-4 flex items-center gap-2">
-                      <Award className="h-5 w-5 text-blue-400" />
-                      Πιστοποιήσεις ({certs.length})
-                    </h3>
-                  </ScrollReveal>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-                    {certs.map((c, idx) => (
-                      <ScrollReveal key={`cert-${idx}`} delay={idx * 0.1}>
-                        <div className="flex items-center gap-4 p-4 lg:p-6 rounded-xl border border-zinc-700/30 bg-zinc-800/30 hover:bg-zinc-800/50 transition-colors group">
-                          <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0 group-hover:bg-blue-300 transition-colors" />
-                          {isUrl(c) ? (
-                            <a
-                              href={c}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 text-zinc-300 hover:text-zinc-200 underline decoration-zinc-500 hover:decoration-zinc-200 transition-colors flex-1"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                              <span className="break-all">Άνοιγμα πιστοποίησης</span>
-                            </a>
-                          ) : (
-                            <span className="text-zinc-300 group-hover:text-zinc-200 transition-colors flex-1 break-words">
-                              {String(c)}
-                            </span>
-                          )}
-                        </div>
-                      </ScrollReveal>
-                    ))}
-                  </div>
-                </div>
-              )}
+        {/* Reviews Section */}
+        <PremiumReviews trainerId={data.id} stats={stats} />
+      </div>
 
-              {/* Diploma Section - FIXED TO BE ALWAYS VISIBLE WHEN EXISTS */}
-              {hasDiploma && (
-                <div>
-                  <ScrollReveal delay={certs.length > 0 ? 0.3 : 0}>
-                    <h3 className="text-lg font-semibold text-zinc-200 mb-4 flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-green-400" />
-                      Δίπλωμα / Βεβαίωση
-                    </h3>
-                  </ScrollReveal>
-                  <ScrollReveal delay={certs.length > 0 ? 0.4 : 0.1}>
-                    <div className="p-6 rounded-xl border border-zinc-700/30 bg-zinc-800/30 hover:bg-zinc-800/50 transition-colors group">
-                      <a
-                        href={data.diploma_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-4 text-zinc-300 hover:text-zinc-200 transition-colors w-full"
-                      >
-                        <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center group-hover:bg-green-500/30 transition-colors">
-                          <ExternalLink className="h-6 w-6 text-green-400" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-base font-medium text-zinc-200 mb-1">Επίσημο Δίπλωμα/Βεβαίωση</div>
-                          <div className="text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                            Κάντε κλικ για προβολή του επίσημου διπλώματος
-                          </div>
-                        </div>
-                        <div className="text-zinc-500 group-hover:text-zinc-300 transition-colors">
-                          <ExternalLink className="h-5 w-5" />
-                        </div>
-                      </a>
-                    </div>
-                  </ScrollReveal>
-                </div>
-              )}
-
-              {/* Empty state - only show if no certs AND no diploma */}
-              {!hasCert && (
-                <ScrollReveal>
-                  <div className="text-center py-12">
-                    <div className="w-20 h-20 bg-zinc-800/50 rounded-full flex items-center justify-center mx-auto mb-6 border border-zinc-700/50">
-                      <Shield className="h-10 w-10 text-zinc-600" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-zinc-200 mb-2">Δεν υπάρχουν πιστοποιήσεις</h3>
-                    <p className="text-zinc-500">
-                      Αυτός ο προπονητής δεν έχει καταχωρήσει πιστοποιήσεις ή διπλώματα ακόμα
-                    </p>
-                  </div>
-                </ScrollReveal>
-              )}
-            </div>
-          </div>
-        </PremiumCard>
-
-        {/* Extra bottom spacing */}
-        <div className="h-16 lg:h-8" />
-      </main>
-
-      {hasAvailableSlots && <MobileBookingButton onClick={scrollToBooking} hasAvailableSlots={hasAvailableSlots} />}
+      {/* Mobile Booking Button */}
+      <MobileBookingButton onClick={scrollToBooking} hasAvailableSlots={hasAvailableSlots} />
     </div>
   )
 }

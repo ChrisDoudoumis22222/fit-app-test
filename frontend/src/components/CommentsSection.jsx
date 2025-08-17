@@ -23,43 +23,120 @@ import { useAuth } from "../AuthProvider"
 const COMMENTS_PER_PAGE = 10
 const REPLIES_PER_PAGE = 5
 
-// Greek profanity filter - add more words as needed
-const PROFANITY_WORDS = [
-  "μαλάκας",
-  "μαλακας",
-  "γαμώ",
-  "γαμω",
-  "πούστης",
-  "πουστης",
-  "σκύλα",
-  "σκυλα",
-  "κωλόπαιδο",
-  "κωλοπαιδο",
-  "αρχίδι",
-  "αρχιδι",
-  "βλάκας",
-  "βλακας",
-  "χαζός",
-  "χαζος",
-  "κωλόγερος",
-  "κωλογερος",
-  "μουνί",
-  "μουνι",
-  "πουτάνα",
-  "πουτανα",
-  "κερατάς",
-  "κερατας",
-  "fuck",
-  "shit",
-  "damn",
-  "bitch",
-  "asshole",
-  "bastard",
+/* ──────────────────────────────────────────────────────────────────────
+   Profanity filtering (Greek + Greeklish + within sentences)
+   - Handles tonos removal, repeated letters, spaces/punctuation between letters
+   - Checks both Greek and transliterated (Greek→Latin) variants
+   - Designed to catch phrases like:
+     "είσαι μεγάλος μαλάκας", "γαμω εσένα", "m a l a k a s", "gamw esena"
+   ────────────────────────────────────────────────────────────────────── */
+
+// Greek stems (no tonos), avoid hate speech against protected classes.
+const PROFANITY_GREEK = [
+  "μαλακ", "μαλακια", "μαλακες",
+  "γαμω", "γαμο", "γαμι", "γαμωτο",
+  "σκατ", "σκατα", "σκατο", "χεστ",
+  "πουστ", "πουτ", "πουτσα", "πουτσ",
+  "μουν", "μουνι",
+  "πουταν", "τσουλ", "ξεκωλ",
+  "αρχιδ", "ψωλ",
+  "καυλ", "καβλ",
+  "παπαρ",
+  "ηλιθ", "βλακ", "ζωον", "καραγκιοζ",
 ]
 
+// Greeklish/English stems
+const PROFANITY_LATIN = [
+  // greeklish
+  "malak", "malaka", "malakas", "malakia",
+  "gamw", "gamo", "gamise", "gamhs", "gamhto", "gamot", "gamoto",
+  "skata", "skato", "xesto", "xestes",
+  "poutan", "poutana", "poutanes",
+  "poutsa", "poutso", "poutses",
+  "moun", "mouni", "mounopano",
+  "arxid", "arhidi", "psol",
+  "kavl", "kavla", "kaul", "kaula",
+  "papar", "vlak", "zwo", "karagioz", "karagkioz",
+
+  // english
+  "fuck", "fucking", "fucker", "motherfucker", "mf", "wtf",
+  "shit", "shitty", "bitch", "asshole", "bastard", "dick", "pussy", "cunt", "jerk",
+  // masked
+  "f*ck", "f**k", "sh*t", "b*tch", "a**hole", "b@stard",
+]
+
+// Remove tonos/diacritics but keep Greek letters
+const stripDiacritics = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+
+// Collapse ≥3 repeated letters to 2 (μαααλακας → μααλακας)
+const collapseRepeats = (s) => s.replace(/([a-z\u0370-\u03ff])\1{2,}/gi, "$1$1")
+
+// Transliterate Greek → Latin (rough, for matching Greeklish)
+const greekToLatin = (s) => {
+  const map = {
+    "α": "a", "β": "v", "γ": "g", "δ": "d", "ε": "e", "ζ": "z", "η": "i", "θ": "th",
+    "ι": "i", "κ": "k", "λ": "l", "μ": "m", "ν": "n", "ξ": "x", "ο": "o", "π": "p",
+    "ρ": "r", "σ": "s", "ς": "s", "τ": "t", "υ": "y", "φ": "f", "χ": "x", "ψ": "ps", "ω": "o",
+  }
+  return s.replace(/[\u0370-\u03ff]/g, (ch) => map[ch] ?? ch)
+}
+
+// Keep letters/numbers/spaces; turn everything else into space
+const cleanSeparators = (s) => s.replace(/[^\p{L}\p{N} ]+/gu, " ")
+
+// Remove all non-alphanumerics (glues words, catches "m a l a k a s")
+const squashAllNonAlnum = (s) => s.replace(/[^\p{L}\p{N}]+/gu, "")
+
+const normalizeGreek = (text) => {
+  let s = text.toLowerCase()
+  s = stripDiacritics(s)
+  s = cleanSeparators(s)
+  s = collapseRepeats(s)
+  return s
+}
+
+const normalizeLatin = (text) => {
+  let s = text.toLowerCase()
+  s = stripDiacritics(s)
+  s = greekToLatin(s)           // convert any Greek letters to Latin
+  s = cleanSeparators(s)
+  s = collapseRepeats(s)
+  return s
+}
+
 const containsProfanity = (text) => {
-  const lowerText = text.toLowerCase()
-  return PROFANITY_WORDS.some((word) => lowerText.includes(word))
+  // Variants for robust matching
+  const g1 = normalizeGreek(text)             // greek, spaces kept
+  const g2 = squashAllNonAlnum(g1)            // greek, glued
+  const l1 = normalizeLatin(text)             // latinified, spaces kept
+  const l2 = squashAllNonAlnum(l1)            // latinified, glued
+
+  // Fast substring checks
+  const hitGreek = PROFANITY_GREEK.some((t) => g1.includes(t) || g2.includes(t))
+  if (hitGreek) return true
+  const hitLatin = PROFANITY_LATIN.some((t) => l1.includes(t) || l2.includes(t))
+  if (hitLatin) return true
+
+  // Fuzzy regex (allow tiny gaps like "m a l a k a s" or "γαμω... εσενα")
+  const makeFuzzy = (term) => {
+    const esc = term.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
+    // allow 0–2 non-letters between letters, and optional duplicate letters
+    return new RegExp(
+      esc
+        .split("")
+        .map((ch) => `${ch}+[^\\p{L}\\p{N}]{0,2}`)
+        .join("")
+        .replace(/[^\\p{L}\\p{N}]{0,2}$/, ""),
+      "iu",
+    )
+  }
+
+  const greekRegexHit = PROFANITY_GREEK.some((t) => makeFuzzy(t).test(g1))
+  if (greekRegexHit) return true
+  const latinRegexHit = PROFANITY_LATIN.some((t) => makeFuzzy(t).test(l1))
+  if (latinRegexHit) return true
+
+  return false
 }
 
 // Dark profanity warning popup
@@ -80,19 +157,12 @@ const ProfanityWarningPopup = ({ open, onClose }) => {
           <div className="p-2 rounded-full bg-orange-500/20">
             <AlertTriangle className="h-6 w-6 text-orange-300" />
           </div>
-          <h3 className="text-lg font-semibold text-orange-200">Προσοχή!</h3>
-          <button
-            onClick={onClose}
-            className="ml-auto p-1 rounded-full hover:bg-orange-500/10 transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5 text-orange-300" />
-          </button>
         </div>
         <div className="px-6 pb-6">
-          <p className="text-orange-200 mb-4">Συγγνώμη φίλε, αλλά δεν μπορείς να βρίζεις εδώ! 😅</p>
+          <h3 className="text-lg font-semibold text-orange-200 mb-2">Προσοχή!</h3>
+          <p className="text-orange-200 mb-4">Συγγνώμη, αλλά δεν επιτρέπεται υβριστικό περιεχόμενο. 😅</p>
           <p className="text-orange-300/90 text-sm mb-4">
-            Παρακαλούμε να διατηρήσετε έναν ευγενικό και σεβαστό τόνο στα σχόλιά σας.
+            Κρατήστε έναν ευγενικό και σεβαστό τόνο στα σχόλιά σας.
           </p>
           <button
             onClick={onClose}
@@ -129,7 +199,6 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
     fetchComments(true)
   }, [postId])
 
-  // --- keep fetchComments above loadMoreComments so it can be called there ---
   const fetchComments = async (isInitial = false) => {
     try {
       if (isInitial) {
@@ -205,7 +274,6 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
     }
   }
 
-  // --- define loadMoreComments BEFORE the effect that references it ---
   const loadMoreComments = useCallback(() => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
@@ -215,7 +283,6 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
     }, 300)
   }, [hasMore, loadingMore])
 
-  // --- intersection observer effect AFTER loadMoreComments is initialized ---
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -305,9 +372,7 @@ export default function CommentsSection({ postId, initialCommentsCount = 0, onCo
       if (replyingTo) {
         setComments((prev) =>
           prev.map((comment) =>
-            comment.id === replyingTo
-              ? { ...comment, replies: [...comment.replies, data] }
-              : comment,
+            comment.id === replyingTo ? { ...comment, replies: [...comment.replies, data] } : comment,
           ),
         )
         setReplyingTo(null)
@@ -582,13 +647,24 @@ function CommentItem({
 }) {
   const [showActions, setShowActions] = useState(false)
   const isOwner = currentUserId === comment.user_id
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowActions(false)
+      }
+    }
+    if (showActions) document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [showActions])
 
   const toggleReplies = () => {
     setExpandedReplies((prev) => ({ ...prev, [comment.id]: !prev[comment.id] }))
   }
 
   return (
-    <div className={isReply ? "ml-12 mt-4" : ""}>
+    <div className={`${isReply ? "ml-12 mt-4" : ""} relative`}>
       <div
         className="p-4 rounded-xl border border-zinc-700/50 hover:border-zinc-600 transition-colors"
         style={{
@@ -598,7 +674,6 @@ function CommentItem({
         }}
       >
         <div className="flex gap-3">
-          {/* Avatar */}
           <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden flex-shrink-0 border border-zinc-700">
             {comment.user?.avatar_url ? (
               <img
@@ -612,7 +687,6 @@ function CommentItem({
           </div>
 
           <div className="flex-1">
-            {/* Header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-neutral-200 text-sm">
@@ -624,8 +698,7 @@ function CommentItem({
                 </span>
               </div>
 
-              {/* Actions Menu */}
-              <div className="relative">
+              <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setShowActions((s) => !s)}
                   className="p-1 rounded-md hover:bg-white/10 transition-colors"
@@ -636,14 +709,14 @@ function CommentItem({
                 </button>
 
                 {showActions && (
-                  <div className="absolute right-0 top-8 bg-black/70 border border-zinc-700/50 rounded-lg shadow-xl py-1 z-20 min-w-[140px] backdrop-blur-md">
+                  <div className={`absolute ${isOwner ? 'bottom-full mb-1' : 'top-full mt-1'} right-0 bg-black/90 border border-zinc-700 rounded-lg shadow-xl py-1 z-[1000] min-w-[140px]`}>
                     {!isReply && (
                       <button
                         onClick={() => {
                           onReply(comment.id)
                           setShowActions(false)
                         }}
-                        className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-white/10 flex items-center gap-2"
+                        className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-zinc-800 flex items-center gap-2"
                       >
                         <Reply className="h-3 w-3" />
                         Απάντηση
@@ -657,7 +730,7 @@ function CommentItem({
                             onEdit(comment)
                             setShowActions(false)
                           }}
-                          className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-white/10 flex items-center gap-2"
+                          className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-zinc-800 flex items-center gap-2"
                         >
                           <Edit3 className="h-3 w-3" />
                           Επεξεργασία
@@ -678,7 +751,7 @@ function CommentItem({
                     {!isOwner && (
                       <button
                         onClick={() => setShowActions(false)}
-                        className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-white/10 flex items-center gap-2"
+                        className="w-full px-3 py-2 text-left text-sm text-neutral-200 hover:bg-zinc-800 flex items-center gap-2"
                       >
                         <Flag className="h-3 w-3" />
                         Αναφορά
@@ -689,13 +762,13 @@ function CommentItem({
               </div>
             </div>
 
-            {/* Content */}
             {editingComment === comment.id ? (
               <div className="space-y-3">
                 <textarea
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
-                  className="w-full p-3 bg黑"
+                  className="w-full p-3 bg-black/30 border border-zinc-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-neutral-200"
+                  rows={3}
                 />
                 <div className="flex gap-2">
                   <button
@@ -766,8 +839,6 @@ function CommentItem({
           )}
         </div>
       )}
-
-      {showActions && <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />}
     </div>
   )
 }

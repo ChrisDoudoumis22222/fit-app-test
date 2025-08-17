@@ -31,6 +31,9 @@ import {
   Wifi,
   WifiOff,
   X,
+  Clock4,
+  Euro,
+  CreditCard,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { supabase } from "../supabaseClient"
@@ -269,6 +272,7 @@ const TRAINER_CATEGORIES = [
 
 const SECTIONS = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3, color: "from-blue-600 to-blue-700" },
+  { id: "availability", label: "Διαθεσιμότητα", icon: Clock4, color: "from-amber-600 to-amber-700" },
   { id: "profile", label: "Προφίλ", icon: Settings, color: "from-zinc-600 to-zinc-700" },
   { id: "avatar", label: "Avatar", icon: ImagePlus, color: "from-gray-600 to-gray-700" },
   { id: "credentials", label: "Πιστοποιήσεις", icon: GraduationCap, color: "from-green-600 to-green-700" },
@@ -440,6 +444,36 @@ const useAuth = () => {
   }
 }
 
+// 👉 Βάλε αυτό κάπου πάνω από το useTrainerData (π.χ. κάτω από dataCache)
+const getBookingDate = (b) => {
+  // επέλεξε το πιο πιθανό πεδίο ημερομηνίας/ώρας
+  const v =
+    b?.scheduled_at ||
+    b?.start_time ||
+    b?.start_at ||
+    b?.session_at ||
+    b?.booking_at ||
+    b?.booking_date ||
+    b?.date || // αν υπάρχει τελικά
+    b?.created_at
+
+  // Αν υπάρχει χωριστό time, συνδύασέ το
+  if (!b?.date && b?.booking_date && b?.time) {
+    try {
+      const d = new Date(b.booking_date)
+      const [h, m] = String(b.time).split(":")
+      if (!Number.isNaN(Number.parseInt(h))) d.setHours(Number.parseInt(h), Number.parseInt(m || "0"), 0, 0)
+      return d
+    } catch (_) {}
+  }
+
+  try {
+    return v ? new Date(v) : null
+  } catch (_) {
+    return null
+  }
+}
+
 // Optimized Spinner component
 const Spinner = memo(({ size = 6 }) => <Loader2 className={`h-${size} w-${size} animate-spin`} />)
 
@@ -569,14 +603,10 @@ const PremiumNavigation = memo(({ currentSection, onSectionChange }) => {
 })
 
 // Optimized data fetching hook with better caching
+// 👉 Αντικατάστησε ΟΛΟ το useTrainerData με αυτό
 const useTrainerData = (profile) => {
   const [performanceData, setPerformanceData] = useState({
-    todayStats: {
-      sessionsToday: 0,
-      activeClients: 0,
-      upcomingSessions: 0,
-      monthlyProgress: 0,
-    },
+    todayStats: { sessionsToday: 0, activeClients: 0, upcomingSessions: 0, monthlyProgress: 0 },
     recentSessions: [],
   })
   const [loading, setLoading] = useState(true)
@@ -591,7 +621,6 @@ const useTrainerData = (profile) => {
         return
       }
 
-      // Check cache first
       if (!forceRefresh) {
         const cached = dataCache.get(cacheKey)
         if (cached) {
@@ -607,53 +636,50 @@ const useTrainerData = (profile) => {
         const { data: bookings, error: bookingsError } = await supabase
           .from("bookings")
           .select(`
-          *,
-          user:profiles!bookings_user_id_fkey(full_name, email)
-        `)
+            *,
+            user:profiles!bookings_user_id_fkey(full_name, email)
+          `)
           .eq("trainer_id", profile.id)
-          .order("date", { ascending: false })
+          // ❌ order("date") → ✅ order("created_at")
+          .order("created_at", { ascending: false })
 
-        if (bookingsError && bookingsError.code !== "PGRST116") {
-          throw bookingsError
-        }
+        if (bookingsError && bookingsError.code !== "PGRST116") throw bookingsError
 
-        const bookingsData = bookings || []
         const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
-        // Calculate stats
-        const todayBookings = bookingsData.filter((b) => {
-          const bookingDate = new Date(b.date)
-          return bookingDate >= today && bookingDate < new Date(today.getTime() + 86400000)
-        })
-
-        const upcomingBookings = bookingsData.filter((b) => {
-          const bookingDate = new Date(b.date)
-          return bookingDate > now && b.status !== "cancelled"
-        })
-
-        const monthlyBookings = bookingsData.filter((b) => {
-          const bookingDate = new Date(b.date)
-          return bookingDate >= thisMonth && b.status === "confirmed"
-        })
-
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+        const list = (bookings || []).map((b) => {
+          const when = getBookingDate(b) || new Date(b.created_at)
+          return { ...b, _when: when }
+        })
+
+        // sort by scheduled date desc (fallback already applied)
+        const sorted = [...list].sort((a, b) => (b._when?.getTime() || 0) - (a._when?.getTime() || 0))
+
+        const todayBookings = sorted.filter((b) => b._when && b._when >= todayStart && b._when < todayEnd)
+        const upcomingBookings = sorted.filter((b) => b._when && b._when > now && b.status !== "cancelled")
+        const monthlyBookings = sorted.filter((b) => b._when && b._when >= monthStart && b.status === "confirmed")
+
         const activeClientIds = new Set(
-          bookingsData
-            .filter((b) => new Date(b.date) >= thirtyDaysAgo && b.status !== "cancelled")
-            .map((b) => b.user_id),
+          sorted.filter((b) => b._when && b._when >= thirtyDaysAgo && b.status !== "cancelled").map((b) => b.user_id),
         )
 
         const monthlyTarget = 20
         const monthlyProgress = Math.min((monthlyBookings.length / monthlyTarget) * 100, 100)
 
-        const recentSessions = bookingsData.slice(0, 5).map((booking) => ({
+        const recentSessions = sorted.slice(0, 5).map((booking) => ({
           id: booking.id,
           client: booking.user?.full_name || booking.user?.email || "Άγνωστος πελάτης",
           type: booking.service_type || "Προπόνηση",
-          time: booking.time || "Δεν καθορίστηκε",
-          date: new Date(booking.date).toLocaleDateString("el-GR"),
+          time:
+            booking.time ||
+            booking.start_time ||
+            booking.scheduled_time ||
+            (booking._when ? booking._when.toLocaleTimeString("el-GR", { hour: "2-digit", minute: "2-digit" }) : "—"),
+          date: booking._when ? booking._when.toLocaleDateString("el-GR") : "—",
           status: booking.status,
           duration: booking.duration || "60 λεπτά",
         }))
@@ -668,13 +694,12 @@ const useTrainerData = (profile) => {
           recentSessions,
         }
 
-        // Cache the data
         dataCache.set(cacheKey, newData)
         setPerformanceData(newData)
         setError(null)
-      } catch (error) {
-        console.error("Error fetching trainer data:", error)
-        setError(error.message)
+      } catch (e) {
+        console.error("Error fetching trainer data:", e)
+        setError(e.message)
       } finally {
         setLoading(false)
       }
@@ -682,13 +707,11 @@ const useTrainerData = (profile) => {
     [profile?.id, cacheKey],
   )
 
-  // Load cached data immediately on mount
   useEffect(() => {
     if (!profile?.id) {
       setLoading(false)
       return
     }
-
     const cached = dataCache.get(cacheKey)
     if (cached) {
       setPerformanceData(cached)
@@ -1014,17 +1037,42 @@ const RecentSessionsCard = memo(({ sessions, loading }) => {
   )
 })
 
-// Memoized quick actions card
 const QuickActionsCard = memo(() => {
   const actions = useMemo(
     () => [
-      { icon: Calendar, label: "Νέα Συνεδρία", color: "from-blue-600/20 to-blue-700/20" },
-      { icon: Users, label: "Διαχείριση Πελατών", color: "from-green-600/20 to-green-700/20" },
-      { icon: BarChart3, label: "Αναφορές", color: "from-purple-600/20 to-purple-700/20" },
-      { icon: Settings, label: "Ρυθμίσεις", color: "from-zinc-600/20 to-zinc-700/20" },
+      {
+        icon: Calendar,
+        label: "Κρατήσεις",
+        color: "from-blue-600/20 to-blue-700/20",
+        path: "http://localhost:3000/trainer/bookings",
+      },
+      {
+        icon: Users,
+        label: "Πληρωμές",
+        color: "from-green-600/20 to-green-700/20",
+        path: "http://localhost:3000/trainer/payments",
+      },
+      {
+        icon: BarChart3,
+        label: "Αναφορές",
+        color: "from-purple-600/20 to-purple-700/20",
+        path: "http://localhost:3000/trainer#avatar",
+      },
+      {
+        icon: Settings,
+        label: "Ασφάλεια",
+        color: "from-zinc-600/20 to-zinc-700/20",
+        path: "http://localhost:3000/trainer#security",
+      },
     ],
     [],
   )
+
+  const handleActionClick = (path) => {
+    // Navigation placeholder - replace with your routing solution
+    console.log(`Navigating to: ${path}`)
+    window.location.href = path // Uncomment when ready to use
+  }
 
   return (
     <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-black/40 backdrop-blur-xl border border-zinc-700/50 p-4 sm:p-6 lg:p-8">
@@ -1046,6 +1094,7 @@ const QuickActionsCard = memo(() => {
               transition={{ delay: index * 0.1 }}
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => handleActionClick(action.path)}
               className="flex flex-col items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-zinc-800/30 border border-zinc-700/30 hover:bg-zinc-800/50 transition-all"
             >
               <div
@@ -1154,13 +1203,330 @@ const PremiumCard = memo(({ title, icon: Icon, description, children }) => {
   )
 })
 
+// New Availability Management Section
+const AvailabilitySection = memo(({ profile, updateProfile }) => {
+  const [availability, setAvailability] = useState({
+    workingHours: [
+      { day: 'Monday', label: 'Δευτέρα', enabled: false, start: '09:00', end: '17:00' },
+      { day: 'Tuesday', label: 'Τρίτη', enabled: true, start: '09:00', end: '17:00' },
+      { day: 'Wednesday', label: 'Τετάρτη', enabled: true, start: '09:00', end: '17:00' },
+      { day: 'Thursday', label: 'Πέμπτη', enabled: true, start: '09:00', end: '17:00' },
+      { day: 'Friday', label: 'Παρασκευή', enabled: true, start: '09:00', end: '17:00' },
+      { day: 'Saturday', label: 'Σάββατο', enabled: false, start: '09:00', end: '17:00' },
+      { day: 'Sunday', label: 'Κυριακή', enabled: false, start: '09:00', end: '17:00' },
+    ],
+    onlineSessions: true,
+    onlineHours: { start: '08:00', end: '21:00' },
+    basePrice: 30,
+    discount: 10,
+    paymentMethods: ['cash'],
+    country: 'Ελλάδα (UTC+3)',
+    specialty: 'Φυσικοθεραπευτής',
+  });
+
+  useEffect(() => {
+    if (profile?.availability_settings) {
+      setAvailability(profile.availability_settings);
+    }
+  }, [profile]);
+
+  const handleDayChange = (index, field, value) => {
+    const updatedHours = [...availability.workingHours];
+    updatedHours[index][field] = value;
+    setAvailability(prev => ({ ...prev, workingHours: updatedHours }));
+  };
+
+  const handleQuickSelect = () => {
+    const updatedHours = availability.workingHours.map(day => 
+      ['Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή'].includes(day.label)
+        ? { ...day, enabled: true }
+        : { ...day, enabled: false }
+    );
+    setAvailability(prev => ({ ...prev, workingHours: updatedHours }));
+  };
+
+  const handleOnlineSessionsChange = (e) => {
+    setAvailability(prev => ({ ...prev, onlineSessions: e.target.checked }));
+  };
+
+  const handleOnlineHoursChange = (field, value) => {
+    setAvailability(prev => ({
+      ...prev,
+      onlineHours: { ...prev.onlineHours, [field]: value }
+    }));
+  };
+
+  const handlePriceChange = (field, value) => {
+    setAvailability(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handlePaymentMethodChange = (method) => {
+    const methods = [...availability.paymentMethods];
+    if (methods.includes(method)) {
+      setAvailability(prev => ({
+        ...prev,
+        paymentMethods: methods.filter(m => m !== method)
+      }));
+    } else {
+      setAvailability(prev => ({
+        ...prev,
+        paymentMethods: [...methods, method]
+      }));
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await updateProfile({ 
+        availability_settings: availability 
+      });
+      alert("Οι ρυθμίσεις διαθεσιμότητας ενημερώθηκαν επιτυχώς!");
+    } catch (error) {
+      alert("Σφάλμα κατά την αποθήκευση: " + error.message);
+    }
+  };
+
+  return (
+    <div className="space-y-6 sm:space-y-8">
+      {/* Working Hours */}
+      <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <div>
+            <h3 className="text-lg sm:text-xl font-bold text-zinc-100 mb-2">Διαθασμότητα</h3>
+            <p className="text-zinc-400 text-sm">Ορισμός ημερών και ωραρίου εργασίας</p>
+          </div>
+          <Clock4 className="w-6 h-6 text-amber-400" />
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <button 
+            onClick={handleQuickSelect}
+            className="bg-amber-600/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg text-sm"
+          >
+            Γρήγορη επιλογή, καθημερινές συμπτώτειες
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-zinc-400">
+            <thead className="text-xs uppercase bg-zinc-700/50 text-zinc-300">
+              <tr>
+                <th scope="col" className="px-4 py-3">Ημέρα</th>
+                <th scope="col" className="px-4 py-3">Ενεργό</th>
+                <th scope="col" className="px-4 py-3">Ώρα Έναρξης</th>
+                <th scope="col" className="px-4 py-3">Ώρα Λήξης</th>
+              </tr>
+            </thead>
+            <tbody>
+              {availability.workingHours.map((day, index) => (
+                <tr key={day.day} className="border-b border-zinc-700/30 hover:bg-zinc-800/20">
+                  <td className="px-4 py-3 font-medium text-zinc-100 whitespace-nowrap">
+                    {day.label}
+                  </td>
+                  <td className="px-4 py-3">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={day.enabled}
+                        onChange={(e) => handleDayChange(index, 'enabled', e.target.checked)}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="time"
+                      value={day.start}
+                      onChange={(e) => handleDayChange(index, 'start', e.target.value)}
+                      disabled={!day.enabled}
+                      className="bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-2 py-1 text-zinc-100 disabled:opacity-50"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="time"
+                      value={day.end}
+                      onChange={(e) => handleDayChange(index, 'end', e.target.value)}
+                      disabled={!day.enabled}
+                      className="bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-2 py-1 text-zinc-100 disabled:opacity-50"
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Online Sessions */}
+      <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <div>
+            <h3 className="text-lg sm:text-xl font-bold text-zinc-100 mb-2">Διαθέσιμος Online</h3>
+            <p className="text-zinc-400 text-sm">Προσφέρεια συνεδρίες μέσω βιντακολήρης</p>
+          </div>
+          <Wifi className="w-6 h-6 text-blue-400" />
+        </div>
+
+        <div className="flex items-center mb-4">
+          <label className="relative inline-flex items-center cursor-pointer mr-4">
+            <input 
+              type="checkbox" 
+              checked={availability.onlineSessions}
+              onChange={handleOnlineSessionsChange}
+              className="sr-only peer" 
+            />
+            <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            <span className="ml-3 text-sm font-medium text-zinc-300">Συνενδυτικής</span>
+          </label>
+        </div>
+
+        {availability.onlineSessions && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">Ώρα Έναρξης</label>
+              <input
+                type="time"
+                value={availability.onlineHours.start}
+                onChange={(e) => handleOnlineHoursChange('start', e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-3 py-2 text-zinc-100"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">Ώρα Λήξης</label>
+              <input
+                type="time"
+                value={availability.onlineHours.end}
+                onChange={(e) => handleOnlineHoursChange('end', e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-3 py-2 text-zinc-100"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Price Management */}
+      <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <div>
+            <h3 className="text-lg sm:text-xl font-bold text-zinc-100 mb-2">Διαχείριση Διαθεσιμότητας</h3>
+            <p className="text-zinc-400 text-sm">Διαχείριση Τιμών</p>
+          </div>
+          <Euro className="w-6 h-6 text-green-400" />
+        </div>
+
+        <div className="mb-4">
+          <h4 className="text-md font-semibold text-zinc-100 mb-3">Καπική τιμή (€)</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">Βασική τιμή</label>
+              <input
+                type="number"
+                value={availability.basePrice}
+                onChange={(e) => handlePriceChange('basePrice', e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-3 py-2 text-zinc-100"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">Έκπτωση</label>
+              <input
+                type="number"
+                value={availability.discount}
+                onChange={(e) => handlePriceChange('discount', e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-3 py-2 text-zinc-100"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <h4 className="text-md font-semibold text-zinc-100 mb-3">Μείονες Πληρωμής</h4>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => handlePaymentMethodChange('cash')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
+                availability.paymentMethods.includes('cash')
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-zinc-700/50 text-zinc-400 border border-zinc-600/30'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Μετρητά</span>
+            </button>
+            <button
+              onClick={() => handlePaymentMethodChange('card')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
+                availability.paymentMethods.includes('card')
+                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                  : 'bg-zinc-700/50 text-zinc-400 border border-zinc-600/30'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Κάρτα</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Η χώρα υπηρεσίας σου</label>
+            <input
+              type="text"
+              value={availability.country}
+              onChange={(e) => handlePriceChange('country', e.target.value)}
+              className="w-full bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-3 py-2 text-zinc-100"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Ειδικότητα</label>
+            <select
+              value={availability.specialty}
+              onChange={(e) => handlePriceChange('specialty', e.target.value)}
+              className="w-full bg-zinc-800/50 border border-zinc-700/30 rounded-lg px-3 py-2 text-zinc-100"
+            >
+              <option value="Φυσικοθεραπευτής">Φυσικοθεραπευτής</option>
+              <option value="Προσωπικός Εκπαιδευτής">Προσωπικός Εκπαιδευτής</option>
+              <option value="Διατροφολόγος">Διατροφολόγος</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end mt-6">
+        <button
+          onClick={handleSave}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2"
+        >
+          <Save className="w-5 h-5" />
+          <span>Αποθήκευση Ρυθμίσεων</span>
+        </button>
+      </div>
+    </div>
+  );
+});
+
 // Main optimized dashboard component
 function TrainerDashboard() {
+  // Add document-level black background classes
+  useEffect(() => {
+    document.documentElement.classList.add("bg-black")
+    document.body.classList.add("bg-black")
+    return () => {
+      document.documentElement.classList.remove("bg-black")
+      document.body.classList.remove("bg-black")
+    }
+  }, [])
+
   const { user, profile, loading: authLoading, error: authError, updateProfile } = useAuth()
   const { performanceData, loading: dataLoading, error: dataError } = useTrainerData(profile)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [avatar, setAvatar] = useState(PLACEHOLDER)
   const [section, setSection] = useState("dashboard")
+  // const navigate = useRouter().push
 
   // Profile form states - consolidated for better performance
   const [profileForm, setProfileForm] = useState({
@@ -1216,7 +1582,7 @@ function TrainerDashboard() {
   }, [])
 
   const deleteAvatar = useCallback(async () => {
-    if (!window.confirm("Είστε σίγουροι ότι θέλετε να διαγράψετε το avatar;")) return
+    if (!window.confirm("Είστε σίγουροι ότι θέλετε să διαγράψετε το avatar;")) return
 
     try {
       const { error } = await updateProfile({ avatar_url: null })
@@ -1396,450 +1762,471 @@ function TrainerDashboard() {
   }
 
   return (
-    <div className="relative bg-gradient-to-br from-black via-zinc-900 to-black min-h-screen text-gray-100">
+    // Updated main container with responsive bottom padding - 70px on mobile, 32px on desktop
+    <div className="min-h-screen bg-gradient-to-br from-black via-zinc-950 to-zinc-900 text-white relative overflow-hidden pb-[70px] sm:pb-8">
+      {/* Enhanced background with animations */}
+      <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.1),transparent_50%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.08),transparent_50%),radial-gradient(circle_at_40%_60%,rgba(255,255,255,0.06),transparent_50%)] animate-pulse-slow" />
+      <div className="absolute inset-0 -z-10 bg-[linear-gradient(45deg,transparent_48%,rgba(255,255,255,0.02)_49%,rgba(255,255,255,0.02)_51%,transparent_52%)] bg-[length:20px_20px] animate-slide-diagonal" />
+
       <AthleticBackground />
 
-      {/* Sidebar Menu */}
-      <Suspense fallback={<Spinner />}>
-        <TrainerMenu userProfile={profile} onLogout={() => supabase.auth.signOut()} />
-      </Suspense>
+      <div className="relative z-10">
+        {/* Sidebar Menu */}
+        <Suspense fallback={<Spinner />}>
+          <TrainerMenu userProfile={profile} onLogout={() => supabase.auth.signOut()} />
+        </Suspense>
 
-      {/* Main Content */}
-      <main className="relative z-10 min-h-screen">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-10 space-y-4 sm:space-y-6 lg:space-y-10">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sm:gap-6"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-zinc-100 truncate">
-                  Καλώς ήρθες, {profileData.fullName}
-                </h1>
-                {profileData.isOnline ? (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
-                    <Wifi className="w-4 h-4 text-green-400" />
-                    <span className="text-green-400 text-sm font-medium">Online</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-zinc-500/20 border border-zinc-500/30 rounded-full">
-                    <WifiOff className="w-4 h-4 text-zinc-400" />
-                    <span className="text-zinc-400 text-sm font-medium">Offline</span>
-                  </div>
-                )}
-              </div>
-              <p className="text-zinc-400 text-sm sm:text-base lg:text-lg">
-                {currentTime.toLocaleDateString("el-GR", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}{" "}
-                •{" "}
-                {currentTime.toLocaleTimeString("el-GR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-              {profileData.location && (
-                <p className="text-zinc-500 text-xs sm:text-sm flex items-center gap-2 mt-1">
-                  <MapPin className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                  <span className="truncate">{profileData.location}</span>
+        {/* Main Content */}
+        <main className="relative z-10 min-h-screen">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-10 space-y-4 sm:space-y-6 lg:space-y-10">
+            {/* Header */}
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sm:gap-6"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-zinc-100 truncate">
+                    Καλώς ήρθες, {profileData.fullName}
+                  </h1>
+                  {profileData.isOnline ? (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
+                      <Wifi className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400 text-sm font-medium">Online</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-zinc-500/20 border border-zinc-500/30 rounded-full">
+                      <WifiOff className="w-4 h-4 text-zinc-400" />
+                      <span className="text-zinc-400 text-sm font-medium">Offline</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-zinc-400 text-sm sm:text-base lg:text-lg">
+                  {currentTime.toLocaleDateString("el-GR", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}{" "}
+                  •{" "}
+                  {currentTime.toLocaleTimeString("el-GR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </p>
-              )}
-            </div>
-            <div className="flex gap-2 sm:gap-4 w-full lg:w-auto">
-              <QuickActionButton
-                icon={Calendar}
-                label="Προγραμματισμός"
-                primary
-                onClick={() => navigate("/trainer/schedule")}
-              />
-              <QuickActionButton icon={Settings} label="Ρυθμίσεις" onClick={() => handleSectionChange("profile")} />
-            </div>
-          </motion.div>
-
-          {/* Navigation */}
-          <PremiumNavigation currentSection={section} onSectionChange={handleSectionChange} />
-
-          {/* Sections - Only render active section */}
-          <div className="space-y-6 sm:space-y-8">
-            {/* Dashboard */}
-            <DashSection id="dashboard" show={section === "dashboard"}>
-              <div className="space-y-6 sm:space-y-8">
-                <TrainerPerformanceStats performanceData={performanceData} loading={dataLoading} />
-
-                {/* Profile Summary & Trainer ID */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="xl:col-span-2"
-                  >
-                    <TrainerProfileCard profile={profile} />
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <TrainerCredentialsCard profile={profile} />
-                  </motion.div>
-                </div>
-
-                {/* Recent Sessions & Quick Actions */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                  >
-                    <RecentSessionsCard sessions={performanceData.recentSessions} loading={dataLoading} />
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                  >
-                    <QuickActionsCard />
-                  </motion.div>
-                </div>
-
-                {/* Data Error Display */}
-                {dataError && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl bg-red-500/10 border border-red-500/30 p-4 text-center"
-                  >
-                    <AlertCircle className="w-6 h-6 text-red-400 mx-auto mb-2" />
-                    <p className="text-red-400 text-sm">Σφάλμα φόρτωσης δεδομένων: {dataError}</p>
-                  </motion.div>
+                {profileData.location && (
+                  <p className="text-zinc-500 text-xs sm:text-sm flex items-center gap-2 mt-1">
+                    <MapPin className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="truncate">{profileData.location}</span>
+                  </p>
                 )}
               </div>
-            </DashSection>
+              <div className="flex gap-2 sm:gap-4 w-full lg:w-auto">
+                <QuickActionButton
+                  icon={Calendar}
+                  label="Προγραμματισμός"
+                  primary
+                  onClick={() => {
+                    console.log("Navigating to booking page")
+                    window.location.href = "http://localhost:3000/trainer/bookings"
+                  }}
+                />
+                <QuickActionButton icon={Settings} label="Ρυθμίσεις" onClick={() => handleSectionChange("profile")} />
+              </div>
+            </motion.div>
 
-            {/* Profile */}
-            <DashSection id="profile" show={section === "profile"}>
-              <PremiumCard
-                title="Επεξεργασία Προφίλ"
-                icon={Settings}
-                description="Διαχειρίσου τα προσωπικά σου στοιχεία"
-              >
-                <form onSubmit={handleSaveProfile} className="space-y-4 sm:space-y-6 max-w-4xl">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                        <UserIcon className="h-4 w-4" /> Πλήρες Όνομα
-                      </label>
-                      <input
-                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                        value={profileForm.fullName}
-                        onChange={(e) => setProfileForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                        placeholder="Εισάγετε πλήρες όνομα"
-                        disabled={profileLoading}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                        <Smartphone className="h-4 w-4" /> Τηλέφωνο
-                      </label>
-                      <input
-                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                        value={profileForm.phone}
-                        onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
-                        placeholder="Εισάγετε τηλέφωνο"
-                        disabled={profileLoading}
-                      />
-                    </div>
+            {/* Navigation */}
+            <PremiumNavigation currentSection={section} onSectionChange={handleSectionChange} />
+
+            {/* Sections - Only render active section */}
+            <div className="space-y-6 sm:space-y-8">
+              {/* Dashboard */}
+              <DashSection id="dashboard" show={section === "dashboard"}>
+                <div className="space-y-6 sm:space-y-8">
+                  <TrainerPerformanceStats performanceData={performanceData} loading={dataLoading} />
+
+                  {/* Profile Summary & Trainer ID */}
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="xl:col-span-2"
+                    >
+                      <TrainerProfileCard profile={profile} />
+                    </motion.div>
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <TrainerCredentialsCard profile={profile} />
+                    </motion.div>
                   </div>
-                  <div>
-                    <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                      <Mail className="h-4 w-4" /> Email
-                    </label>
-                    <input
-                      type="email"
-                      disabled
-                      value={profileForm.email}
-                      className="block w-full cursor-not-allowed rounded-lg border border-zinc-700/30 bg-zinc-800/30 px-4 py-3 text-sm text-zinc-400 sm:text-base"
-                    />
+
+                  {/* Recent Sessions & Quick Actions */}
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      <RecentSessionsCard sessions={performanceData.recentSessions} loading={dataLoading} />
+                    </motion.div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 }}
+                    >
+                      <QuickActionsCard />
+                    </motion.div>
                   </div>
-                  <div>
-                    <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                      <BookOpen className="h-4 w-4" /> Βιογραφικό
-                    </label>
-                    <textarea
-                      className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base min-h-[100px] resize-y text-zinc-100"
-                      value={profileForm.bio}
-                      onChange={(e) => setProfileForm((prev) => ({ ...prev, bio: e.target.value }))}
-                      placeholder="Περιγράψτε την εμπειρία και τις ειδικότητές σας"
-                      disabled={profileLoading}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                        <CategoryIcon className="h-4 w-4" /> Κατηγορία
-                      </label>
-                      <select
-                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                        value={profileForm.specialty}
-                        onChange={(e) => setProfileForm((prev) => ({ ...prev, specialty: e.target.value }))}
-                        disabled={profileLoading}
-                      >
-                        <option value="" className="bg-zinc-800">
-                          — Επίλεξε κατηγορία —
-                        </option>
-                        {TRAINER_CATEGORIES.map((category) => (
-                          <option key={category.value} value={category.value} className="bg-zinc-800">
-                            {category.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                        <MapPin className="h-4 w-4" /> Τοποθεσία
-                      </label>
-                      <input
-                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                        value={profileForm.location}
-                        onChange={(e) => setProfileForm((prev) => ({ ...prev, location: e.target.value }))}
-                        placeholder="Εισάγετε τοποθεσία"
-                        disabled={profileLoading}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                        <Clock className="h-4 w-4" /> Χρόνια Εμπειρίας
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="50"
-                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                        value={profileForm.experienceYears}
-                        onChange={(e) => setProfileForm((prev) => ({ ...prev, experienceYears: e.target.value }))}
-                        placeholder="Εισάγετε χρόνια εμπειρίας"
-                        disabled={profileLoading}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                        {profileForm.isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}{" "}
-                        Διαθεσιμότητα
-                      </label>
-                      <div className="flex items-center gap-4 p-3 rounded-lg border border-zinc-700/30 bg-black/30">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={profileForm.isOnline}
-                            onChange={(e) => setProfileForm((prev) => ({ ...prev, isOnline: e.target.checked }))}
-                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                            disabled={profileLoading}
-                          />
-                          <span className="text-sm text-zinc-100">Online διαθέσιμος</span>
+
+                  {/* Data Error Display */}
+                  {dataError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-xl bg-red-500/10 border border-red-500/30 p-4 text-center"
+                    >
+                      <AlertCircle className="w-6 h-6 text-red-400 mx-auto mb-2" />
+                      <p className="text-red-400 text-sm">Σφάλμα φόρτωσης δεδομένων: {dataError}</p>
+                    </motion.div>
+                  )}
+                </div>
+              </DashSection>
+
+              {/* Availability Management */}
+              <DashSection id="availability" show={section === "availability"}>
+                <PremiumCard
+                  title="Διαχείριση Διαθεσιμότητας"
+                  icon={Clock4}
+                  description="Διαχειρίσου τις διαθεσιμότητες και τιμές σου"
+                >
+                  <AvailabilitySection profile={profile} updateProfile={updateProfile} />
+                </PremiumCard>
+              </DashSection>
+
+              {/* Profile */}
+              <DashSection id="profile" show={section === "profile"}>
+                <PremiumCard
+                  title="Επεξεργασία Προφίλ"
+                  icon={Settings}
+                  description="Διαχειρίσου τα προσωπικά σου στοιχεία"
+                >
+                  <form onSubmit={handleSaveProfile} className="space-y-4 sm:space-y-6 max-w-4xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                          <UserIcon className="h-4 w-4" /> Πλήρες Όνομα
                         </label>
+                        <input
+                          className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                          value={profileForm.fullName}
+                          onChange={(e) => setProfileForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                          placeholder="Εισάγετε πλήρες όνομα"
+                          disabled={profileLoading}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                          <Smartphone className="h-4 w-4" /> Τηλέφωνο
+                        </label>
+                        <input
+                          className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                          value={profileForm.phone}
+                          onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
+                          placeholder="Εισάγετε τηλέφωνο"
+                          disabled={profileLoading}
+                        />
                       </div>
                     </div>
-                  </div>
-
-                  {/* Specialties Selection */}
-                  {profileForm.specialty && currentCategory && (
                     <div>
-                      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                        <Trophy className="h-4 w-4" /> Ειδικότητες ({currentCategory.label})
+                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                        <Mail className="h-4 w-4" /> Email
                       </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-4 rounded-lg border border-zinc-700/30 bg-black/20">
-                        {currentCategory.specialties.map((spec) => (
-                          <label
-                            key={spec}
-                            className="flex items-center gap-2 text-sm text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer p-2 rounded hover:bg-zinc-800/30"
-                          >
+                      <input
+                        type="email"
+                        disabled
+                        value={profileForm.email}
+                        className="block w-full cursor-not-allowed rounded-lg border border-zinc-700/30 bg-zinc-800/30 px-4 py-3 text-sm text-zinc-400 sm:text-base"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                        <BookOpen className="h-4 w-4" /> Βιογραφικό
+                      </label>
+                      <textarea
+                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base min-h-[100px] resize-y text-zinc-100"
+                        value={profileForm.bio}
+                        onChange={(e) => setProfileForm((prev) => ({ ...prev, bio: e.target.value }))}
+                        placeholder="Περιγράψτε την εμπειρία και τις ειδικότητές σας"
+                        disabled={profileLoading}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                          <CategoryIcon className="h-4 w-4" /> Κατηγορία
+                        </label>
+                        <select
+                          className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                          value={profileForm.specialty}
+                          onChange={(e) => setProfileForm((prev) => ({ ...prev, specialty: e.target.value }))}
+                          disabled={profileLoading}
+                        >
+                          <option value="" className="bg-zinc-800">
+                            — Επίλεξε κατηγορία —
+                          </option>
+                          {TRAINER_CATEGORIES.map((category) => (
+                            <option key={category.value} value={category.value} className="bg-zinc-800">
+                              {category.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                          <MapPin className="h-4 w-4" /> Τοποθεσία
+                        </label>
+                        <input
+                          className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                          value={profileForm.location}
+                          onChange={(e) => setProfileForm((prev) => ({ ...prev, location: e.target.value }))}
+                          placeholder="Εισάγετε τοποθεσία"
+                          disabled={profileLoading}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                          <Clock className="h-4 w-4" /> Χρόνια Εμπειρίας
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                          value={profileForm.experienceYears}
+                          onChange={(e) => setProfileForm((prev) => ({ ...prev, experienceYears: e.target.value }))}
+                          placeholder="Εισάγετε χρόνια εμπειρίας"
+                          disabled={profileLoading}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                          {profileForm.isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}{" "}
+                          Διαθεσιμότητα
+                        </label>
+                        <div className="flex items-center gap-4 p-3 rounded-lg border border-zinc-700/30 bg-black/30">
+                          <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
+                              checked={profileForm.isOnline}
+                              onChange={(e) => setProfileForm((prev) => ({ ...prev, isOnline: e.target.checked }))}
                               className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                              checked={profileForm.selectedSpecialties.includes(spec)}
-                              onChange={() => toggleSpecialty(spec)}
                               disabled={profileLoading}
                             />
-                            <span className="truncate">{spec}</span>
+                            <span className="text-sm text-zinc-100">Online διαθέσιμος</span>
                           </label>
-                        ))}
-                      </div>
-                      {profileForm.selectedSpecialties.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs text-zinc-400 mb-2">Επιλεγμένες ειδικότητες:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {profileForm.selectedSpecialties.map((spec) => (
-                              <span
-                                key={spec}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full"
-                              >
-                                {spec}
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSpecialty(spec)}
-                                  className="hover:text-blue-100"
-                                  disabled={profileLoading}
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
                         </div>
-                      )}
+                      </div>
                     </div>
-                  )}
 
-                  <button
-                    type="submit"
-                    disabled={profileLoading}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-zinc-100 hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {profileLoading ? <Spinner size={4} /> : <Save className="h-4 w-4" />}
-                    {profileLoading ? "Αποθήκευση..." : "Αποθήκευση αλλαγών"}
-                  </button>
-                </form>
-              </PremiumCard>
-            </DashSection>
-
-            {/* Avatar */}
-            <DashSection id="avatar" show={section === "avatar"}>
-              <PremiumCard
-                title="Διαχείριση Avatar"
-                icon={ImagePlus}
-                description="Προσαρμόσε την εικόνα του προφίλ σου"
-              >
-                <AvatarArea
-                  avatar={avatar}
-                  placeholder={PLACEHOLDER}
-                  onUpload={handleAvatarUpload}
-                  onDelete={deleteAvatar}
-                />
-              </PremiumCard>
-            </DashSection>
-
-            {/* Credentials */}
-            <DashSection id="credentials" show={section === "credentials"}>
-              <PremiumCard
-                title="Πιστοποιήσεις & Πιστοποιήσεις"
-                icon={GraduationCap}
-                description="Διαχειρίσου τα επαγγελματικά σου Πιστοποιήσεις"
-              >
-                <div className="space-y-6 sm:space-y-8">
-                  <div>
-                    <h4 className="text-base sm:text-lg font-semibold text-zinc-100 mb-4">Ειδικότητες</h4>
-                    <div className="space-y-3">
-                      {profile?.roles && profile.roles.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {profile.roles.map((role, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/30 border border-zinc-700/30"
+                    {/* Specialties Selection */}
+                    {profileForm.specialty && currentCategory && (
+                      <div>
+                        <label className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                          <Trophy className="h-4 w-4" /> Ειδικότητες ({currentCategory.label})
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-4 rounded-lg border border-zinc-700/30 bg-black/20">
+                          {currentCategory.specialties.map((spec) => (
+                            <label
+                              key={spec}
+                              className="flex items-center gap-2 text-sm text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer p-2 rounded hover:bg-zinc-800/30"
                             >
-                              <Award className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                              <span className="text-zinc-100 text-sm sm:text-base truncate">{role}</span>
-                            </div>
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                                checked={profileForm.selectedSpecialties.includes(spec)}
+                                onChange={() => toggleSpecialty(spec)}
+                                disabled={profileLoading}
+                              />
+                              <span className="truncate">{spec}</span>
+                            </label>
                           ))}
                         </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <Award className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                          <p className="text-zinc-400 text-sm">Δεν έχετε προσθέσει ειδικότητες ακόμα</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-base sm:text-lg font-semibold text-zinc-100 mb-4">Δίπλωμα</h4>
-                    <Suspense fallback={<Spinner />}>
-                      <DiplomaUpload
-                        profileId={profile?.id}
-                        currentUrl={profile?.diploma_url}
-                        onChange={(url) => console.log("Diploma updated:", url)}
-                      />
-                    </Suspense>
-                  </div>
-                </div>
-              </PremiumCard>
-            </DashSection>
+                        {profileForm.selectedSpecialties.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs text-zinc-400 mb-2">Επιλεγμένες ειδικότητες:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {profileForm.selectedSpecialties.map((spec) => (
+                                <span
+                                  key={spec}
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full"
+                                >
+                                  {spec}
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSpecialty(spec)}
+                                    className="hover:text-blue-100"
+                                    disabled={profileLoading}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-            {/* Security */}
-            <DashSection id="security" show={section === "security"}>
-              <PremiumCard title="Ρυθμίσεις Ασφαλείας" icon={Shield} description="Προστάτευσε τον λογαριασμό σου">
-                <form onSubmit={handleChangePassword} className="space-y-4 sm:space-y-6 max-w-lg">
-                  {passwordForm.error && (
-                    <div className="rounded-lg bg-red-600/20 p-4 text-sm text-red-300 border border-red-500/30">
-                      {passwordForm.error}
+                    <button
+                      type="submit"
+                      disabled={profileLoading}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-zinc-100 hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {profileLoading ? <Spinner size={4} /> : <Save className="h-4 w-4" />}
+                      {profileLoading ? "Αποθήκευση..." : "Αποθήκευση αλλαγών"}
+                    </button>
+                  </form>
+                </PremiumCard>
+              </DashSection>
+
+              {/* Avatar */}
+              <DashSection id="avatar" show={section === "avatar"}>
+                <PremiumCard
+                  title="Διαχείριση Avatar"
+                  icon={ImagePlus}
+                  description="Προσαρμόσε την εικόνα του προφίλ σου"
+                >
+                  <AvatarArea
+                    avatar={avatar}
+                    placeholder={PLACEHOLDER}
+                    onUpload={handleAvatarUpload}
+                    onDelete={deleteAvatar}
+                  />
+                </PremiumCard>
+              </DashSection>
+
+              {/* Credentials */}
+              <DashSection id="credentials" show={section === "credentials"}>
+                <PremiumCard
+                  title="Πιστοποιήσεις & Πιστοποιήσεις"
+                  icon={GraduationCap}
+                  description="Διαχειρίσου τα επαγγελματικά σου Πιστοποιήσεις"
+                >
+                  <div className="space-y-6 sm:space-y-8">
+                    <div>
+                      <h4 className="text-base sm:text-lg font-semibold text-zinc-100 mb-4">Ειδικότητες</h4>
+                      <div className="space-y-3">
+                        {profile?.roles && profile.roles.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {profile.roles.map((role, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/30 border border-zinc-700/30"
+                              >
+                                <Award className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                                <span className="text-zinc-100 text-sm sm:text-base truncate">{role}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <Award className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+                            <p className="text-zinc-400 text-sm">Δεν έχετε προσθέσει ειδικότητες ακόμα</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {passwordForm.success && (
-                    <div className="rounded-lg bg-green-600/20 p-4 text-sm text-green-300 border border-green-500/30">
-                      {passwordForm.success}
+                    <div>
+                      <h4 className="text-base sm:text-lg font-semibold text-zinc-100 mb-4">Δίπλωμα</h4>
+                      <Suspense fallback={<Spinner />}>
+                        <DiplomaUpload
+                          profileId={profile?.id}
+                          currentUrl={profile?.diploma_url}
+                          onChange={(url) => console.log("Diploma updated:", url)}
+                        />
+                      </Suspense>
                     </div>
-                  )}
-                  <div>
-                    <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                      <Lock className="h-4 w-4" /> Τρέχων Κωδικός
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordForm.currentPassword}
-                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                      className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                      placeholder="Εισάγετε τον τρέχοντα κωδικό"
-                      disabled={passwordForm.loading}
-                    />
                   </div>
-                  <div>
-                    <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                      <KeyRound className="h-4 w-4" /> Νέος Κωδικός
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordForm.newPassword}
-                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-                      className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                      placeholder="Εισάγετε νέο κωδικό"
-                      required
+                </PremiumCard>
+              </DashSection>
+
+              {/* Security */}
+              <DashSection id="security" show={section === "security"}>
+                <PremiumCard title="Ρυθμίσεις Ασφαλείας" icon={Shield} description="Προστάτευσε τον λογαριασμό σου">
+                  <form onSubmit={handleChangePassword} className="space-y-4 sm:space-y-6 max-w-lg">
+                    {passwordForm.error && (
+                      <div className="rounded-lg bg-red-600/20 p-4 text-sm text-red-300 border border-red-500/30">
+                        {passwordForm.error}
+                      </div>
+                    )}
+                    {passwordForm.success && (
+                      <div className="rounded-lg bg-green-600/20 p-4 text-sm text-green-300 border border-green-500/30">
+                        {passwordForm.success}
+                      </div>
+                    )}
+                    <div>
+                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                        <Lock className="h-4 w-4" /> Τρέχων Κωδικός
+                      </label>
+                      <input
+                        type="password"
+                        value={passwordForm.currentPassword}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                        placeholder="Εισάγετε τον τρέχοντα κωδικό"
+                        disabled={passwordForm.loading}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                        <KeyRound className="h-4 w-4" /> Νέος Κωδικός
+                      </label>
+                      <input
+                        type="password"
+                        value={passwordForm.newPassword}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                        placeholder="Εισάγετε νέο κωδικό"
+                        required
+                        disabled={passwordForm.loading}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                        <KeyRound className="h-4 w-4" /> Επιβεβαίωση Κωδικού
+                      </label>
+                      <input
+                        type="password"
+                        value={passwordForm.confirmPassword}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                        className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
+                        placeholder="Επιβεβαιώστε τον νέο κωδικό"
+                        required
+                        disabled={passwordForm.loading}
+                      />
+                    </div>
+                    <button
+                      type="submit"
                       disabled={passwordForm.loading}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
-                      <KeyRound className="h-4 w-4" /> Επιβεβαίωση Κωδικού
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordForm.confirmPassword}
-                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                      className="block w-full rounded-lg border border-zinc-700/30 bg-black/30 px-4 py-3 text-sm placeholder-zinc-500 focus:bg-black/50 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:text-base text-zinc-100"
-                      placeholder="Επιβεβαιώστε τον νέο κωδικό"
-                      required
-                      disabled={passwordForm.loading}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={passwordForm.loading}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-zinc-100 hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {passwordForm.loading ? <Spinner size={4} /> : <RotateCcw className="h-4 w-4" />}
-                    {passwordForm.loading ? "Αλλαγή..." : "Αλλαγή Κωδικού"}
-                  </button>
-                </form>
-              </PremiumCard>
-            </DashSection>
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-zinc-100 hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {passwordForm.loading ? <Spinner size={4} /> : <RotateCcw className="h-4 w-4" />}
+                      {passwordForm.loading ? "Αλλαγή..." : "Αλλαγή Κωδικού"}
+                    </button>
+                  </form>
+                </PremiumCard>
+              </DashSection>
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }
