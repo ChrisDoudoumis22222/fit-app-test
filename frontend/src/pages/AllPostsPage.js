@@ -1,6 +1,17 @@
+// src/pages/AllPostsPage.js
 "use client";
 
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  memo,
+  useMemo,
+  useDeferredValue,
+  useTransition,
+} from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "../supabaseClient";
@@ -14,17 +25,15 @@ import {
   Heart,
   MessageCircle,
   Share2,
-  Clock,
   Sparkles,
-  Users,
   BookOpen,
   Search,
   Grid3X3,
-  List,
   AlertCircle,
   Loader2,
   ChevronDown,
-  User as UserIcon, // avatar fallback
+  HelpCircle,
+  User as UserIcon,
 } from "lucide-react";
 
 /* ────────────────────────  local ui wrappers  ──────────────────────────── */
@@ -36,109 +45,39 @@ const PLACEHOLDER = "/placeholder.svg?height=300&width=400&text=No+Image";
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
 const POSTS_PER_PAGE = 10;
 
+// approximate card height to reserve space before lazy render (improves scroll perf)
+const CARD_INTRINSIC_HEIGHT = 420;
+
 const safeAvatar = (url) =>
   url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : AVATAR_PLACEHOLDER;
 
-/* ---------- fixed, full-viewport base so backdrop-blur never samples white ---------- */
-const BaseBackground = memo(() => (
+/* ======================================================================== */
+/*  Background (dark grid, more visible)                                    */
+/* ======================================================================== */
+const GridBackground = memo(() => (
   <div className="fixed inset-0 -z-50">
-    {/* hard black base */}
+    {/* Base layer */}
     <div className="absolute inset-0 bg-black" />
-    {/* subtle gradient on top of black */}
-    <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-black opacity-90" />
-  </div>
-));
 
-// Athletic Background Component
-const AthleticBackground = memo(() => (
-  <>
-    <style>{`
-      @keyframes pulse-performance {
-         0%, 100% { opacity: 0.1; transform: scale(1); }
-         50% { opacity: 0.3; transform: scale(1.05); }
-       }
-      @keyframes drift-metrics {
-         0% { transform: translateX(-100px) translateY(0px); }
-         50% { transform: translateX(50px) translateY(-30px); }
-         100% { transform: translateX(100px) translateY(0px); }
-       }
-      @keyframes athletic-grid {
-         0% { transform: translate(0, 0) rotate(0deg); }
-         100% { transform: translate(60px, 60px) rotate(0.5deg); }
-       }
-      @keyframes float {
-        0%, 100% { transform: translateY(0px) rotate(0deg); }
-        33% { transform: translateY(-10px) rotate(120deg); }
-        66% { transform: translateY(5px) rotate(240deg); }
-      }
-    `}</style>
-    {/* grid layer – pushed far back */}
+    {/* Stronger grid */}
     <div
-      className="fixed inset-0 -z-40 pointer-events-none opacity-[0.15]"
+      className="absolute inset-0 opacity-60"
       style={{
         backgroundImage: `
-          linear-gradient(rgba(113,113,122,0.08) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(113,113,122,0.08) 1px, transparent 1px)
+          linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px)
         `,
-        backgroundSize: "60px 60px",
-        animation: "athletic-grid 25s linear infinite",
-        maskImage: "radial-gradient(circle at 50% 50%, black 0%, transparent 75%)",
-        WebkitMaskImage: "radial-gradient(circle at 50% 50%, black 0%, transparent 75%)",
+        backgroundSize: "32px 32px",
       }}
     />
-    {/* glow blobs – also behind content */}
-    <div className="fixed inset-0 -z-40 pointer-events-none overflow-hidden">
-      <div
-        className="absolute top-1/5 left-1/5 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-zinc-600/8 rounded-full blur-3xl"
-        style={{ animation: "pulse-performance 12s ease-in-out infinite" }}
-      />
-      <div
-        className="absolute top-3/5 right-1/5 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-gray-700/8 rounded-full blur-3xl"
-        style={{ animation: "pulse-performance 15s ease-in-out infinite reverse" }}
-      />
-      <div
-        className="absolute top-1/2 left-1/2 w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] bg-zinc-800/8 rounded-full blur-3xl"
-        style={{ animation: "drift-metrics 20s ease-in-out infinite" }}
-      />
-    </div>
-  </>
+
+    {/* Brighter radial glow */}
+    <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_25%,rgba(255,255,255,0.18),transparent_70%)]" />
+
+    {/* Subtle vertical fade for cinematic feel */}
+    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black" />
+  </div>
 ));
-
-/* Small particles background */
-const AnimatedParticles = memo(() => {
-  const [particles, setParticles] = useState([]);
-
-  useEffect(() => {
-    const list = Array.from({ length: 14 }).map((_, i) => ({
-      key: `p-${i}`,
-      left: `${Math.random() * 100}%`,
-      top: `${Math.random() * 100}%`,
-      delay: `${(Math.random() * 3).toFixed(2)}s`,
-      duration: `${(3 + Math.random() * 4).toFixed(2)}s`,
-    }));
-    setParticles(list);
-  }, []);
-
-  return (
-    <div className="pointer-events-none absolute inset-0 -z-30 overflow-hidden">
-      {particles.map((p) => (
-        <div
-          key={p.key}
-          className="absolute h-1 w-1 rounded-full bg-white/25"
-          style={{
-            left: p.left,
-            top: p.top,
-            animationName: "float",
-            animationDuration: p.duration,
-            animationDelay: p.delay,
-            animationTimingFunction: "ease-in-out",
-            animationIterationCount: "infinite",
-          }}
-        />
-      ))}
-    </div>
-  );
-});
 
 /* ======================================================================== */
 /*  Main Page Component                                                     */
@@ -147,7 +86,6 @@ export default function AllPostsPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
 
-  /* ------------------------- remote & ui state ------------------------ */
   const [allPosts, setAllPosts] = useState([]);
   const [displayed, setDisplayed] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,14 +93,16 @@ export default function AllPostsPage() {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
   const [sortBy, setSortBy] = useState("newest");
   const [likingPosts, setLikingPosts] = useState(new Set());
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
+  const [isPending, startTransition] = useTransition();
 
-  /* ------------------- sentinel for infinite scroll ------------------- */
   const loadMoreRef = useRef(null);
+
+  // Defer heavy filtering/sorting while user is typing
+  const deferredSearch = useDeferredValue(searchTerm);
 
   useEffect(() => {
     const io = new IntersectionObserver(
@@ -171,13 +111,12 @@ export default function AllPostsPage() {
           handleLoadMore();
         }
       },
-      { rootMargin: "120px" }
+      { rootMargin: "160px" }
     );
     if (loadMoreRef.current) io.observe(loadMoreRef.current);
     return () => io.disconnect();
-  }, [hasMore, loadingMore, loading, displayed]); // retrack when list changes
+  }, [hasMore, loadingMore, loading, displayed]);
 
-  /* ------------------------- initial fetch ---------------------------- */
   useEffect(() => {
     fetchPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,8 +147,6 @@ export default function AllPostsPage() {
 
       setAllPosts(prepared);
       setPage(1);
-      setDisplayed(prepared.slice(0, POSTS_PER_PAGE));
-      setHasMore(prepared.length > POSTS_PER_PAGE);
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -219,59 +156,61 @@ export default function AllPostsPage() {
     }
   }
 
-  /* --------------------- helpers: filter + sort ----------------------- */
-  const filteredAndSorted = useCallback(() => {
-    const term = searchTerm.toLowerCase();
-    return allPosts
-      .filter(
-        (p) =>
-          !term ||
-          p.title.toLowerCase().includes(term) ||
-          p.description.toLowerCase().includes(term) ||
-          p.trainer?.full_name?.toLowerCase().includes(term)
-      )
-      .sort((a, b) => {
-        switch (sortBy) {
-          case "oldest":
-            return new Date(a.created_at) - new Date(b.created_at);
-          case "title":
-            return a.title.localeCompare(b.title);
-          case "trainer":
-            return (a.trainer?.full_name || "").localeCompare(b.trainer?.full_name || "");
-          case "most-liked":
-            return b.like_count - a.like_count;
-          case "most-commented":
-            return b.comment_count - a.comment_count;
-          default:
-            return new Date(b.created_at) - new Date(a.created_at);
-        }
-      });
-  }, [allPosts, searchTerm, sortBy]);
+  // One memoized pass for filtering + sorting (fast + stable)
+  const filteredSortedList = useMemo(() => {
+    const term = (deferredSearch || "").toLowerCase();
 
-  /* re-filter whenever search / sort / posts change */
+    const filtered = term
+      ? allPosts.filter(
+          (p) =>
+            p.title.toLowerCase().includes(term) ||
+            p.description.toLowerCase().includes(term) ||
+            p.trainer?.full_name?.toLowerCase().includes(term)
+        )
+      : allPosts;
+
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "oldest":
+          return new Date(a.created_at) - new Date(b.created_at);
+        case "title":
+          return a.title.localeCompare(b.title);
+        case "trainer":
+          return (a.trainer?.full_name || "").localeCompare(b.trainer?.full_name || "");
+        case "most-liked":
+          return b.like_count - a.like_count;
+        case "most-commented":
+          return b.comment_count - a.comment_count;
+        default:
+          return new Date(b.created_at) - new Date(a.created_at);
+      }
+    });
+
+    return sorted;
+  }, [allPosts, deferredSearch, sortBy]);
+
+  // Reset visible slice when source list changes
   useEffect(() => {
-    const base = filteredAndSorted();
     setPage(1);
-    setDisplayed(base.slice(0, POSTS_PER_PAGE));
-    setHasMore(base.length > POSTS_PER_PAGE);
-  }, [filteredAndSorted]);
+    setDisplayed(filteredSortedList.slice(0, POSTS_PER_PAGE));
+    setHasMore(filteredSortedList.length > POSTS_PER_PAGE);
+  }, [filteredSortedList]);
 
-  /* ------------------------- infinite scroll -------------------------- */
   const handleLoadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
-    setTimeout(() => {
-      const base = filteredAndSorted();
+
+    // non-blocking update (keeps scroll smooth)
+    startTransition(() => {
       const nextPg = page + 1;
-      const slice = base.slice(0, nextPg * POSTS_PER_PAGE);
+      const slice = filteredSortedList.slice(0, nextPg * POSTS_PER_PAGE);
       setDisplayed(slice);
       setPage(nextPg);
-      setHasMore(slice.length < base.length);
+      setHasMore(slice.length < filteredSortedList.length);
       setLoadingMore(false);
-    }, 300);
-  }, [page, hasMore, loadingMore, filteredAndSorted]);
+    });
+  }, [page, hasMore, loadingMore, filteredSortedList, startTransition]);
 
-  /* ----------------------------- like ---------------------------------- */
   async function handleLike(postId, isLiked) {
     if (!profile?.id) return alert("Συνδεθείτε πρώτα");
     if (likingPosts.has(postId)) return;
@@ -281,36 +220,21 @@ export default function AllPostsPage() {
     const likedArr = JSON.parse(localStorage.getItem(likedKey) || "[]");
 
     try {
-      /* optimistic local update */
-      setAllPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                like_count: Math.max(0, p.like_count + (isLiked ? -1 : 1)),
-                is_liked_by_user: !isLiked,
-              }
-            : p
-        )
-      );
-      setDisplayed((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                like_count: Math.max(0, p.like_count + (isLiked ? -1 : 1)),
-                is_liked_by_user: !isLiked,
-              }
-            : p
-        )
-      );
+      // optimistic update
+      const optimUpdate = (p) =>
+        p.id === postId
+          ? { ...p, like_count: Math.max(0, p.like_count + (isLiked ? -1 : 1)), is_liked_by_user: !isLiked }
+          : p;
 
-      /* server side rpc */
+      startTransition(() => {
+        setAllPosts((prev) => prev.map(optimUpdate));
+        setDisplayed((prev) => prev.map(optimUpdate));
+      });
+
       const rpc = isLiked ? "decrement_likes" : "increment_likes";
       const { error } = await supabase.rpc(rpc, { post_id: postId });
       if (error) console.warn("RPC failed – falling back", error);
 
-      /* localStorage bookkeeping */
       const next = isLiked ? likedArr.filter((id) => id !== postId) : [...likedArr, postId];
       localStorage.setItem(likedKey, JSON.stringify(next));
     } catch (err) {
@@ -324,7 +248,6 @@ export default function AllPostsPage() {
     }
   }
 
-  /* ---------------------- share / comment ----------------------------- */
   async function handleShare(post) {
     const shareData = {
       title: post.title,
@@ -345,7 +268,6 @@ export default function AllPostsPage() {
 
   const handleComment = (id) => navigate(`/post/${id}#comments`);
 
-  /* ---------------------- date helper ---------------------------------- */
   const relTime = (iso) => {
     const now = new Date();
     const dt = new Date(iso);
@@ -358,67 +280,43 @@ export default function AllPostsPage() {
     return dt.toLocaleDateString("el-GR");
   };
 
-  /* ---------------------------- render  -------------------------------- */
   if (loading) return <Screen state="loading" role={profile?.role} />;
   if (error) return <Screen state="error" role={profile?.role} err={error} retry={() => fetchPosts()} />;
 
-  const totalLikes = allPosts.reduce((sum, p) => sum + p.like_count, 0);
-  const totalComments = allPosts.reduce((sum, p) => sum + p.comment_count, 0);
-
   return (
     <div className="relative min-h-screen text-gray-100">
-      {/* background */}
-      <BaseBackground />
-      <AthleticBackground />
-      <AnimatedParticles />
+      <GridBackground />
 
-      {/* spacing variables like the other page */}
+      {/* spacing variables — mobile top padding removed */}
       <style>{`
-        :root { --side-w: 0px; --nav-h: 64px; }
-        @media (min-width: 640px){ :root { --nav-h: 72px; } }
-        @media (min-width: 1024px){ :root { --side-w: 280px; --nav-h: 0px; } }
+        :root { --side-w: 0px; --nav-h: 0px; }
+        @media (min-width: 640px){ :root { --nav-h: 0px; } }
+        @media (min-width: 1024px){ :root { --side-w: 280px; } }
         @media (min-width: 1280px){ :root { --side-w: 320px; } }
       `}</style>
 
-      {/* padded wrapper to avoid overlap with top nav / left sidebar + 80px bottom space */}
       <div className="relative min-h-screen overflow-x-hidden">
-        <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] pb-[80px] transition-[padding]">
-          {/* Menus live inside the padded area */}
+        {/* removed top padding on mobile */}
+        <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 pt-0 pb-[80px] transition-[padding]">
           {profile?.role === "trainer" ? <TrainerMenu /> : <UserMenu />}
 
-          {/* Hero & Stats */}
-          <Hero
-            totalPosts={allPosts.length}
-            totalTrainers={new Set(allPosts.map((p) => p.trainer?.id)).size}
-            totalLikes={totalLikes}
-            totalComments={totalComments}
-          />
-
-          {/* Controls Bar */}
-          <Controls
+          <HeaderSection
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
             sortBy={sortBy}
             setSortBy={setSortBy}
             refreshing={refreshing}
             onRefresh={() => fetchPosts(true)}
           />
 
-          {/* Results */}
-          <main className="relative z-10 mx-auto max-w-7xl px-4 py-8 space-y-6 pb-[80px]">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3"
-            >
-              <h2 className="text-2xl font-bold text-neutral-300 flex items-center gap-3">
-                <Sparkles className="h-6 w-6 text-blue-400" />
+          <main className="relative z-10 mx-auto max-w-7xl px-4 py-6 space-y-6 pb-[80px]">
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-neutral-100 flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-blue-300" />
                 Αναρτήσεις
               </h2>
-              <span className="text-lg font-normal text-zinc-400 bg-zinc-800/50 px-3 py-1 rounded-full border border-zinc-700/50">
-                {displayed.length} από {filteredAndSorted().length}
+              <span className="text-sm md:text-base font-normal text-zinc-200 bg-white/10 px-3 py-1 rounded-full border border-white/15">
+                {displayed.length} από {filteredSortedList.length}
               </span>
             </motion.div>
 
@@ -426,39 +324,39 @@ export default function AllPostsPage() {
               <Empty noPosts={allPosts.length === 0} />
             ) : (
               <>
-                <div
-                  className={
-                    viewMode === "grid"
-                      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                      : "flex flex-col space-y-6"
-                  }
-                >
+                {/* Always grid layout */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {displayed.map((p, i) => (
-                    <PostCard
-                      key={p.id}
-                      post={p}
-                      viewMode={viewMode}
-                      index={i}
-                      currentUserId={profile?.id}
-                      isLiking={likingPosts.has(p.id)}
-                      formatRelativeTime={relTime}
-                      onPostClick={(id) => navigate(`/post/${id}`)}
-                      onLike={(liked) => handleLike(p.id, liked)}
-                      onShare={() => handleShare(p)}
-                      onComment={() => handleComment(p.id)}
-                    />
+                    <LazyRender key={p.id} height={CARD_INTRINSIC_HEIGHT}>
+                      <PostCard
+                        post={p}
+                        index={i}
+                        currentUserId={profile?.id}
+                        isLiking={likingPosts.has(p.id)}
+                        formatRelativeTime={relTime}
+                        onPostClick={(id) => navigate(`/post/${id}`)}
+                        onLike={(liked) => handleLike(p.id, liked)}
+                        onShare={() => handleShare(p)}
+                        onComment={() => handleComment(p.id)}
+                        priority={i < 6} // boost first rows
+                      />
+                    </LazyRender>
                   ))}
                 </div>
-                {(hasMore || loadingMore) && (
+
+                {(hasMore || loadingMore || isPending) && (
                   <div ref={loadMoreRef} className="flex justify-center py-10">
-                    {loadingMore ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+                    {loadingMore || isPending ? (
+                      <div className="flex items-center gap-3 text-zinc-300">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <span>Φόρτωση…</span>
+                      </div>
                     ) : (
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={handleLoadMore}
-                        className="flex items-center gap-2 px-6 py-3 bg-zinc-800/50 text-neutral-300 rounded-xl hover:bg-zinc-700/50 border border-zinc-700/50 backdrop-blur-xl transition-all"
+                        className="flex items-center gap-2 px-6 py-3 bg-white/10 text-neutral-100 rounded-xl hover:bg-white/15 border border-white/15 transition-all"
                       >
                         <ChevronDown className="h-5 w-5" />
                         Φόρτωση περισσότερων
@@ -476,174 +374,235 @@ export default function AllPostsPage() {
 }
 
 /* ======================================================================== */
-/*  Hero Section                                                            */
+/*  Header Section (no Grid/List toggle) – mobile tidy                      */
 /* ======================================================================== */
-const Hero = memo(({ totalPosts, totalTrainers, totalLikes, totalComments }) => {
+const HeaderSection = memo(function HeaderSection({
+  searchTerm,
+  setSearchTerm,
+  sortBy,
+  setSortBy,
+  refreshing,
+  onRefresh,
+}) {
   return (
     <motion.section
-      initial={{ opacity: 0, y: -20 }}
+      initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative z-10 overflow-hidden rounded-3xl mx-4 mt-8 shadow-2xl"
-      style={{
-        background: "rgba(0, 0, 0, 0.4)",
-        backdropFilter: "blur(20px) saturate(160%)",
-        WebkitBackdropFilter: "blur(20px) saturate(160%)",
-        border: "1px solid rgba(113, 113, 122, 0.3)",
-      }}
+      className="relative z-10 rounded-2xl mx-2 sm:mx-auto max-w-7xl mt-0 sm:mt-8
+                 border border-white/10 shadow-2xl
+                 bg-gradient-to-b from-zinc-900/60 via-zinc-900/50 to-black/70
+                 backdrop-blur-xl"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
-      <div className="relative p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-neutral-300 mb-4">Αναρτήσεις Προπονητών</h1>
-          <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
-            Ανακαλύψτε συμβουλές fitness, προπονήσεις και οδηγίες από τους επαγγελματίες προπονητές μας.
-          </p>
+      <div className="p-3 md:p-5">
+        {/* Title */}
+        <div className="flex items-center justify-between gap-2 mb-2 md:mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-xl md:text-3xl font-bold text-zinc-50">Αναρτήσεις Προπονητών</h1>
+            <HoverHelp
+              tooltip={
+                <>
+                  Σε αυτή τη σελίδα βλέπεις όλες τις δημόσιες αναρτήσεις προπονητών.
+                  Μπορείς να αναζητήσεις, να ταξινομήσεις, να δεις λεπτομέρειες και να
+                  αλληλεπιδράσεις (like/σχόλια/κοινοποίηση).
+                </>
+              }
+            >
+              <HelpCircle className="h-5 w-5 text-zinc-300 cursor-help shrink-0" aria-hidden="true" />
+            </HoverHelp>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard icon={BookOpen} color="blue" label="Συνολικές Αναρτήσεις" value={totalPosts} />
-          <StatCard icon={Users} color="green" label="Ενεργοί Προπονητές" value={totalTrainers} />
-          <StatCard icon={Heart} color="red" label="Συνολικά Likes" value={totalLikes} />
-          <StatCard icon={MessageCircle} color="purple" label="Συνολικά Σχόλια" value={totalComments} />
+
+        {/* Controls */}
+        <div className="flex flex-col gap-2 md:gap-3">
+          {/* Search */}
+          <div className="relative w-full">
+            <label htmlFor="trainer-posts-search" className="sr-only">
+              Αναζήτηση αναρτήσεων
+            </label>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-300"
+              aria-hidden="true"
+            />
+            <input
+              id="trainer-posts-search"
+              type="text"
+              placeholder="Αναζήτηση αναρτήσεων, προπονητών..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full h-11 md:h-12 pl-10 pr-4
+                         bg-zinc-900/60 border border-white/10 rounded-xl
+                         text-sm md:text-base text-zinc-100 placeholder-zinc-400
+                         focus:outline-none focus:ring-2 focus:ring-white/20"
+              autoComplete="off"
+              spellCheck="false"
+              inputMode="search"
+            />
+          </div>
+
+          {/* Sort + Refresh row */}
+          <div className="grid grid-cols-2 gap-2 md:flex md:items-stretch md:gap-3">
+            {/* Sort */}
+            <div className="col-span-1">
+              <label htmlFor="trainer-posts-sort" className="sr-only">
+                Ταξινόμηση
+              </label>
+              <select
+                id="trainer-posts-sort"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full h-11 md:h-12 px-3 md:px-4 text-sm md:text-base
+                           bg-zinc-900/50 border border-white/10 rounded-xl
+                           text-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/20"
+                aria-label="Επιλογή ταξινόμησης"
+              >
+                <option className="bg-zinc-800" value="newest">
+                  Νεότερες
+                </option>
+                <option className="bg-zinc-800" value="oldest">
+                  Παλαιότερες
+                </option>
+                <option className="bg-zinc-800" value="most-liked">
+                  Περισσότερα Likes
+                </option>
+                <option className="bg-zinc-800" value="most-commented">
+                  Περισσότερα Σχόλια
+                </option>
+                <option className="bg-zinc-800" value="title">
+                  Τίτλος A-Z
+                </option>
+                <option className="bg-zinc-800" value="trainer">
+                  Προπονητής A-Z
+                </option>
+              </select>
+            </div>
+
+            {/* Refresh */}
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-live="polite"
+              aria-busy={refreshing}
+              className="col-span-1 inline-flex items-center justify-center gap-2
+                         w-full h-11 md:h-12 text-sm md:text-base
+                         bg-zinc-800/80 text-zinc-50 rounded-xl
+                         hover:bg-zinc-700/80 disabled:opacity-50 transition-all
+                         border border-white/10"
+            >
+              <RefreshCw className={`h-5 w-5 md:h-6 md:w-6 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+              {refreshing ? "Ανανέωση..." : "Ανανέωση"}
+            </motion.button>
+          </div>
         </div>
       </div>
     </motion.section>
   );
 });
 
-const StatCard = memo(({ icon: Icon, color, label, value }) => {
-  const colorClasses = {
-    blue: "from-blue-600/20 to-blue-700/20 border-blue-500/30 text-blue-400",
-    green: "from-green-600/20 to-green-700/20 border-green-500/30 text-green-400",
-    red: "from-red-600/20 to-red-700/20 border-red-500/30 text-red-400",
-    purple: "from-purple-600/20 to-purple-700/20 border-purple-500/30 text-purple-400",
-  };
+/* ======================================================================== */
+/*  LazyRender wrapper (only mounts children near viewport)                 */
+/* ======================================================================== */
+const LazyRender = memo(function LazyRender({ children, height = CARD_INTRINSIC_HEIGHT }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "400px" } // pre-render before it appears
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, []);
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.05, y: -2 }}
-      className={`relative overflow-hidden rounded-xl bg-black/40 backdrop-blur-xl border p-4 text-center ${colorClasses[color]}`}
+    <div
+      ref={ref}
+      // Reserve space + allow browser to skip layout work when offscreen
+      style={{ minHeight: height, contentVisibility: "auto", containIntrinsicSize: `${height}px` }}
+      className="will-change-transform"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/0" />
-      <div className="relative">
-        <div className="p-2 rounded-lg w-fit mx-auto mb-2">
-          <Icon className="h-5 w-5" />
-        </div>
-        <p className="text-sm text-zinc-400">{label}</p>
-        <p className="text-2xl font-bold text-neutral-300">{value}</p>
-      </div>
-    </motion.div>
+      {visible ? children : <CardSkeleton />}
+    </div>
   );
 });
 
 /* ======================================================================== */
-/*  Controls Bar                                                            */
+/*  Skeleton for cards                                                      */
 /* ======================================================================== */
-const Controls = memo(
-  ({ searchTerm, setSearchTerm, viewMode, setViewMode, sortBy, setSortBy, refreshing, onRefresh }) => {
-    return (
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="relative z-10 overflow-hidden rounded-2xl shadow-2xl mx-auto max-w-7xl mt-8"
-        style={{
-          background: "rgba(0, 0, 0, 0.4)",
-          backdropFilter: "blur(20px) saturate(160%)",
-          WebkitBackdropFilter: "blur(20px) saturate(160%)",
-          border: "1px solid rgba(113, 113, 122, 0.3)",
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
-        <div className="relative p-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-grow">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Αναζήτηση αναρτήσεων, προπονητών..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-black/30 border border-zinc-700/50 rounded-xl text-neutral-300 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-black/50 backdrop-blur-xl"
-              />
-            </div>
-
-            {/* Controls */}
-            <div className="flex gap-3 flex-wrap">
-              {/* View Toggle */}
-              <div className="flex rounded-xl overflow-hidden border border-zinc-700/50">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`flex items-center gap-2 px-4 py-3 transition-all ${
-                    viewMode === "grid"
-                      ? "bg-zinc-700 text-neutral-300"
-                      : "bg-black/30 text-zinc-400 hover:bg-black/50 hover:text-neutral-300"
-                  }`}
-                >
-                  <Grid3X3 className="h-4 w-4" /> Grid
-                </button>
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`flex items-center gap-2 px-4 py-3 transition-all border-l border-zinc-700/50 ${
-                    viewMode === "list"
-                      ? "bg-zinc-700 text-neutral-300"
-                      : "bg-black/30 text-zinc-400 hover:bg-black/50 hover:text-neutral-300"
-                  }`}
-                >
-                  <List className="h-4 w-4" /> List
-                </button>
-              </div>
-
-              {/* Sort */}
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-3 bg-black/30 border border-zinc-700/50 rounded-xl text-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500 backdrop-blur-xl"
-              >
-                <option value="newest" className="bg-zinc-800">
-                  Νεότερες
-                </option>
-                <option value="oldest" className="bg-zinc-800">
-                  Παλαιότερες
-                </option>
-                <option value="most-liked" className="bg-zinc-800">
-                  Περισσότερα Likes
-                </option>
-                <option value="most-commented" className="bg-zinc-800">
-                  Περισσότερα Σχόλια
-                </option>
-                <option value="title" className="bg-zinc-800">
-                  Τίτλος A-Z
-                </option>
-                <option value="trainer" className="bg-zinc-800">
-                  Προπονητής A-Z
-                </option>
-              </select>
-
-              {/* Refresh */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onRefresh}
-                disabled={refreshing}
-                className="flex items-center gap-2 px-4 py-3 bg-zinc-700 text-neutral-300 rounded-xl hover:bg-zinc-600 disabled:opacity-50 transition-all"
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? "Ανανέωση..." : "Ανανέωση"}
-              </motion.button>
-            </div>
+const CardSkeleton = memo(function CardSkeleton() {
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-zinc-900/50 shadow-2xl">
+      <div className="h-48 bg-zinc-800/60 animate-pulse" />
+      <div className="p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-zinc-800 animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-40 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-24 bg-zinc-800 rounded animate-pulse" />
           </div>
         </div>
-      </motion.section>
-    );
-  }
-);
+        <div className="h-5 w-3/4 bg-zinc-800 rounded animate-pulse" />
+        <div className="h-4 w-full bg-zinc-800 rounded animate-pulse" />
+        <div className="h-4 w-5/6 bg-zinc-800 rounded animate-pulse" />
+        <div className="pt-4 flex items-center justify-between border-t border-white/10">
+          <div className="h-4 w-28 bg-zinc-800 rounded animate-pulse" />
+          <div className="h-4 w-10 bg-zinc-800 rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+});
 
 /* ======================================================================== */
-/*  PostCard                                                                */
+/*  HoverHelp (portal tooltip)                                              */
+/* ======================================================================== */
+const HoverHelp = memo(function HoverHelp({ children, tooltip, width = 320 }) {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 8, left: r.left + r.width / 2 });
+  }, [open]);
+
+  return (
+    <>
+      <span ref={ref} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} className="inline-flex">
+        {children}
+      </span>
+
+      {open &&
+        createPortal(
+          <div
+            className="fixed z-[9999] -translate-x-1/2 border border-white/15 bg-black/95 text-sm text-zinc-100 rounded-md p-3 shadow-2xl pointer-events-none backdrop-blur"
+            style={{ top: pos.top, left: pos.left, width }}
+            role="tooltip"
+          >
+            {tooltip}
+          </div>,
+          document.body
+        )}
+    </>
+  );
+});
+
+/* ======================================================================== */
+/*  PostCard (single grid/card variant)                                     */
 /* ======================================================================== */
 const PostCard = memo(
-  ({ post, viewMode, index, onPostClick, onLike, onShare, onComment, formatRelativeTime, isLiking }) => {
+  ({ post, index, onPostClick, onLike, onShare, onComment, formatRelativeTime, isLiking, priority = false }) => {
     const isLiked = post.is_liked_by_user;
     const postImage = post.image_urls?.[0] || post.image_url || PLACEHOLDER;
     const hasMultipleImages = (post.image_urls?.length || 0) > 1;
@@ -665,126 +624,41 @@ const PostCard = memo(
       onPostClick(post.id);
     };
 
-    /* ---- LIST ---------------------------------------------------------- */
-    if (viewMode === "list") {
-      return (
-        <motion.article
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.1, duration: 0.6 }}
-          whileHover={{ scale: 1.01, y: -2 }}
-          onClick={() => onPostClick(post.id)}
-          className="group flex gap-6 p-6 rounded-2xl cursor-pointer transition-all duration-300"
-          style={{
-            background: "rgba(0, 0, 0, 0.4)",
-            backdropFilter: "blur(20px) saturate(160%)",
-            WebkitBackdropFilter: "blur(20px) saturate(160%)",
-            border: "1px solid rgba(113, 113, 122, 0.3)",
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent rounded-2xl" />
-
-          {/* Image */}
-          <div className="relative w-48 h-32 rounded-xl overflow-hidden flex-shrink-0">
-            <img
-              src={postImage || "/placeholder.svg"}
-              alt=""
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              loading="lazy"
-            />
-            {hasMultipleImages && (
-              <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/70 rounded-md text-neutral-200 text-xs font-medium">
-                +{post.image_urls.length - 1}
-              </div>
-            )}
-          </div>
-
-          {/* Body */}
-          <div className="relative flex-1 min-w-0">
-            {/* Author */}
-            <div className="flex items-center gap-3 mb-3">
-              <Avatar
-                avatar={post.trainer?.avatar_url}
-                fallback={post.trainer?.full_name || post.trainer?.email}
-              />
-              <div>
-                <p className="font-semibold text-neutral-300 text-sm truncate max-w-[160px]">
-                  {post.trainer?.full_name || post.trainer?.email || "Trainer"}
-                </p>
-                <p className="text-xs text-zinc-400 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {formatRelativeTime(post.created_at)}
-                </p>
-              </div>
-            </div>
-
-            {/* Title + Description */}
-            <h3 className="text-lg font-bold text-neutral-300 mb-1 line-clamp-2">{post.title}</h3>
-            <p className="text-zinc-300 text-sm line-clamp-2">{post.description}</p>
-
-            {/* Actions */}
-            <div className="flex items-center gap-4 mt-4 text-zinc-400">
-              <IconBtn icon={Eye} onClick={view} />
-              <LikeBtn count={post.like_count} isLiked={isLiked} onClick={like} disabled={isLiking} />
-              <IconBtn icon={MessageCircle} label={post.comment_count} onClick={comment} />
-              <IconBtn icon={Share2} onClick={share} />
-            </div>
-          </div>
-        </motion.article>
-      );
-    }
-
-    /* ---- GRID ---------------------------------------------------------- */
     return (
       <motion.article
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.1, duration: 0.6 }}
+        transition={{ delay: Math.min(index * 0.04, 0.3), duration: 0.45 }}
         whileHover={{ scale: 1.02, y: -4 }}
         onClick={() => onPostClick(post.id)}
-        className="group relative overflow-hidden rounded-3xl cursor-pointer transition-all duration-500"
-        style={{
-          background: "rgba(0, 0, 0, 0.4)",
-          backdropFilter: "blur(20px) saturate(160%)",
-          WebkitBackdropFilter: "blur(20px) saturate(160%)",
-          border: "1px solid rgba(113, 113, 122, 0.3)",
-          boxShadow: "0 10px 30px -5px rgba(0,0,0,.3)",
-        }}
+        className="group relative overflow-hidden rounded-3xl cursor-pointer transition-all duration-500
+                   border border-white/10 shadow-2xl backdrop-blur-xl
+                   bg-gradient-to-b from-zinc-900/60 via-zinc-900/50 to-black/70"
+        style={{ contentVisibility: "auto", containIntrinsicSize: `${CARD_INTRINSIC_HEIGHT}px` }}
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
-
-        {/* Hero Image */}
         <div className="relative h-48 overflow-hidden">
           <img
             src={postImage || "/placeholder.svg"}
             alt=""
-            loading="lazy"
+            loading={priority ? "eager" : "lazy"}
+            decoding="async"
+            fetchpriority={priority ? "high" : "auto"}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-          {/* Badges */}
           {hasMultipleImages && (
-            <Badge pos="right-4 top-4" icon={Sparkles} label={post.image_urls.length - 1} />
+            <div className="absolute bottom-3 right-3 flex items-center gap-1 px-3 py-1.5 bg-black/70 rounded-full text-white text-sm font-medium border border-white/10 backdrop-blur-sm">
+              <Grid3X3 className="h-4 w-4" />
+              {post.image_urls.length}
+            </div>
           )}
-          {post.like_count > 0 && <Badge pos="left-4 top-4" icon={Heart} label={post.like_count} liked />}
-
-          {/* Title Overlay */}
-          <div className="absolute bottom-4 left-4 right-4">
-            <h3 className="text-xl font-bold text-neutral-300 mb-1 line-clamp-2">{post.title}</h3>
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
         </div>
 
-        {/* Body */}
         <div className="relative p-6 space-y-4">
-          {/* Author */}
           <div className="flex items-center gap-3">
-            <Avatar
-              avatar={post.trainer?.avatar_url}
-              fallback={post.trainer?.full_name || post.trainer?.email}
-            />
+            <Avatar avatar={post.trainer?.avatar_url} fallback={post.trainer?.full_name || post.trainer?.email} />
             <div className="flex-1">
-              <p className="font-semibold text-neutral-300 truncate max-w-[160px]">
+              <p className="font-semibold text-zinc-100 truncate max-w-[180px]">
                 {post.trainer?.full_name || post.trainer?.email || "Trainer"}
               </p>
               <p className="text-sm text-zinc-400 flex items-center gap-1">
@@ -793,10 +667,10 @@ const PostCard = memo(
             </div>
           </div>
 
+          <h3 className="text-xl font-bold text-zinc-50 line-clamp-2">{post.title}</h3>
           <p className="text-zinc-300 text-sm line-clamp-3">{post.description}</p>
 
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-4 border-t border-zinc-700/50">
+          <div className="flex items-center justify-between pt-4 border-t border-white/10">
             <div className="flex items-center gap-4">
               <LikeBtn count={post.like_count} isLiked={isLiked} onClick={like} disabled={isLiking} />
               <IconBtn icon={MessageCircle} label={post.comment_count} onClick={comment} />
@@ -814,31 +688,28 @@ const PostCard = memo(
 const Avatar = memo(({ avatar, fallback }) => {
   const alt = fallback || "avatar";
   return (
-    <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center overflow-hidden border border-zinc-600">
+    <div className="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center overflow-hidden border border-white/10">
       {avatar ? (
         <img
           src={safeAvatar(avatar)}
           alt={alt}
-          className="w-full h-full object-cover bg-white"
+          className="w-full h-full object-cover"
           loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.onerror = null;
             e.currentTarget.src = AVATAR_PLACEHOLDER;
           }}
         />
       ) : (
-        <UserIcon className="h-5 w-5 text-gray-400" />
+        <UserIcon className="h-5 w-5 text-zinc-300" />
       )}
     </div>
   );
 });
 
 const IconBtn = memo(({ icon: Icon, label, onClick, ...rest }) => (
-  <button
-    onClick={onClick}
-    className="flex items-center gap-1 text-xs text-zinc-400 hover:text-neutral-200 transition-colors"
-    {...rest}
-  >
+  <button onClick={onClick} className="flex items-center gap-1 text-xs text-zinc-300 hover:text-white transition-colors" {...rest}>
     <Icon className="h-4 w-4" />
     {label !== undefined && <span>{label}</span>}
   </button>
@@ -849,7 +720,7 @@ const LikeBtn = memo(({ count, isLiked, onClick, disabled }) => (
     onClick={onClick}
     disabled={disabled}
     className={`flex items-center gap-1 text-xs transition-colors
-               ${isLiked ? "text-red-400 hover:text-red-300" : "text-zinc-400 hover:text-red-400"}
+               ${isLiked ? "text-red-400 hover:text-red-300" : "text-zinc-300 hover:text-red-400"}
                ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
   >
     <Heart className={`h-4 w-4 ${isLiked ? "fill-current" : ""}`} />
@@ -857,39 +728,22 @@ const LikeBtn = memo(({ count, isLiked, onClick, disabled }) => (
   </button>
 ));
 
-const Badge = memo(({ pos, icon: Icon, label, liked = false }) => (
-  <div className={`absolute ${pos}`}>
-    <span
-      className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full
-                      ${liked ? "bg-red-500/90 text-neutral-200" : "bg-black/70 text-neutral-200"}
-                      text-sm font-medium backdrop-blur-sm shadow-lg`}
-    >
-      <Icon className={`h-4 w-4 ${liked ? "fill-current" : ""}`} />
-      {label && `+${label}`}
-    </span>
-  </div>
-));
-
 /* ======================================================================== */
 /*  Empty & Full-Screen States                                              */
 /* ======================================================================== */
-const Empty = memo(({ noPosts }) => {
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20">
-      <div className="p-6 rounded-full bg-zinc-800/50 mb-6 inline-block border border-zinc-700/50">
-        <BookOpen className="h-12 w-12 text-zinc-400" />
-      </div>
-      <h3 className="text-xl font-semibold text-neutral-300 mb-2">
-        {noPosts ? "Δεν υπάρχουν αναρτήσεις ακόμη" : "Δεν βρέθηκαν αναρτήσεις"}
-      </h3>
-      <p className="text-zinc-400 max-w-md mx-auto">
-        {noPosts
-          ? "Οι προπονητές δεν έχουν δημοσιεύσει περιεχόμενο ακόμη."
-          : "Δοκιμάστε να αλλάξετε τα κριτήρια αναζήτησης σας."}
-      </p>
-    </motion.div>
-  );
-});
+const Empty = memo(({ noPosts }) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20">
+    <div className="p-6 rounded-full bg-white/10 mb-6 inline-block border border-white/15">
+      <BookOpen className="h-12 w-12 text-zinc-300" />
+    </div>
+    <h3 className="text-xl font-semibold text-neutral-100 mb-2">
+      {noPosts ? "Δεν υπάρχουν αναρτήσεις ακόμη" : "Δεν βρέθηκαν αναρτήσεις"}
+    </h3>
+    <p className="text-zinc-300 max-w-md mx-auto">
+      {noPosts ? "Οι προπονητές δεν έχουν δημοσιεύσει περιεχόμενο ακόμη." : "Δοκιμάστε να αλλάξετε τα κριτήρια αναζήτησης σας."}
+    </p>
+  </motion.div>
+));
 
 const Screen = memo(({ state, role, err, retry }) => {
   const Menu = role === "trainer" ? TrainerMenu : UserMenu;
@@ -897,21 +751,19 @@ const Screen = memo(({ state, role, err, retry }) => {
   if (state === "loading") {
     return (
       <div className="relative min-h-screen text-gray-100">
-        <BaseBackground />
-        <AthleticBackground />
-        {/* spacing vars + padded wrapper even on loading */}
+        <GridBackground />
         <style>{`
-          :root { --side-w: 0px; --nav-h: 64px; }
-          @media (min-width: 640px){ :root { --nav-h: 72px; } }
-          @media (min-width: 1024px){ :root { --side-w: 280px; --nav-h: 0px; } }
+          :root { --side-w: 0px; --nav-h: 0px; }
+          @media (min-width: 640px){ :root { --nav-h: 0px; } }
+          @media (min-width: 1024px){ :root { --side-w: 280px; } }
           @media (min-width: 1280px){ :root { --side-w: 320px; } }
         `}</style>
-        <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] pb-[80px] transition-[padding]">
+        <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 pt-0 pb-[80px] transition-[padding]">
           <Menu />
           <div className="relative z-10 flex items-center justify-center h-[75vh]">
             <div className="flex items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
-              <span className="text-neutral-300">Φόρτωση αναρτήσεων...</span>
+              <Loader2 className="h-8 w-8 animate-spin text-zinc-300" />
+              <span className="text-neutral-100">Φόρτωση αναρτήσεων...</span>
             </div>
           </div>
         </div>
@@ -921,36 +773,29 @@ const Screen = memo(({ state, role, err, retry }) => {
 
   return (
     <div className="relative min-h-screen text-gray-100">
-      <BaseBackground />
-      <AthleticBackground />
+      <GridBackground />
       <style>{`
-        :root { --side-w: 0px; --nav-h: 64px; }
-        @media (min-width: 640px){ :root { --nav-h: 72px; } }
-        @media (min-width: 1024px){ :root { --side-w: 280px; --nav-h: 0px; } }
+        :root { --side-w: 0px; --nav-h: 0px; }
+        @media (min-width: 640px){ :root { --nav-h: 0px; } }
+        @media (min-width: 1024px){ :root { --side-w: 280px; } }
         @media (min-width: 1280px){ :root { --side-w: 320px; } }
       `}</style>
-      <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] pb-[80px] transition-[padding]">
+      <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 pt-0 pb-[80px] transition-[padding]">
         <Menu />
         <div className="relative z-10 flex items-center justify-center h-[75vh]">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center p-8 rounded-2xl max-w-md"
-            style={{
-              background: "rgba(0, 0, 0, 0.4)",
-              backdropFilter: "blur(20px) saturate(160%)",
-              WebkitBackdropFilter: "blur(20px) saturate(160%)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-            }}
+            className="text-center p-8 rounded-2xl max-w-md bg-white/10 border border-red-400/30 backdrop-blur"
           >
             <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-red-400 mb-2">Σφάλμα φόρτωσης</h3>
-            <p className="text-red-300 mb-6">{err}</p>
+            <h3 className="text-lg font-semibold text-red-200 mb-2">Σφάλμα φόρτωσης</h3>
+            <p className="text-red-200 mb-6">{err}</p>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={retry}
-              className="px-6 py-3 bg-red-600 text-neutral-200 rounded-xl hover:bg-red-500 transition-colors"
+              className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-500 transition-colors"
             >
               Δοκιμή ξανά
             </motion.button>

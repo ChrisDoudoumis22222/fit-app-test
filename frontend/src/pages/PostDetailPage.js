@@ -1,10 +1,10 @@
+// src/pages/PostDetailPage.jsx
 "use client"
 import { useEffect, useState, memo } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
   Calendar,
   MapPin,
-  Award,
   Clock,
   Heart,
   Share2,
@@ -19,6 +19,7 @@ import {
   Star,
   Zap,
   Activity,
+  BadgeCheck,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { supabase } from "../supabaseClient"
@@ -30,91 +31,43 @@ import CommentsSection from "../components/CommentsSection"
 const POST_PLACEHOLDER = "/placeholder.svg?height=400&width=600&text=Post+Image"
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=80&width=80&text=Avatar"
 
-/* Enhanced Athletic Background - Matching the dashboard style */
-const AthleticBackground = memo(() => (
+/* === Subtle “code grid” background; keeps menu badge white, removes right seam === */
+const CodeGridBackground = memo(() => (
   <>
     <style>{`
-      @keyframes pulse-performance {
-         0%, 100% { opacity: 0.1; transform: scale(1); }
-         50% { opacity: 0.3; transform: scale(1.05); }
-       }
-      @keyframes drift-metrics {
-         0% { transform: translateX(-100px) translateY(0px); }
-         50% { transform: translateX(50px) translateY(-30px); }
-         100% { transform: translateX(100px) translateY(0px); }
-       }
-      @keyframes athletic-grid {
-         0% { transform: translate(0, 0) rotate(0deg); }
-         100% { transform: translate(60px, 60px) rotate(0.5deg); }
-       }
-      @keyframes performance-wave {
-        0% { transform: translateY(0px) scaleY(1); }
-        50% { transform: translateY(-10px) scaleY(1.1); }
-        100% { transform: translateY(0px) scaleY(1); }
+      @keyframes grid-pan {
+        0% { transform: translate(0,0); }
+        100% { transform: translate(60px, 60px); }
       }
-      @keyframes data-flow {
-         0% { transform: translateX(-100%) translateY(0px); opacity: 0; }
-         50% { opacity: 0.3; }
-         100% { transform: translateX(100vw) translateY(-20px); opacity: 0; }
-       }
+      /* Remove bright right-edge seam from the side menu ONLY on the container itself */
+      .menu-fix { background-color: transparent !important; }
+      .menu-fix [class*="border-r"], .menu-fix [style*="border-right"] { border-right: 0 !important; }
     `}</style>
+
+    {/* Base */}
+    <div className="fixed inset-0 -z-50 bg-black" />
+
+    {/* Soft radial falloff */}
+    <div className="fixed inset-0 -z-50 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.08),transparent_55%)]" />
+
+    {/* Fine + coarse grid layers with slow pan */}
     <div
-      className="fixed inset-0 z-0 pointer-events-none opacity-15"
+      className="fixed inset-0 -z-50 will-change-transform pointer-events-none"
       style={{
+        animation: "grid-pan 32s linear infinite",
         backgroundImage: `
-          linear-gradient(rgba(113,113,122,0.08) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(113,113,122,0.08) 1px, transparent 1px)
+          linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px),
+          linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px)
         `,
-        backgroundSize: "60px 60px",
-        animation: "athletic-grid 25s linear infinite",
-        maskImage: "radial-gradient(circle at 50% 50%, black 0%, transparent 75%)",
+        backgroundSize: "24px 24px, 24px 24px, 120px 120px, 120px 120px",
+        maskImage:
+          "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 82%)",
+        WebkitMaskImage:
+          "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 82%)",
       }}
     />
-    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-      <div
-        className="absolute top-1/5 left-1/5 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-zinc-600/8 rounded-full blur-3xl"
-        style={{ animation: "pulse-performance 12s ease-in-out infinite" }}
-      />
-      <div
-        className="absolute top-3/5 right-1/5 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-gray-700/8 rounded-full blur-3xl"
-        style={{ animation: "pulse-performance 15s ease-in-out infinite reverse" }}
-      />
-      <div
-        className="absolute top-1/2 left-1/2 w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] bg-zinc-800/8 rounded-full blur-3xl"
-        style={{ animation: "drift-metrics 20s ease-in-out infinite" }}
-      />
-    </div>
-    <div className="fixed inset-0 z-0 pointer-events-none">
-      <svg className="w-full h-full opacity-5" viewBox="0 0 1200 800">
-        <path
-          d="M0,400 Q300,350 600,400 T1200,400"
-          stroke="rgba(113,113,122,0.3)"
-          strokeWidth="2"
-          fill="none"
-          style={{ animation: "performance-wave 8s ease-in-out infinite" }}
-        />
-        <path
-          d="M0,450 Q300,400 600,450 T1200,450"
-          stroke="rgba(113,113,122,0.2)"
-          strokeWidth="1"
-          fill="none"
-          style={{ animation: "performance-wave 10s ease-in-out infinite reverse" }}
-        />
-      </svg>
-    </div>
-    <div className="fixed inset-0 z-0 pointer-events-none">
-      {[...Array(5)].map((_, i) => (
-        <div
-          key={i}
-          className="absolute w-2 h-0.5 bg-gradient-to-r from-transparent via-zinc-500/20 to-transparent"
-          style={{
-            top: `${20 + i * 15}%`,
-            animation: `data-flow ${8 + i * 2}s linear infinite`,
-            animationDelay: `${i * 1.5}s`,
-          }}
-        />
-      ))}
-    </div>
   </>
 ))
 
@@ -161,7 +114,7 @@ const StatChip = ({ icon: Icon, count, tint = "neutral", size = "md" }) => {
   )
 }
 
-/* Star Rating like the Marketplace page (supports half stars) */
+/* Star Rating (shows “Χωρίς κριτικές” if used; we’ll only render it when reviewCount>0) */
 function StarRating({ rating = 0, reviewCount = 0, size = "sm" }) {
   const starSize = size === "lg" ? "h-5 w-5" : "h-4 w-4"
   const full = Math.floor(rating)
@@ -246,7 +199,7 @@ export default function PostDetailPage() {
         if (error) {
           setError(error.message)
         } else {
-          // compute rating + reviews from trainer_reviews like the marketplace page
+          // compute rating + reviews from trainer_reviews
           let trainerData = data.trainer ?? {}
           if (trainerData?.id) {
             const { data: revs } = await supabase
@@ -396,19 +349,16 @@ export default function PostDetailPage() {
   /* Loading */
   if (authLoading || loading) {
     return (
-      <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
-        <AthleticBackground />
-        <Menu />
+      <div className="relative min-h-screen text-gray-100">
+        <CodeGridBackground />
+        <div className="menu-fix">
+          <Menu />
+        </div>
         <div className="flex items-center justify-center h-[75vh]">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center gap-6 p-8 rounded-3xl border border-zinc-700/50"
-            style={{
-              background: "rgba(0,0,0,0.4)",
-              backdropFilter: "blur(20px) saturate(160%)",
-              WebkitBackdropFilter: "blur(20px) saturate(160%)",
-            }}
+            className="flex flex-col items-center gap-6 p-8 rounded-3xl border border-zinc-700/50 bg-black/40 backdrop-blur-xl"
           >
             <div className="relative">
               <Loader2 className="h-12 w-12 animate-spin text-zinc-400" />
@@ -426,20 +376,16 @@ export default function PostDetailPage() {
 
   if (error) {
     return (
-      <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
-        <AthleticBackground />
-        <Menu />
+      <div className="relative min-h-screen text-gray-100">
+        <CodeGridBackground />
+        <div className="menu-fix">
+          <Menu />
+        </div>
         <div className="flex items-center justify-center h-[75vh]">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center p-8 rounded-3xl max-w-md border border-red-500/30"
-            style={{
-              background: "rgba(0,0,0,0.4)",
-              backdropFilter: "blur(20px) saturate(160%)",
-              WebkitBackdropFilter: "blur(20px) saturate(160%)",
-              boxShadow: "0 8px 32px rgba(220, 38, 38, 0.2)",
-            }}
+            className="text-center p-8 rounded-3xl max-w-md border border-red-500/30 bg-black/40 backdrop-blur-xl shadow-[0_8px_32px_rgba(220,38,38,0.2)]"
           >
             <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-red-400 mb-2">Σφάλμα φόρτωσης</h3>
@@ -458,19 +404,16 @@ export default function PostDetailPage() {
 
   if (!post) {
     return (
-      <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
-        <AthleticBackground />
-        <Menu />
+      <div className="relative min-h-screen text-gray-100">
+        <CodeGridBackground />
+        <div className="menu-fix">
+          <Menu />
+        </div>
         <div className="flex items-center justify-center h-[75vh]">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center p-8 rounded-3xl max-w-md border border-zinc-700/50"
-            style={{
-              background: "rgba(0,0,0,0.4)",
-              backdropFilter: "blur(20px) saturate(160%)",
-              WebkitBackdropFilter: "blur(20px) saturate(160%)",
-            }}
+            className="text-center p-8 rounded-3xl max-w-md border border-zinc-700/50 bg-black/40 backdrop-blur-xl"
           >
             <h3 className="text-xl font-semibold text-zinc-100 mb-2">Η ανάρτηση δεν βρέθηκε</h3>
             <p className="text-zinc-400 mb-4">Η ανάρτηση που ψάχνετε δεν υπάρχει ή έχει διαγραφεί.</p>
@@ -505,9 +448,11 @@ export default function PostDetailPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
-      <AthleticBackground />
-      <Menu />
+    <div className="relative min-h-screen text-gray-100">
+      <CodeGridBackground />
+      <div className="menu-fix">
+        <Menu />
+      </div>
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         {/* Main Post Card */}
@@ -672,7 +617,7 @@ export default function PostDetailPage() {
               </motion.button>
             </motion.div>
 
-            {/* Trainer Card — MOBILE-RESPONSIVE */}
+            {/* Trainer Card — tidied, blue tick, category chip */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -685,6 +630,7 @@ export default function PostDetailPage() {
               }}
             >
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
+                {/* Avatar + blue tick */}
                 <div className="relative shrink-0">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden ring-4 ring-zinc-700/50 shadow-2xl border border-zinc-700/50">
                     {trainer.avatar_url ? (
@@ -701,13 +647,13 @@ export default function PostDetailPage() {
                       <User className="h-10 w-10 text-zinc-400" />
                     )}
                   </div>
-                  <div className="absolute -bottom-2 -right-2 w-7 h-7 sm:w-8 sm:h-8 bg-emerald-500 rounded-full border-4 border-black flex items-center justify-center shadow-lg">
-                    <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
+                  <div className="absolute -bottom-2 -right-2 w-7 h-7 sm:w-8 sm:h-8 bg-sky-500 rounded-full border-4 border-black flex items-center justify-center shadow-lg">
+                    <BadgeCheck className="h-4 w-4 text-white" />
                   </div>
                 </div>
 
                 <div className="flex-1 w-full">
-                  {/* Name + badges */}
+                  {/* Name + category chip + rating (only if > 0) */}
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 mb-3 text-center sm:text-left">
                     <button
                       onClick={() => navigate(`/trainer/${trainer.id}`)}
@@ -715,32 +661,35 @@ export default function PostDetailPage() {
                     >
                       {trainer.full_name || trainer.email || "Unknown Trainer"}
                     </button>
-                    <div className="flex justify-center sm:justify-start">
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-xs sm:text-sm font-medium">
-                        <Star className="h-3 w-3 fill-current" />
-                        Pro
-                      </span>
-                    </div>
-                    <div className="flex justify-center sm:justify-start">
-                      <StarRating rating={Number(trainer.rating) || 0} reviewCount={Number(trainer.reviewCount) || 0} />
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-5 sm:mb-6">
+                    {/* Category chip (replaces “Pro”) */}
                     {trainer.specialty && (
-                      <div className="flex items-center gap-3 text-zinc-300">
-                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                          <Award className="h-4 w-4 text-blue-400" />
-                        </div>
-                        <span className="text-sm sm:text-base">{trainer.specialty}</span>
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-200 text-xs sm:text-sm font-medium">
+                        {trainer.specialty}
+                      </span>
+                    )}
+
+                    {/* Rating only if there are reviews */}
+                    {Number(trainer.reviewCount) > 0 && (
+                      <div className="flex justify-center sm:justify-start">
+                        <StarRating
+                          rating={Number(trainer.rating) || 0}
+                          reviewCount={Number(trainer.reviewCount) || 0}
+                        />
                       </div>
                     )}
+                  </div>
+
+                  {/* Info rows: experience + location */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-5 sm:mb-6">
                     {trainer.experience_years && (
                       <div className="flex items-center gap-3 text-zinc-300">
                         <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
                           <Clock className="h-4 w-4 text-emerald-400" />
                         </div>
-                        <span className="text-sm sm:text-base">{trainer.experience_years} χρόνια εμπειρίας</span>
+                        <span className="text-sm sm:text-base">
+                          {trainer.experience_years} χρόνια εμπειρίας
+                        </span>
                       </div>
                     )}
                     {trainer.location && (
@@ -748,7 +697,9 @@ export default function PostDetailPage() {
                         <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center">
                           <MapPin className="h-4 w-4 text-rose-400" />
                         </div>
-                        <span className="text-sm sm:text-base">{trainer.location}</span>
+                        <span className="text-sm sm:text-base">
+                          {trainer.location}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -769,7 +720,6 @@ export default function PostDetailPage() {
                       <ExternalLink className="h-4 w-4" />
                       Όλες οι αναρτήσεις
                     </motion.button>
-                    {/* Services button intentionally removed */}
                   </div>
                 </div>
               </div>
