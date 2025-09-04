@@ -1,0 +1,24 @@
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "@babel/preset-typescript": "^7.27.1",
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19.1.7",
+    "concurrently": "^8.2.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "typescript": "^5.9.2"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build",
+    "start": "concurrently \"npm --prefix backend start\" \"npm --prefix frontend run preview\""
+  },
+  "dependencies": {
+    "@tabler/icons-react": "^3.34.1",
+    "react-day-picker": "^9.8.0",
+    "react-icons": "^5.5.0"
+  }
+}
