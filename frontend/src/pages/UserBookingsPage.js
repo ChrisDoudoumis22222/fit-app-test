@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import React, {
   lazy,
   Suspense,
@@ -7,54 +7,44 @@ import React, {
   useState,
   useMemo,
   useRef,
-} from "react"
+} from "react";
 import {
   Loader2, Calendar, Users, Clock, AlertCircle, X,
   CalendarClock, CheckCircle, Ban, Wifi, User, Mail, MapPin,
-  ChevronLeft, ChevronRight, Euro, PencilLine
-} from "lucide-react"
-import { useAuth } from "../AuthProvider"
-import { motion, AnimatePresence } from "framer-motion"
-import { supabase } from "../supabaseClient"
-
-/* external quick-book component */
-import TrainerQuickBook from "../components/TrainerQuickBook"
+  ChevronLeft, ChevronRight, Euro
+} from "lucide-react";
+import { useAuth } from "../AuthProvider";
+import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../supabaseClient";
 
 /* lazy components */
-const TrainerMenu  = lazy(() => import("../components/TrainerMenu"))
-const AcceptModal  = lazy(() => import("../components/AcceptBookingModal"))
-const DeclineModal = lazy(() => import("../components/DeclineBookingModal"))
+const UserMenu = lazy(() => import("../components/UserMenu"));
 
 /* ---------------- helpers: dates (LOCAL) ---------------- */
-const pad2 = (n) => String(n).padStart(2, "0")
+const pad2 = (n) => String(n).padStart(2, "0");
 const toYMDLocal = (d) => {
-  const x = d instanceof Date ? d : new Date(d)
-  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`
-}
-const hhmm = (t) => (typeof t === "string" ? (t.match(/^(\d{1,2}:\d{2})/)?.[1] ?? t) : t)
-const timeToMinutes = (t) => { if (!t) return 0; const [h,m] = t.split(":").map((x) => parseInt(x,10)); return (h||0)*60 + (m||0) }
-const fmtShortDay = (d) => d.toLocaleDateString("el-GR", { weekday: "short" })
-const fmtLongDay  = (d) => d.toLocaleDateString("el-GR", { weekday: "long" })
-const fmtDayNum   = (d) => d.toLocaleDateString("el-GR", { day: "2-digit" })
-const fmtMonth    = (d) => d.toLocaleDateString("el-GR", { month: "long" })
-const fmtMonthYear= (d) => d.toLocaleDateString("el-GR", { month: "long", year: "numeric" })
+  const x = d instanceof Date ? d : new Date(d);
+  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+};
+const hhmm = (t) => (typeof t === "string" ? (t.match(/^(\d{1,2}:\d{2})/)?.[1] ?? t) : t);
+const timeToMinutes = (t) => { if (!t) return 0; const [h,m] = t.split(":").map((x) => parseInt(x,10)); return (h||0)*60 + (m||0) };
+const fmtShortDay = (d) => d.toLocaleDateString("el-GR", { weekday: "short" });
+const fmtLongDay  = (d) => d.toLocaleDateString("el-GR", { weekday: "long" });
+const fmtDayNum   = (d) => d.toLocaleDateString("el-GR", { day: "2-digit" });
+const fmtMonth    = (d) => d.toLocaleDateString("el-GR", { month: "long" });
+const fmtMonthYear= (d) => d.toLocaleDateString("el-GR", { month: "long", year: "numeric" });
 function startOfWeek(date, weekStartsOn = 1) { const d = new Date(date); const day = d.getDay() || 7; if (day !== weekStartsOn) d.setDate(d.getDate() - (day - weekStartsOn)); d.setHours(0,0,0,0); return d }
 function startOfDay(date){ const d=new Date(date); d.setHours(0,0,0,0); return d }
 function startOfMonth(date){ const d=new Date(date.getFullYear(), date.getMonth(), 1); d.setHours(0,0,0,0); return d }
-const safeId = (b) => (b && (b.id ?? b.booking_id ?? b.uid ?? b.pk ?? null)) || null
+const safeId = (b) => (b && (b.id ?? b.booking_id ?? b.uid ?? b.pk ?? null)) || null;
 function toLocalDate(input) { if (!input) return null; const d = new Date(input); return isNaN(d.getTime()) ? null : d }
 function combineDateTime(date, time) { if (!date) return null; const d = new Date(`${date}T${time ?? "00:00:00"}`); return isNaN(d.getTime()) ? null : d }
 const fmtDate = (d) => {
-  if (!d) return "—"
-  const obj = typeof d === "string" ? new Date(`${d}T00:00:00`) : d
-  return obj.toLocaleDateString("el-GR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
-}
-const fmtTs   = (ts) => ts ? ts.toLocaleString("el-GR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"
-const isNewBooking = (b) => {
-  if (!b?.created_at) return false
-  const created = new Date(b.created_at).getTime()
-  return Date.now() - created <= 24 * 60 * 60 * 1000
-}
+  if (!d) return "—";
+  const obj = typeof d === "string" ? new Date(`${d}T00:00:00`) : d;
+  return obj.toLocaleDateString("el-GR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+};
+const fmtTs   = (ts) => ts ? ts.toLocaleString("el-GR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
 /* ---------- Background ---------- */
 const BaseBackground = memo(() => (
@@ -62,7 +52,7 @@ const BaseBackground = memo(() => (
     <div className="absolute inset-0 bg-black" />
     <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-950 to-black" />
   </div>
-))
+));
 const AthleticBackground = memo(() => (
   <>
     <style>{`
@@ -70,7 +60,7 @@ const AthleticBackground = memo(() => (
       @keyframes athletic-grid { 0%{transform:translate(0,0) rotate(0)} 100%{transform:translate(60px,60px) rotate(.5deg)} }
     `}</style>
   </>
-))
+));
 
 /* ---------- Glass primitives ---------- */
 const Glass = memo(({ className = "", children }) => (
@@ -88,7 +78,7 @@ const Glass = memo(({ className = "", children }) => (
     </div>
     <div className="relative">{children}</div>
   </div>
-))
+));
 const GlassTile = ({ className = "", children }) => (
   <div
     className={[
@@ -101,7 +91,7 @@ const GlassTile = ({ className = "", children }) => (
     <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[.08] to-transparent opacity-30" />
     <div className="relative">{children}</div>
   </div>
-)
+);
 
 /* ---------- ColorCard ---------- */
 const ColorCard = memo(({ color = "red", className = "", children }) => {
@@ -109,15 +99,15 @@ const ColorCard = memo(({ color = "red", className = "", children }) => {
     red: "from-red-600 to-red-700",
     emerald: "from-emerald-600 to-emerald-700",
     zinc: "from-zinc-700 to-zinc-800",
-  }
-  const gradient = gradientMap[color] || gradientMap.zinc
+  };
+  const gradient = gradientMap[color] || gradientMap.zinc;
   return (
     <div className={`relative overflow-hidden rounded-3xl p-6 shadow-xl text-white bg-gradient-to-br ${gradient} ${className}`}>
       <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 30% -10%, white, transparent 40%)" }} />
       <div className="relative">{children}</div>
     </div>
-  )
-})
+  );
+});
 
 /* ---------- Spinner ---------- */
 function Spinner({ full = false }) {
@@ -136,7 +126,7 @@ function Spinner({ full = false }) {
           </motion.div>
         </div>
       </div>
-    )
+    );
   }
   return (
     <div className="flex justify-center py-16">
@@ -145,7 +135,7 @@ function Spinner({ full = false }) {
         <p className="text-white/70">Φόρτωση...</p>
       </div>
     </div>
-  )
+  );
 }
 
 /* ---------- Error Boundary ---------- */
@@ -170,24 +160,24 @@ class ErrorBoundary extends React.Component {
             </div>
           </div>
         </ColorCard>
-      )
+      );
     }
-    return this.props.children
+    return this.props.children;
   }
 }
 
 /* ======================= SMALL UTIL: media ======================= */
 function useIsMobile(bp = 640) {
-  const [is, setIs] = useState(false)
+  const [is, setIs] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const mq = window.matchMedia(`(max-width:${bp - 0.02}px)`)
-    const on = (e) => setIs(e.matches)
-    setIs(mq.matches)
-    mq.addEventListener("change", on)
-    return () => mq.removeEventListener("change", on)
-  }, [bp])
-  return is
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(`(max-width:${bp - 0.02}px)`);
+    const on = (e) => setIs(e.matches);
+    setIs(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [bp]);
+  return is;
 }
 
 /* ======================= SWITCHER (with slide) ======================= */
@@ -196,7 +186,7 @@ function ViewSwitch({ value, onChange }) {
     { k: "day",   label: "Ημερήσιο" },
     { k: "week",  label: "Εβδομαδιαίο" },
     { k: "month", label: "Μηνιαίο" },
-  ]
+  ];
 
   return (
     <motion.div
@@ -210,7 +200,7 @@ function ViewSwitch({ value, onChange }) {
       "
     >
       {options.map((o) => {
-        const active = value === o.k
+        const active = value === o.k;
         return (
           <motion.button
             key={o.k}
@@ -245,59 +235,55 @@ function ViewSwitch({ value, onChange }) {
               {o.label}
             </motion.span>
           </motion.button>
-        )
+        );
       })}
     </motion.div>
-  )
+  );
 }
 
 /* ---------- Shared Button ---------- */
 function Button({ children, variant="secondary", size="md", className="", ...props }) {
-  const base = "inline-flex items-center justify-center rounded-xl font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed"
-  const sizes = { sm: "h-9 px-3 text-sm", md: "h-10 px-4 text-sm" }
+  const base = "inline-flex items-center justify-center rounded-xl font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
+  const sizes = { sm: "h-9 px-3 text-sm", md: "h-10 px-4 text-sm" };
   const variants = {
     primary: "bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/20 shadow-[0_6px_18px_rgba(16,185,129,.25)]",
     secondary: "bg-white/6 hover:bg-white/10 text-white border border-white/10",
     danger: "bg-rose-600/90 hover:bg-rose-600 text-white border border-rose-400/20 shadow-[0_6px_18px_rgba(244,63,94,.25)]",
     ghost: "bg-transparent hover:bg-white/5 text-white border border-white/10",
-  }
+  };
   return (
     <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props}>
       {children}
     </button>
-  )
+  );
 }
 
-/* ---------- Booking pill ---------- */
+/* ---------- Booking pill (USER VIEW: shows trainer & status) ---------- */
 function BookingPill({ b, onOpen, compact = false }) {
-  const status = (b.status || "pending").toLowerCase()
+  const status = (b.status || "pending").toLowerCase();
   const ring =
     status === "accepted" ? "ring-emerald-400/35" :
     status === "declined" || status === "cancelled" ? "ring-rose-400/35" :
-    "ring-amber-400/35"
+    "ring-amber-400/35";
   const tint =
     status === "accepted" ? "bg-emerald-500/10" :
     status === "declined" || status === "cancelled" ? "bg-rose-500/10" :
-    "bg-amber-500/10"
+    "bg-amber-500/10";
 
   const minutes =
-    (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)) || b.duration_min
-  const durationStr = minutes ? `${minutes}’` : null
-  const price = b.price_eur ?? b.total_price ?? b.price
-  const isNew = isNewBooking(b)
+    (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)) || b.duration_min;
+  const durationStr = minutes ? `${minutes}’` : null;
+  const price = b.amount ?? b.price_eur ?? b.total_price ?? b.price;
 
-  const pad = compact ? "px-2 py-1.5" : "px-3 py-2.5"
-  const timeCls = compact ? "text-[12px] text-white/70" : "text-xs text-white/70"
-  const nameCls = compact ? "text-[12px]" : "text-sm"
-  const endCls  = "text-[11px] text-white/60"
-  const onlineCls = compact ? "text-[9px] px-1" : "text-[10px] px-1.5"
+  const pad = compact ? "px-2 py-1.5" : "px-3 py-2.5";
+  const timeCls = compact ? "text-[12px] text-white/70" : "text-xs text-white/70";
+  const nameCls = compact ? "text-[12px]" : "text-sm";
+  const endCls  = "text-[11px] text-white/60";
+  const onlineCls = compact ? "text-[9px] px-1" : "text-[10px] px-1.5";
 
   return (
     <button onClick={(e) => { e.stopPropagation(); onOpen?.(b) }} className="w-full text-left">
       <GlassTile className={`${pad} ring-1 ${ring} ${tint}`}>
-        {isNew && (
-          <span className={`absolute top-2 right-2 ${compact ? "text-[8px] px-1" : "text-[9px] px-1.5"} tracking-wide py-0.5 rounded bg-white/20 text-white/90`}>NEW</span>
-        )}
         <div className="flex items-center justify-between">
           <span className={timeCls}>{hhmm(b.start_time)}</span>
           {!compact && price != null && (
@@ -309,7 +295,7 @@ function BookingPill({ b, onOpen, compact = false }) {
         </div>
         <div className="mt-1 flex items-center gap-2">
           <span className={`${nameCls} font-medium truncate`}>
-            {b.user_name || b.client_name || "Κράτηση"}
+            {b.trainer_name || b.trainer?.full_name || "Προπονητής"}
           </span>
           {b.is_online && (
             <span className={`${onlineCls} py-0.5 rounded bg-blue-400/15 text-blue-200`}>Online</span>
@@ -321,42 +307,43 @@ function BookingPill({ b, onOpen, compact = false }) {
         </div>
       </GlassTile>
     </button>
-  )
+  );
 }
 
-/* ======================= DAY VIEW ======================= */
-function DaySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
-  const [day, setDay] = useState(startOfDay(new Date()))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [rows, setRows] = useState([])
-  const dayStr = useMemo(() => toYMDLocal(day), [day])
+/* ======================= DAY VIEW (USER) ======================= */
+function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
+  const [day, setDay] = useState(startOfDay(new Date()));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
+  const dayStr = useMemo(() => toYMDLocal(day), [day]);
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!trainerId) return
-      setLoading(true); setError(null)
+    let alive = true;
+    (async () => {
+      if (!userId) return;
+      setLoading(true); setError(null);
       try {
         const { data, error } = await supabase
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
-          .eq("trainer_id", trainerId)
-          .eq("date", dayStr)
-        if (error) throw error
-        const sorted = (data ?? []).sort((a,b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
-        if (!alive) return
-        setRows(sorted); setLoading(false)
+          .select("id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )")
+          .eq("user_id", userId)
+          .eq("date", dayStr);
+        if (error) throw error;
+        const list = (data ?? []).map(r => ({ ...r, trainer: r.trainer?.[0] || r.trainer }));
+        const sorted = list.sort((a,b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+        if (!alive) return;
+        setRows(sorted); setLoading(false);
       } catch (e) {
-        if (!alive) return
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false)
+        if (!alive) return;
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false);
       }
-    })()
-    return () => { alive = false }
-  }, [trainerId, dayStr, refreshKey])
+    })();
+    return () => { alive = false; };
+  }, [userId, dayStr, refreshKey]);
 
-  const goPrev = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return startOfDay(n) })
-  const goNext = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return startOfDay(n) })
+  const goPrev = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return startOfDay(n) });
+  const goNext = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return startOfDay(n) });
 
   return (
     <Glass className="p-4 sm:p-6">
@@ -374,85 +361,82 @@ function DaySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey,
         <ViewSwitch value={view} onChange={onChangeView} />
       </div>
 
-      <div
-        className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 cursor-pointer"
-        onClick={() => onSelectDate?.(dayStr)}
-        title="Κάνε κλικ για γρήγορη κράτηση για αυτή τη μέρα"
-      >
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {loading ? (
           [...Array(6)].map((_,i)=><div key={i} className="h-20 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />)
         ) : error ? (
           <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
         ) : rows.length === 0 ? (
           <div className="text-xs text-white/60 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl col-span-full">
-            καμια κρατηση • πάτα για κράτηση
+            Καμία κράτηση για σήμερα
           </div>
         ) : (
           rows.map((b)=> <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
         )}
       </div>
     </Glass>
-  )
+  );
 }
 
-/* ======================= WEEK VIEW ======================= */
-function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), 1))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [rows, setRows] = useState([])
+/* ======================= WEEK VIEW (USER) ======================= */
+function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), 1));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
 
   const days = useMemo(() => {
     const arr = []; for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(d.getDate() + i); arr.push(d) }
-    return arr
-  }, [weekStart])
+    return arr;
+  }, [weekStart]);
 
-  const dateStr = (d) => toYMDLocal(d)
+  const dateStr = (d) => toYMDLocal(d);
 
   useEffect(() => {
-    let alive = true
+    let alive = true;
     const load = async () => {
-      if (!trainerId) return
-      setLoading(true); setError(null)
+      if (!userId) return;
+      setLoading(true); setError(null);
       try {
-        const start = dateStr(weekStart)
-        const endDate = new Date(weekStart); endDate.setDate(endDate.getDate() + 6)
-        const end = dateStr(endDate)
+        const start = dateStr(weekStart);
+        const endDate = new Date(weekStart); endDate.setDate(endDate.getDate() + 6);
+        const end = dateStr(endDate);
 
         const { data, error } = await supabase
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
-          .eq("trainer_id", trainerId)
+          .select("id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )")
+          .eq("user_id", userId)
           .gte("date", start)
-          .lte("date", end)
+          .lte("date", end);
 
-        if (error) throw error
-        const sorted = (data ?? []).sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
-        if (!alive) return
-        setRows(sorted); setLoading(false)
+        if (error) throw error;
+        const list = (data ?? []).map(r => ({ ...r, trainer: r.trainer?.[0] || r.trainer }));
+        const sorted = list.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+        if (!alive) return;
+        setRows(sorted); setLoading(false);
       } catch (e) {
-        if (!alive) return
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false)
+        if (!alive) return;
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false);
       }
-    }
-    load()
-    return () => { alive = false }
-  }, [trainerId, weekStart, refreshKey])
+    };
+    load();
+    return () => { alive = false; };
+  }, [userId, weekStart, refreshKey]);
 
   const grouped = useMemo(() => {
-    const map = new Map()
-    days.forEach((d) => map.set(dateStr(d), []))
-    rows.forEach((r) => { const key = r.date; if (!map.has(key)) map.set(key, []); map.get(key).push(r) })
-    return map
-  }, [rows, days])
+    const map = new Map();
+    days.forEach((d) => map.set(dateStr(d), []));
+    rows.forEach((r) => { const key = r.date; if (!map.has(key)) map.set(key, []); map.get(key).push(r) });
+    return map;
+  }, [rows, days]);
 
-  const goPrev = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return startOfWeek(n, 1) })
-  const goNext = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return startOfWeek(n, 1) })
+  const goPrev = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return startOfWeek(n, 1) });
+  const goNext = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return startOfWeek(n, 1) });
 
-  const end = new Date(weekStart); end.setDate(end.getDate() + 6)
+  const end = new Date(weekStart); end.setDate(end.getDate() + 6);
   const label = weekStart.getMonth() === end.getMonth()
     ? `${weekStart.getDate()}–${end.getDate()} ${fmtMonth(weekStart)}`
-    : `${weekStart.getDate()} ${fmtMonth(weekStart)} – ${end.getDate()} ${fmtMonth(end)}`
+    : `${weekStart.getDate()} ${fmtMonth(weekStart)} – ${end.getDate()} ${fmtMonth(end)}`;
 
   return (
     <Glass className="p-4 sm:p-6">
@@ -473,14 +457,12 @@ function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refr
       <div className="overflow-x-auto">
         <div className="min-w-[1000px] grid grid-cols-7 gap-3 sm:gap-4">
           {days.map((d) => {
-            const key = dateStr(d)
-            const dayRows = grouped.get(key) || []
+            const key = dateStr(d);
+            const dayRows = grouped.get(key) || [];
             return (
               <div
                 key={key}
-                onClick={() => onSelectDate?.(key)}
-                className="rounded-3xl p-3 border border-white/10 bg-[rgba(17,18,21,.55)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)] cursor-pointer hover:ring-1 hover:ring-white/15 transition"
-                title="Κάνε κλικ για γρήγορη κράτηση"
+                className="rounded-3xl p-3 border border-white/10 bg-[rgba(17,18,21,.55)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]"
               >
                 <GlassTile className="px-3 py-2 mb-3">
                   <div className="flex items-center justify-between">
@@ -495,71 +477,72 @@ function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refr
                   ) : error ? (
                     <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
                   ) : dayRows.length === 0 ? (
-                    <div className="text-xs text-white/40 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl">καμια κρατηση • πάτα για κράτηση</div>
+                    <div className="text-xs text-white/40 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl">Καμία κράτηση</div>
                   ) : (
                     dayRows.map((b) => <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
                   )}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       </div>
     </Glass>
-  )
+  );
 }
 
-/* ======================= MONTH VIEW ======================= */
-function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
-  const [anchor, setAnchor] = useState(startOfMonth(new Date()))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [rows, setRows] = useState([])
-  const isMobile = useIsMobile(640)
-  const maxPills = isMobile ? 2 : 3
+/* ======================= MONTH VIEW (USER) ======================= */
+function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
+  const [anchor, setAnchor] = useState(startOfMonth(new Date()));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
+  const isMobile = useIsMobile(640);
+  const maxPills = isMobile ? 2 : 3;
 
-  const gridStart = useMemo(() => startOfWeek(startOfMonth(anchor), 1), [anchor])
+  const gridStart = useMemo(() => startOfWeek(startOfMonth(anchor), 1), [anchor]);
   const gridDays = useMemo(() => {
-    const arr = []
+    const arr = [];
     for (let i = 0; i < 42; i++) { const d = new Date(gridStart); d.setDate(d.getDate() + i); arr.push(d) }
-    return arr
-  }, [gridStart])
-  const startStr = toYMDLocal(gridStart)
-  const endStr = useMemo(() => { const e = new Date(gridStart); e.setDate(e.getDate()+41); return toYMDLocal(e) }, [gridStart])
+    return arr;
+  }, [gridStart]);
+  const startStr = toYMDLocal(gridStart);
+  const endStr = useMemo(() => { const e = new Date(gridStart); e.setDate(e.getDate()+41); return toYMDLocal(e) }, [gridStart]);
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!trainerId) return
-      setLoading(true); setError(null)
+    let alive = true;
+    (async () => {
+      if (!userId) return;
+      setLoading(true); setError(null);
       try {
         const { data, error } = await supabase
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
-          .eq("trainer_id", trainerId)
+          .select("id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )")
+          .eq("user_id", userId)
           .gte("date", startStr)
-          .lte("date", endStr)
-        if (error) throw error
-        if (!alive) return
-        setRows(data ?? []); setLoading(false)
+          .lte("date", endStr);
+        if (error) throw error;
+        const list = (data ?? []).map(r => ({ ...r, trainer: r.trainer?.[0] || r.trainer }));
+        if (!alive) return;
+        setRows(list); setLoading(false);
       } catch (e) {
-        if (!alive) return
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false)
+        if (!alive) return;
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false);
       }
-    })()
-    return () => { alive = false }
-  }, [trainerId, startStr, endStr, refreshKey])
+    })();
+    return () => { alive = false; };
+  }, [userId, startStr, endStr, refreshKey]);
 
   const byDate = useMemo(() => {
-    const m = new Map()
-    rows.forEach(r => { if (!m.has(r.date)) m.set(r.date, []); m.get(r.date).push(r) })
-    m.forEach(list => list.sort((a,b)=>timeToMinutes(a.start_time)-timeToMinutes(b.start_time)))
-    return m
-  }, [rows])
+    const m = new Map();
+    rows.forEach(r => { if (!m.has(r.date)) m.set(r.date, []); m.get(r.date).push(r) });
+    m.forEach(list => list.sort((a,b)=>timeToMinutes(a.start_time)-timeToMinutes(b.start_time)));
+    return m;
+  }, [rows]);
 
-  const goPrev = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()-1, 1))
-  const goNext = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()+1, 1))
-  const weekdays = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"]
+  const goPrev = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()-1, 1));
+  const goNext = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()+1, 1));
+  const weekdays = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
 
   return (
     <Glass className="p-4 sm:p-6">
@@ -585,15 +568,13 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
 
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {gridDays.map((d, idx) => {
-          const inMonth = d.getMonth() === anchor.getMonth()
-          const key = toYMDLocal(d)
-          const dayRows = byDate.get(key) || []
+          const inMonth = d.getMonth() === anchor.getMonth();
+          const key = toYMDLocal(d);
+          const dayRows = byDate.get(key) || [];
           return (
             <div
               key={idx}
-              onClick={() => onSelectDate?.(key)}
-              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h-[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)] cursor-pointer hover:ring-1 hover:ring-white/15 transition`}
-              title="Κάνε κλικ για γρήγορη κράτηση"
+              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h-[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]`}
             >
               <div className="flex items-center justify-between mb-0.5 sm:mb-1">
                 <span className={`text-[10px] sm:text-[11px] ${inMonth ? "text-white/80" : "text-white/40"}`}>{fmtDayNum(d)}</span>
@@ -605,7 +586,7 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
               ) : error ? (
                 <div className="text-[10px] sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5">Σφάλμα</div>
               ) : dayRows.length === 0 ? (
-                <div className="text-[9px] sm:text-[10px] text-white/60">καμια κρατηση • πάτα για κράτηση</div>
+                <div className="text-[9px] sm:text-[10px] text-white/60">—</div>
               ) : (
                 <div className="space-y-1">
                   {dayRows.slice(0, maxPills).map((b)=>(
@@ -617,82 +598,68 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
                 </div>
               )}
             </div>
-          )
+          );
         })}
       </div>
     </Glass>
-  )
+  );
 }
 
-/* ======================= DETAILS DOCK ======================= */
-function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) {
-  const id = useMemo(() => (bookingId ? bookingId : safeId(booking)), [booking, bookingId])
-  const [full, setFull] = useState(() => (booking && id ? booking : null))
-  const [loading, setLoading] = useState(!booking)
-  const [err, setErr] = useState(null)
-  const [showAccept, setAccept] = useState(false)
-  const [showDecline, setDecline] = useState(false)
+/* ======================= DETAILS DOCK (USER) ======================= */
+function BookingDetailsDock({ booking, bookingId, userId, onClose }) {
+  const id = useMemo(() => (bookingId ? bookingId : safeId(booking)), [booking, bookingId]);
+  const [full, setFull] = useState(() => (booking && id ? booking : null));
+  const [loading, setLoading] = useState(!booking);
+  const [err, setErr] = useState(null);
 
   useEffect(() => {
-    let alive = true
-    if (!id) return
+    let alive = true;
+    if (!id) return;
 
     const hasEverything =
-      booking && booking.date && booking.start_time && (booking.user_name || booking.user?.full_name) && (booking.trainer_name || booking.trainer?.full_name)
+      booking && booking.date && booking.start_time && (booking.trainer_name || booking.trainer?.full_name);
     if (hasEverything) { setFull(booking); setLoading(false); return }
 
-    ;(async () => {
-      setLoading(true); setErr(null)
+    (async () => {
+      setLoading(true); setErr(null);
       const { data, error } = await supabase
         .from("trainer_bookings")
         .select(`
           id, trainer_id, user_id, date, start_time, end_time, duration_min,
           note, status, created_at, updated_at, is_online,
-          user_name, user_email, trainer_name,
-          user:profiles!trainer_bookings_user_id_fkey ( id, full_name, email, avatar_url ),
+          user_name, user_email, trainer_name, amount, currency_code,
           trainer:profiles!trainer_bookings_trainer_id_fkey ( id, full_name, email, avatar_url )
         `)
         .eq("id", id)
-        .single()
+        .single();
 
-      if (!alive) return
+      if (!alive) return;
       if (error) { setErr(error.message || "Σφάλμα ανάγνωσης κράτησης"); setLoading(false); return }
 
       const normalized = {
         ...data,
-        client: {
-          full_name: data.user_name || data.user?.full_name || "Χρήστης",
-          email: data.user_email || data.user?.email || null,
-          avatar_url: data.user?.avatar_url || null,
-        },
-        trainer_info: {
-          full_name: data.trainer_name || data.trainer?.full_name || null,
-          email: data.trainer?.email || null,
-          avatar_url: data.trainer?.avatar_url || null,
-        },
-      }
-      setFull(normalized); setLoading(false)
-    })()
+        trainer: data.trainer?.[0] || data.trainer || null,
+      };
+      setFull(normalized); setLoading(false);
+    })();
 
-    return () => { alive = false }
-  }, [id, booking])
+    return () => { alive = false; };
+  }, [id, booking]);
 
   const status = useMemo(() => {
-    const raw = (full?.status || "pending").toString().toLowerCase()
-    if (raw === "confirmed" || raw === "approve" || raw === "approved" || raw === "accept") return "accepted"
-    if (raw === "reject") return "declined"
-    return raw
-  }, [full?.status])
+    const raw = (full?.status || "pending").toString().toLowerCase();
+    if (raw === "confirmed" || raw === "approve" || raw === "approved" || raw === "accept") return "accepted";
+    if (raw === "reject") return "declined";
+    return raw;
+  }, [full?.status]);
 
   const statusTone = {
     pending: "bg-amber-500/20 text-amber-300",
     accepted: "bg-emerald-600/20 text-emerald-300",
     declined: "bg-rose-600/20 text-rose-300",
     cancelled: "bg-rose-600/20 text-rose-300",
-  }[status]
-  const statusLabel = { pending: "Σε αναμονή", accepted: "Αποδεκτή", declined: "Απορρίφθηκε", cancelled: "Ακυρώθηκε" }[status]
-  const secondLabel = { accepted: "Αποδοχή", declined: "Απόρριψη", cancelled: "Ακύρωση", pending: null }[status]
-  const SecondIcon = status === "accepted" ? CheckCircle : status === "pending" ? Clock : Ban
+  }[status];
+  const statusLabel = { pending: "Σε αναμονή", accepted: "Αποδεκτή", declined: "Απορρίφθηκε", cancelled: "Ακυρώθηκε" }[status];
 
   return (
     <Glass className="p-5 h-fit">
@@ -717,15 +684,15 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
       ) : (
         <>
           <div className="flex items-center gap-4 mb-6">
-            {full?.client?.avatar_url ? (
-              <img src={full.client.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
+            {full?.trainer?.avatar_url ? (
+              <img src={full.trainer.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
             ) : (
               <div className="grid h-14 w-14 place-items-center rounded-full bg-gray-700">
                 <CalendarClock className="h-7 w-7 text-gray-500" />
               </div>
             )}
             <div>
-              <div className="text-xl font-medium text-white">{full?.client?.full_name || full?.user_name || "Χρήστης"}</div>
+              <div className="text-xl font-medium text-white">{full?.trainer_name || full?.trainer?.full_name || "Προπονητής"}</div>
               <span className={`inline-flex mt-2 px-2.5 py-0.5 rounded-lg text-xs ${statusTone}`}>{statusLabel}</span>
             </div>
           </div>
@@ -737,49 +704,16 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
             <Li icon={Wifi} label="Τύπος" value={full?.is_online ? "Online συνεδρία" : "Δια ζώσης"} />
             {!!full?.note && <Li icon={MapPin} label="Σημείωση" value={full.note} />}
             <div className="h-px bg-white/10 my-2" />
-            <Li icon={User} label="Πελάτης" value={full?.client?.full_name || full?.user_name || "—"} />
-            {!!(full?.client?.email || full?.user_email) && <Li icon={Mail} label="Email πελάτη" value={full?.client?.email || full?.user_email} /> }
-            {!!full?.trainer_name && <Li icon={User} label="Προπονητής" value={full.trainer_name} /> }
+            <Li icon={User} label="Προπονητής" value={full?.trainer_name || full?.trainer?.full_name || "—"} />
+            {!!full?.trainer?.email && <Li icon={Mail} label="Email προπονητή" value={full?.trainer?.email} /> }
             <div className="h-px bg-white/10 my-2" />
             <Li icon={CalendarClock} label="Υποβλήθηκε" value={fmtTs(toLocalDate(full?.created_at) ?? combineDateTime(full?.date, full?.start_time))} />
-            {secondLabel && full?.updated_at && (
-              <Li icon={SecondIcon} label={secondLabel} value={fmtTs(toLocalDate(full.updated_at))} />
-            )}
+            {!!full?.updated_at && <Li icon={CheckCircle} label="Τελευταία ενημέρωση" value={fmtTs(toLocalDate(full.updated_at))} />}
           </ul>
-
-          {status === "pending" && (
-            <div className="mt-6 flex items-center gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setDecline(true)}>Απόρριψη</Button>
-              <Button variant="primary" onClick={() => setAccept(true)}>Αποδοχή</Button>
-            </div>
-          )}
         </>
       )}
-
-      <AnimatePresence>
-        {showAccept && (
-          <Suspense fallback={null}>
-            <AcceptModal
-              trainerId={trainerId}
-              bookingId={id}
-              close={() => setAccept(false)}
-              onDone={() => onDone?.()}
-            />
-          </Suspense>
-        )}
-        {showDecline && (
-          <Suspense fallback={null}>
-            <DeclineModal
-              trainerId={trainerId}
-              bookingId={id}
-              close={() => setDecline(false)}
-              onDone={() => onDone?.()}
-            />
-          </Suspense>
-        )}
-      </AnimatePresence>
     </Glass>
-  )
+  );
 }
 
 const Li = ({ icon: Icon, label, value }) => (
@@ -790,32 +724,29 @@ const Li = ({ icon: Icon, label, value }) => (
       <p className="text-base text-gray-200 break-words">{value || "—"}</p>
     </div>
   </li>
-)
+);
 
-/* ======================= STABLE VIEW SLIDE (desktop + mobile) ======================= */
+/* ======================= STABLE VIEW SLIDE ======================= */
 function CalendarStage({ view, childrenMap }) {
-  // Order for direction (left/right) calculation
-  const order = { day: 0, week: 1, month: 2 }
-  const [mounted, setMounted] = useState(() => new Set([view]))
-  const prev = useRef(view)
+  const order = { day: 0, week: 1, month: 2 };
+  const [mounted, setMounted] = useState(() => new Set([view]));
 
   useEffect(() => {
-    setMounted((s) => new Set(s).add(view))
-    prev.current = view
-  }, [view])
+    setMounted((s) => new Set(s).add(view));
+  }, [view]);
 
   return (
     <div className="relative min-h-[520px] sm:min-h-[560px]">
       {[...mounted].map((k) => {
-        const rel = order[k] - order[view] // negative => left of current
-        const isActive = k === view
+        const rel = order[k] - order[view];
+        const isActive = k === view;
         return (
           <motion.div
             key={k}
             initial={false}
             animate={{
               opacity: isActive ? 1 : 0,
-              x: isActive ? 0 : rel * 40,   // slide by index distance
+              x: isActive ? 0 : rel * 40,
               filter: isActive ? "blur(0px)" : "blur(1px)",
             }}
             transition={{ duration: .22, ease: [0.22, 1, 0.36, 1] }}
@@ -824,117 +755,45 @@ function CalendarStage({ view, childrenMap }) {
           >
             {childrenMap[k]}
           </motion.div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
-/* ================================ PAGE ================================ */
-export default function TrainerBookingsPage() {
+/* ================================ PAGE (USER) ================================ */
+export default function UserBookingsPage() {
   useEffect(() => {
-    document.documentElement.classList.add("bg-black")
-    document.body.classList.add("bg-black")
+    document.documentElement.classList.add("bg-black");
+    document.body.classList.add("bg-black");
     return () => {
-      document.documentElement.classList.remove("bg-black")
-      document.body.classList.remove("bg-black")
-    }
-  }, [])
+      document.documentElement.classList.remove("bg-black");
+      document.body.classList.remove("bg-black");
+    };
+  }, []);
 
-  const { profile, loading } = useAuth()
-  const [authUserId, setAuthUserId] = useState(null)
-  const [selected, setSelected] = useState(null)
-  const [view, setView] = useState("week")
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  const [workStart, setWorkStart] = useState("08:00")
-  const [workEnd, setWorkEnd] = useState("22:00")
-  const [sessionMinutes, setSessionMinutes] = useState(60)
-
-  const [quickDate, setQuickDate] = useState(null)
-  const quickRef = useRef(null)
-  const detailsRef = useRef(null)
+  const { profile, loading } = useAuth();
+  const [authUserId, setAuthUserId] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [view, setView] = useState("week");
+  const [refreshKey] = useState(0);
 
   useEffect(() => {
     const getAuthUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setAuthUserId(user?.id ?? null)
-    }
-    getAuthUser()
-  }, [])
+      const { data: { user } } = await supabase.auth.getUser();
+      setAuthUserId(user?.id ?? null);
+    };
+    getAuthUser();
+  }, []);
 
-  const resolvedTrainerId = useMemo(() => profile?.id || authUserId || null, [profile?.id, authUserId])
+  const userId = useMemo(() => profile?.id || authUserId || null, [profile?.id, authUserId]);
 
-  useEffect(() => {
-    if (!resolvedTrainerId) return
-    const pad = (n) => String(n).padStart(2, "0")
-    const toHHMM = (v) => {
-      if (v == null) return null
-      if (typeof v === "number") return `${pad(Math.floor(v/60))}:${pad(v%60)}`
-      const m = String(v).match(/(\d{1,2}):?(\d{2})/)
-      if (m) return `${pad(Math.min(23, parseInt(m[1],10)||0))}:${pad(parseInt(m[2],10)||0)}`
-      return null
-    }
-    const first = (...vals) => vals.find(v => v !== null && v !== undefined && v !== "")
+  const openDetails  = (bookingOrId) => setSelected(bookingOrId);
+  const closeDetails = () => setSelected(null);
 
-    ;(async () => {
-      try {
-        let { data: ts } = await supabase
-          .from("trainer_settings")
-          .select("work_start,work_end,session_minutes,start_time,end_time,session_min,session_length_min")
-          .eq("trainer_id", resolvedTrainerId)
-          .maybeSingle()
+  if (loading) return <Spinner full />;
 
-        let pf = null
-        if (!ts) {
-          const { data: pData } = await supabase
-            .from("profiles")
-            .select("work_start,work_end,session_minutes,start_time,end_time,session_min,session_length_min,slot_minutes")
-            .eq("id", resolvedTrainerId)
-            .maybeSingle()
-          pf = pData || null
-        }
-
-        const src = ts || pf || {}
-        const start = toHHMM(first(src.work_start, src.start_time))
-        const end   = toHHMM(first(src.work_end, src.end_time))
-        const sess  = Number(first(src.session_minutes, src.session_min, src.session_length_min, src.slot_minutes))
-
-        if (start) setWorkStart(start)
-        if (end) setWorkEnd(end)
-        if (!Number.isNaN(sess) && sess > 0) setSessionMinutes(sess)
-      } catch {/* keep defaults */}
-    })()
-  }, [resolvedTrainerId])
-
-  const scrollTo = (ref) => {
-    const el = ref?.current
-    if (!el) return
-    const isMobile = window.matchMedia("(max-width: 1023px)").matches
-    const top = el.getBoundingClientRect().top + window.scrollY - (isMobile ? 88 : 100)
-    window.scrollTo({ top, behavior: "smooth" })
-  }
-
-  const openDetails  = (bookingOrId) => {
-    setSelected(bookingOrId)
-    setTimeout(() => scrollTo(detailsRef), 60)
-  }
-  const closeDetails = () => setSelected(null)
-
-  const handleSelectDate = (dateStr) => {
-    setQuickDate(dateStr)
-    setTimeout(() => scrollTo(quickRef), 60)
-  }
-  const handleCreated = () => { setRefreshKey(k => k + 1); setQuickDate(null) }
-
-  const handleFab = () => {
-    if (!quickDate) setQuickDate(toYMDLocal(new Date()))
-    setTimeout(() => scrollTo(quickRef), 70)
-  }
-
-  if (loading) return <Spinner full />
-
-  if (!profile || profile.role !== "trainer") {
+  if (!profile || profile.role !== "user") {
     return (
       <div className="relative min-h-screen text-gray-100">
         <BaseBackground />
@@ -945,27 +804,27 @@ export default function TrainerBookingsPage() {
               <Users className="h-8 w-8" />
             </div>
             <h2 className="text-xl font-semibold mb-2">Μη εξουσιοδοτημένη πρόσβαση</h2>
-            <p className="text-white/80">Δεν έχετε δικαίωμα πρόσβασης σε αυτή τη σελίδα.</p>
+            <p className="text-white/80">Η σελίδα αυτή είναι μόνο για χρήστες.</p>
           </ColorCard>
         </div>
       </div>
-    )
+    );
   }
 
-  if (!resolvedTrainerId) return <Spinner full />
+  if (!userId) return <Spinner full />;
 
-  const easing = [0.22, 1, 0.36, 1]
+  const easing = [0.22, 1, 0.36, 1];
 
   return (
     <>
-      <title>Κρατήσεις Πελατών • TrainerHub</title>
+      <title>Οι Κρατήσεις μου • TrainerHub</title>
 
       <div className="relative min-h-screen text-gray-100">
         <BaseBackground />
         <AthleticBackground />
 
         <div className="min-h-screen overflow-x-hidden pt-0 md:pt-4 lg:pt-0 lg:pl-[var(--side-w)] relative z-10">
-          <Suspense fallback={<></>}><TrainerMenu /></Suspense>
+          <Suspense fallback={<></>}><UserMenu /></Suspense>
 
           {/* Header */}
           <motion.div className="mx-4 mt-2 md:mt-6" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .25, ease: easing }}>
@@ -976,19 +835,19 @@ export default function TrainerBookingsPage() {
                 </div>
                 <div>
                   <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                    Κρατήσεις <br className="md:hidden" /> Πελατών
+                    Οι Κρατήσεις μου
                   </h1>
-                  <p className="text-white/70 mt-1">Διαχειριστείτε τις κρατήσεις και τα ραντεβού σας</p>
+                  <p className="text-white/70 mt-1">Δες αν οι κρατήσεις σου έχουν γίνει αποδεκτές</p>
                 </div>
               </div>
             </div>
           </motion.div>
 
-          {/* Calendar + details dock + conditional QuickBook */}
+          {/* Calendar + details dock */}
           <main className="mx-auto w-full max-w-none px-4 pb-28 md:pb-16">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: easing }}>
               <div className="grid grid-cols-1 lg:grid-cols-[1fr,420px] gap-4 md:gap-6 items-stretch">
-                {/* LEFT: calendar with direction-aware slide (desktop + mobile) */}
+                {/* LEFT: calendar with direction-aware slide */}
                 <ErrorBoundary>
                   <Suspense fallback={<Spinner />}>
                     <CalendarStage
@@ -997,34 +856,31 @@ export default function TrainerBookingsPage() {
                         day: (
                           <DaySchedule
                             key={`day-${refreshKey}`}
-                            trainerId={resolvedTrainerId}
+                            userId={userId}
                             onOpenDetails={openDetails}
                             view={view}
                             onChangeView={setView}
                             refreshKey={refreshKey}
-                            onSelectDate={handleSelectDate}
                           />
                         ),
                         week: (
                           <WeeklyScheduleGrid
                             key={`week-${refreshKey}`}
-                            trainerId={resolvedTrainerId}
+                            userId={userId}
                             onOpenDetails={openDetails}
                             view={view}
                             onChangeView={setView}
                             refreshKey={refreshKey}
-                            onSelectDate={handleSelectDate}
                           />
                         ),
                         month: (
                           <MonthlySchedule
                             key={`month-${refreshKey}`}
-                            trainerId={resolvedTrainerId}
+                            userId={userId}
                             onOpenDetails={openDetails}
                             view={view}
                             onChangeView={setView}
                             refreshKey={refreshKey}
-                            onSelectDate={handleSelectDate}
                           />
                         ),
                       }}
@@ -1035,7 +891,6 @@ export default function TrainerBookingsPage() {
                 {/* RIGHT: details column */}
                 <div className="self-stretch min-h-full">
                   <div className="lg:sticky lg:top-4 h-full flex flex-col">
-                    <div ref={detailsRef} className="h-0" />
                     <AnimatePresence mode="wait">
                       {selected && (
                         <motion.div
@@ -1049,44 +904,9 @@ export default function TrainerBookingsPage() {
                           <BookingDetailsDock
                             booking={typeof selected === "object" ? selected : null}
                             bookingId={typeof selected === "string" ? selected : null}
-                            trainerId={resolvedTrainerId}
-                            onDone={() => setRefreshKey(k => k + 1)}
+                            userId={userId}
                             onClose={closeDetails}
                           />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    <div ref={quickRef} />
-                    <AnimatePresence>
-                      {quickDate && (
-                        <motion.div
-                          key="quickbook"
-                          initial={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0% round 24px)" }}
-                          animate={{ opacity: 1, y: 0, clipPath: "inset(0% 0% 0% 0% round 24px)" }}
-                          exit={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0%  round 24px)" }}
-                          transition={{ duration: .26, ease: [0.22, 1, 0.36, 1] }}
-                          className="mt-4 md:mt-6"
-                        >
-                          <Glass className="p-4 md:p-5">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="text-white/90 font-medium">
-                                Γρήγορη Κράτηση – {fmtDate(quickDate)}
-                              </div>
-                              <Button variant="ghost" size="sm" onClick={() => setQuickDate(null)} aria-label="Κλείσιμο">
-                                <X className="h-4 w-4 text-white/85" />
-                              </Button>
-                            </div>
-
-                            <TrainerQuickBook
-                              trainerId={resolvedTrainerId}
-                              sessionMinutes={sessionMinutes}
-                              workStart={workStart}
-                              workEnd={workEnd}
-                              selectedDate={quickDate}
-                              onCreated={handleCreated}
-                            />
-                          </Glass>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -1095,25 +915,8 @@ export default function TrainerBookingsPage() {
               </div>
             </motion.div>
           </main>
-
-          {/* FAB */}
-          <button
-            type="button"
-            onClick={handleFab}
-            className="
-              fixed right-4 md:right-6 z-[70]
-              bottom-24 sm:bottom-6
-              h-14 w-14 rounded-full shadow-xl border border-white/15
-              bg-white text-black hover:bg-zinc-200
-              flex items-center justify-center
-            "
-            aria-label="Πρόσθεσε κράτηση"
-            title="Πρόσθεσε κράτηση"
-          >
-            <PencilLine className="h-6 w-6" />
-          </button>
         </div>
       </div>
     </>
-  )
+  );
 }

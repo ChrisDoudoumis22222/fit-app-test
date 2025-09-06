@@ -1,3 +1,4 @@
+// FILE: src/App.js
 "use client";
 /* eslint-disable react/prop-types */
 import React, { Suspense, lazy, Fragment, useState } from "react";
@@ -21,10 +22,18 @@ const TrainerBookingsPage     = lazy(() => import("./pages/TrainerBookings"));
 const TrainerPaymentsPage     = lazy(() => import("./pages/PaymentScreen"));
 const EpicGoalsPage           = lazy(() => import("./pages/EpicGoalsPage"));
 const TrainerSchedulePage     = lazy(() => import("./pages/TrainerSchedulePage"));
+const UserFAQPage             = lazy(() => import("./pages/UserFAQPage")); // <-- fixed
+const UserLikesPage           = lazy(() => import("./pages/UserLikesPage")); // <-- NEW
+
+/* ───────── NEW: users bookings page ───────── */
+const UserBookingsPage        = lazy(() => import("./pages/UserBookingsPage"));
 
 /* ───────── NEW: trainers marketplace + trainer detail ───────── */
 const TrainersMarketplacePage = lazy(() => import("./pages/ServicesMarketplacePage"));
 const TrainerDetailPage       = lazy(() => import("./pages/TrainerDetailPage"));
+
+/* ───────── NEW: Trainer FAQ (public) ───────── */
+const TrainerFAQPage          = lazy(() => import("./pages/TrainerFAQPage"));
 
 /* fallback spinner */
 const Loading = () => (
@@ -89,8 +98,6 @@ function TrainerScheduleWrapper() {
   }
 
   // 3) If session exists but profile is null:
-  // Your AuthProvider already shows the “Hey dude, auth yourself” popup
-  // and supports resending the Supabase auth email. So do not duplicate here.
   if (!profile) {
     return <Shell><div /></Shell>;
   }
@@ -123,9 +130,15 @@ export default function App() {
             <Route path="/" element={<PublicRoute><AuthPage /></PublicRoute>} />
             <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
             <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
+            {/* NEW: public Trainer FAQ */}
+            <Route path="/faq" element={<PublicRoute><TrainerFAQPage /></PublicRoute>} />
+            {/* NEW: public User FAQ (optional) */}
+            <Route path="/faq/users" element={<PublicRoute><UserFAQPage /></PublicRoute>} />
 
             {/* ---------- user (auth required, light-pass popup if not) ---------- */}
             <Route path="/user" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
+            <Route path="/user/bookings" element={<ProtectedRoute><UserBookingsPage /></ProtectedRoute>} />
+            <Route path="/user/likes" element={<ProtectedRoute><UserLikesPage /></ProtectedRoute>} /> {/* NEW */}
             <Route path="/goals" element={<ProtectedRoute><EpicGoalsPage /></ProtectedRoute>} />
 
             {/* ---------- trainer (auth required; these remain simple protected) ---------- */}

@@ -1,41 +1,37 @@
-/* UserMenu.js – black-glass rail + bottom nav  (2025-07-25)
+/* UserMenu.js – black-glass rail + bottom nav with badges + quick search
+   Badges:
+   - Bookings: ONLY bookings accepted since last visit (updated_at > lastSeen)
+   - Posts: ONLY posts created since last visit
    ----------------------------------------------------------------------- */
 
 "use client";
 
-import { useState, useEffect }            from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence }        from "framer-motion";
-import { supabase }                       from "../supabaseClient";
-import { useAuth }                        from "../AuthProvider";
+import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../supabaseClient";
+import { useAuth } from "../AuthProvider";
 
 import {
-  /* rail / settings icons */
   BarChart3, ShoppingBag, Globe,
   User as UserIcon, ImagePlus, Shield, Settings,
   CalendarCheck, LogOut,
-  /* drawer close */
   X,
-  /* bottom-nav */
   Home, CalendarDays, MoreHorizontal,
+  HelpCircle,
+  Heart,        // ← Liked trainers
+  Search as SearchIcon, // ← search trigger
 } from "lucide-react";
 
 const COLLAPSED = 72;
 const EXPANDED  = 240;
 const LOGO_SRC  = "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
 
-/* ------------------------------------------------------------------ */
-/*                              Avatars                               */
-/* ------------------------------------------------------------------ */
-
-/** Same placeholder used in ServicesΠροπονητέςPage when an image fails */
+/* -------------------- Avatar -------------------- */
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
-
-/** add a cache-busting param when we DO have a URL */
 const safeAvatar = (url) =>
   url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : AVATAR_PLACEHOLDER;
 
-/** Re-usable avatar component */
 function Avatar({ url, className = "h-9 w-9" }) {
   if (url) {
     return (
@@ -54,21 +50,276 @@ function Avatar({ url, className = "h-9 w-9" }) {
   );
 }
 
-document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
+/* -------------------- Badge -------------------- */
+function RedBadge({ count, className = "" }) {
+  if (!count || count <= 0) return null;
+  return (
+    <span
+      className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white
+                  text-[11px] leading-[18px] font-bold flex items-center justify-center shadow-md ${className}`}
+      aria-label={`${count} new`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
+/* -------------------- Badges logic -------------------- */
+const LS_PREFIX = "pv_seen_user_";
+const getSeen = (key) => parseInt(localStorage.getItem(LS_PREFIX + key) || "0", 10) || 0;
+const setSeen = (key, ts = Date.now()) => localStorage.setItem(LS_PREFIX + key, String(ts));
+const isAccepted = (row = {}) => (row.status || "").toLowerCase() === "accepted";
+
+function useUserBadges({ profile, activePath }) {
+  const userId = profile?.id;
+
+  // If first time, only look back a few days
+  const FALLBACK_DAYS = 7;
+  const fallbackTs = useMemo(
+    () => Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000,
+    []
+  );
+
+  const WATCHERS = useMemo(
+    () => [
+      {
+        key: "bookingsAccepted",
+        route: "/user/bookings",
+        table: "trainer_bookings",
+        select: "id,status,user_id,created_at,updated_at",
+        initialFilter: (q) => q.eq("user_id", userId).eq("status", "accepted"),
+        tsField: "updated_at",
+        matchRow: (row) => row?.user_id === userId && isAccepted(row),
+      },
+      {
+        key: "posts",
+        route: "/posts",
+        table: "posts",
+        select: "id,created_at",
+        initialFilter: (q) => q,
+        tsField: "created_at",
+        matchRow: () => true,
+      },
+    ],
+    [userId]
+  );
+
+  const [counts, setCounts] = useState(() =>
+    Object.fromEntries(WATCHERS.map((w) => [w.key, 0]))
+  );
+
+  // Initial load
+  useEffect(() => {
+    if (!userId) return;
+    let canceled = false;
+    (async () => {
+      const updates = {};
+      for (const w of WATCHERS) {
+        const lastSeen = getSeen(w.key) || fallbackTs;
+        const { data, error } = await w
+          .initialFilter(supabase.from(w.table).select(w.select))
+          .gt(w.tsField, new Date(lastSeen).toISOString())
+          .limit(500);
+        updates[w.key] = error ? 0 : (data || []).filter(w.matchRow).length;
+      }
+      if (!canceled) setCounts((p) => ({ ...p, ...updates }));
+    })();
+    return () => { canceled = true; };
+  }, [WATCHERS, userId, fallbackTs]);
+
+  // Realtime
+  useEffect(() => {
+    if (!userId) return;
+    const channels = WATCHERS.map((w) => {
+      const ch = supabase.channel(`rt-${w.table}-user-${w.key}`);
+
+      if (w.key === "posts") {
+        ch.on("postgres_changes", { event: "INSERT", schema: "public", table: w.table }, (payload) => {
+          const row = payload?.new || {};
+          if (!w.matchRow(row)) return;
+          const lastSeen = getSeen(w.key) || fallbackTs;
+          const t = row[w.tsField] ? new Date(row[w.tsField]).getTime() : 0;
+          if (t > lastSeen) setCounts((p) => ({ ...p, [w.key]: (p[w.key] || 0) + 1 }));
+        });
+      } else if (w.key === "bookingsAccepted") {
+        ch.on("postgres_changes", { event: "INSERT", schema: "public", table: w.table }, (payload) => {
+          const row = payload?.new || {};
+          if (!w.matchRow(row)) return;
+          const lastSeen = getSeen(w.key) || fallbackTs;
+          const t = row[w.tsField] ? new Date(row[w.tsField]).getTime() : (row.created_at ? new Date(row.created_at).getTime() : 0);
+          if (t > lastSeen) setCounts((p) => ({ ...p, [w.key]: (p[w.key] || 0) + 1 }));
+        });
+        ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: w.table }, (payload) => {
+          const oldRow = payload?.old || {};
+          const newRow = payload?.new || {};
+          const was = isAccepted(oldRow);
+          const isNow = isAccepted(newRow);
+          if (!was && isNow && newRow.user_id === userId) {
+            const lastSeen = getSeen(w.key) || fallbackTs;
+            const t = newRow[w.tsField] ? new Date(newRow[w.tsField]).getTime() : 0;
+            if (t > lastSeen) setCounts((p) => ({ ...p, [w.key]: (p[w.key] || 0) + 1 }));
+          }
+        });
+      }
+
+      ch.subscribe();
+      return ch;
+    });
+
+    return () => {
+      channels.forEach((ch) => { try { supabase.removeChannel(ch); } catch {} });
+    };
+  }, [WATCHERS, userId, fallbackTs]);
+
+  // Mark-as-seen when visiting the route
+  useEffect(() => {
+    const watcher = WATCHERS.find((w) => w.route === activePath);
+    if (!watcher) return;
+    setSeen(watcher.key, Date.now());
+    setCounts((prev) => ({ ...prev, [watcher.key]: 0 }));
+  }, [activePath, WATCHERS]);
+
+  const countForHref = (href) => {
+    const watcher = WATCHERS.find((w) => w.route === href);
+    return watcher ? (counts[watcher.key] || 0) : 0;
+  };
+
+  return { countForHref };
+}
+
+/* -------------------- Greek-ish search helpers -------------------- */
+const stripCombining = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const norm = (s = "") => stripCombining(String(s).toLowerCase()).replace(/ς/g, "σ").trim();
+function greeklishToGreek(input = "") {
+  let s = String(input).toLowerCase();
+  const digraphs = [
+    ["th", "θ"], ["ch", "χ"], ["ps", "ψ"], ["ks", "ξ"], ["ou", "ου"],
+    ["ai", "αι"], ["ei", "ει"], ["oi", "οι"], ["gh", "γ"], ["mp", "μπ"],
+    ["nt", "ντ"], ["ts", "τσ"], ["tz", "τζ"],
+  ];
+  for (const [g, gr] of digraphs) s = s.replaceAll(g, gr);
+  const map = { a:"α", b:"β", c:"κ", d:"δ", e:"ε", f:"φ", g:"γ", h:"η", i:"ι", j:"ζ",
+    k:"κ", l:"λ", m:"μ", n:"ν", o:"ο", p:"π", q:"κ", r:"ρ", s:"σ", t:"τ",
+    u:"υ", v:"β", w:"ω", x:"ξ", y:"υ", z:"ζ", " ":" ", "-":"-" };
+  let out = ""; for (const ch of s) out += map[ch] ?? ch; return out;
+}
+const normalizeQuery = (q) => {
+  const base = norm(q);
+  const gl = norm(greeklishToGreek(q));
+  return base.length >= gl.length ? base : gl;
+};
+
+/* -------------------- Search overlay (NO path/description visible) -------------------- */
+function QuickSearchOverlay({ open, onClose, items }) {
+  const [q, setQ] = useState("");
+  useEffect(() => { if (!open) setQ(""); }, [open]);
+
+  const debounced = useMemo(() => {
+    let t;
+    return (v, cb) => { clearTimeout(t); t = setTimeout(() => cb(v), 150); };
+  }, []);
+  const [dq, setDq] = useState("");
+  useEffect(() => debounced(q, setDq), [q, debounced]);
+
+  const nq = normalizeQuery(dq);
+  const results = useMemo(() => {
+    if (!nq) return items.slice(0, 10);
+    return items
+      .filter((it) => {
+        // match by title + hidden keywords only (NOT href)
+        const hay = norm(`${it.title} ${it.keywords || ""}`);
+        return hay.includes(nq);
+      })
+      .slice(0, 20);
+  }, [nq, items]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="fixed inset-0 z-[121] flex items-start justify-center p-4 sm:p-8"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+          >
+            <div className="w-full max-w-2xl rounded-2xl bg-zinc-950/95 border border-white/10 shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center gap-3 p-3 sm:p-4 border-b border-white/10">
+                <SearchIcon className="h-5 w-5 text-zinc-400" />
+                <input
+                  autoFocus
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Αναζήτηση σελίδων: πίνακας, κρατήσεις, αγαπημένα, ρυθμίσεις…"
+                  className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-500"
+                />
+                <button onClick={onClose} className="rounded-lg p-2 hover:bg-white/10">
+                  <X className="h-5 w-5 text-zinc-400" />
+                </button>
+              </div>
+
+              {/* Results */}
+              <div className="max-h-[60vh] overflow-y-auto p-2">
+                {results.length > 0 ? (
+                  <ul className="divide-y divide-white/5">
+                    {results.map((it) => (
+                      <li key={it.href}>
+                        <Link
+                          to={it.href}
+                          onClick={onClose}
+                          className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition"
+                        >
+                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5">
+                            <it.icon className="h-5 w-5 text-white" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-white">{it.title}</div>
+                            {/* No description/path rendered */}
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="p-6 text-center text-zinc-300">
+                    Δεν βρέθηκαν αποτελέσματα — πήγαινε στο{" "}
+                    <Link to="/faq/users" onClick={onClose} className="text-white underline underline-offset-4">
+                      FAQ (Συχνές Ερωτήσεις)
+                    </Link>{" "}
+                    και κάνε αναζήτηση 😉
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* -------------------- Component -------------------- */
 export default function UserMenu() {
   const { profile, profileLoaded } = useAuth();
   const navigate   = useNavigate();
   const location   = useLocation();
 
-  /* desktop hover / mobile drawer */
   const [open,   setOpen]   = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [ready,  setReady]  = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false); // search overlay
 
+  // set CSS var safely on mount + resize reactions
+  useEffect(() => {
+    try { document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`); } catch {}
+  }, []);
   const syncVar = (o) => {
     const w = window.innerWidth >= 1024 ? (o ? EXPANDED : COLLAPSED) : 0;
-    document.documentElement.style.setProperty("--side-w", `${w}px`);
+    try { document.documentElement.style.setProperty("--side-w", `${w}px`); } catch {}
   };
   useEffect(() => syncVar(open), [open]);
   useEffect(() => {
@@ -78,76 +329,124 @@ export default function UserMenu() {
   }, [open]);
   useEffect(() => setReady(true), []);
 
-  if (!profileLoaded || !profile || profile.role !== "user") return null;
+  // Render once profile is loaded; don't hard-gate by role
+  if (!profileLoaded || !profile) return null;
 
-  /* nav defs */
   const navMain = [
-    { id: "dash",   label: "Πίνακας",     href: "/user",     icon: BarChart3 },
-    { id: "market", label: "Προπονητές", href: "/services", icon: ShoppingBag },
-    { id: "posts",  label: "Αναρτήσεις",  href: "/posts",    icon: Globe },
+    { id: "dash",     label: "Πίνακας",     href: "/user",           icon: BarChart3 },
+    { id: "market",   label: "Προπονητές",  href: "/services",       icon: ShoppingBag },
+    { id: "posts",    label: "Αναρτήσεις",  href: "/posts",          icon: Globe },              // badge: posts
+    { id: "bookings", label: "Κρατήσεις",   href: "/user/bookings",  icon: CalendarCheck },      // badge: accepted
   ];
   const navSettings = [
-    { id: "profile",  label: "Πληροφορίες", href: "/user#profile",  icon: UserIcon },
-    { id: "avatar",   label: "Avatar",      href: "/user#avatar",   icon: ImagePlus },
-    { id: "bookings", label: "Κρατήσεις",   href: "/user#bookings", icon: CalendarCheck },
-    { id: "security", label: "Ασφάλεια",    href: "/user#security", icon: Shield },
+    { id: "profile",   label: "Πληροφορίες",      href: "/user#profile",   icon: UserIcon },
+    { id: "avatar",    label: "Avatar",           href: "/user#avatar",    icon: ImagePlus },
+    { id: "bookingsS", label: "Κρατήσεις",        href: "/user/bookings",  icon: CalendarCheck },
+    { id: "likesS",    label: "Αγαπημένα",        href: "/user/likes",     icon: Heart },        // Liked trainers
+    { id: "security",  label: "Ασφάλεια",         href: "/user#security",  icon: Shield },
+    { id: "faq",       label: "Συχνές Ερωτήσεις", href: "/faq/users",      icon: HelpCircle },   // User FAQ
   ];
-
-  /* bottom nav (IDENTICAL BUTTONS TO TRAINER) */
   const bottomNav = [
-    { href: "/user",           label: "Αρχική", icon: Home },
+    { href: "/user",           label: "Αρχική",     icon: Home },
     { href: "/services",       label: "Προπονητές", icon: ShoppingBag },
-    { href: "/user#bookings",  label: "Κρατήσεις",   icon: CalendarDays },
-    { href: "/user#profile",   label: "Ρυθμίσεις",   icon: Settings },
-    { href: "drawer",          label: "Περισσότερα", icon: MoreHorizontal },
+    { href: "/user/bookings",  label: "Κρατήσεις",  icon: CalendarDays },
+    { href: "/user#profile",   label: "Ρυθμίσεις",  icon: Settings },
+    { href: "drawer",          label: "Περισσότερα",icon: MoreHorizontal },
   ];
 
-  const route   = location.pathname + location.hash;
-  const logout  = async () => { await supabase.auth.signOut(); navigate("/"); };
+  // Build quick-search items from navs (NO path/description visible; keywords hidden for matching)
+  const searchItems = useMemo(() => {
+    const mapItem = ({ label, href, icon }) => ({ title: label, href, icon, keywords: "" });
 
-  /* ---------------- DESKTOP RAIL ---------------- */
+    return [
+      ...navMain.map(mapItem),
+      ...navSettings.map(mapItem),
+
+      // explicit aliases/intents (searchable only)
+      { title: "Συχνές Ερωτήσεις Χρηστών", href: "/faq/users",    icon: HelpCircle,   keywords: "faq βοήθεια υποστήριξη" },
+      { title: "Αγαπημένοι Προπονητές",    href: "/user/likes",   icon: Heart,        keywords: "likes favorites αγαπημενα" },
+      { title: "Πληρωμές / Κρατήσεις",     href: "/user/bookings",icon: CalendarCheck, keywords: "bookings ραντεβού πληρωμες" },
+      { title: "Αναρτήσεις",               href: "/posts",        icon: Globe,        keywords: "posts ενημερωσεις" },
+      { title: "Προπονητές / Υπηρεσίες",   href: "/services",     icon: ShoppingBag,  keywords: "trainers marketplace προπονητες υπηρεσιες" },
+      { title: "Πίνακας",                  href: "/user",         icon: BarChart3,    keywords: "dashboard αρχικη" },
+    ];
+  }, [navMain, navSettings]);
+
+  const activePath = location.pathname;
+  const route      = location.pathname + location.hash;
+  const logout     = async () => { await supabase.auth.signOut(); navigate("/"); };
+
+  const { countForHref } = useUserBadges({ profile, activePath });
+
   return (
     <>
       <DesktopRail
         open={open} setOpen={setOpen} ready={ready}
         navMain={navMain} navSettings={navSettings}
-        active={location.pathname} profile={profile} logout={logout}
+        active={activePath} profile={profile} logout={logout}
+        countForHref={countForHref}
+        onOpenSearch={() => setSearchOpen(true)}
       />
 
-      {/* -------- Mobile top-bar -------- */}
+      {/* Mobile top bar (with left search trigger) */}
       <motion.header
         initial={false}
         animate={{ opacity: drawer ? 0 : 1, pointerEvents: drawer ? "none" : "auto" }}
         className="lg:hidden fixed inset-x-0 top-0 z-40 flex items-center
                    h-14 px-4 bg-black/80 backdrop-blur ring-1 ring-white/10 transition-opacity"
       >
-        <div className="w-10" />
-        <div className="flex-1 flex justify-center">
-          <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+        {/* LEFT: search trigger */}
+        <div className="w-10 flex items-center justify-center">
+          <button
+            onClick={() => setSearchOpen(true)}
+            aria-label="Αναζήτηση"
+            className="rounded-xl bg-white p-2 shadow-sm active:scale-95 transition"
+          >
+            <SearchIcon className="h-5 w-5 text-black" />
+          </button>
         </div>
-        <Avatar url={profile.avatar_url} className="h-9 w-9" />
+
+        {/* CENTER: logo */}
+        <div className="flex-1 flex justify-center">
+          <img
+            src={LOGO_SRC}
+            alt="logo"
+            className="h-10 w-10 rounded-xl bg-white object-contain p-1"
+          />
+        </div>
+
+        {/* RIGHT: avatar */}
+        <div className="w-10 flex items-center justify-center">
+          <Avatar url={profile.avatar_url} className="h-9 w-9" />
+        </div>
       </motion.header>
 
-      {/* -------- Mobile drawer -------- */}
+      {/* Mobile drawer */}
       <MobileDrawer
         open={drawer} setOpen={setDrawer}
         navMain={navMain} navSettings={navSettings}
-        activePath={location.pathname} profile={profile} logout={logout}
+        activePath={activePath} profile={profile} logout={logout}
+        countForHref={countForHref}
+        onOpenSearch={() => { setDrawer(false); setSearchOpen(true); }}
       />
 
-      {/* -------- Bottom nav (trainer-style glass + slide-up) -------- */}
+      {/* Bottom nav */}
       <BottomNav
         items={bottomNav}
         route={route}
         drawerOpen={drawer}
         openDrawer={() => setDrawer(true)}
+        countForHref={countForHref}
       />
+
+      {/* Quick Search overlay */}
+      <QuickSearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} items={searchItems} />
     </>
   );
 }
 
-/* ======= Desktop rail helpers (slower animations) ======= */
-function DesktopRail({ open, setOpen, ready, navMain, navSettings, active, profile, logout }) {
+/* -------------------- Desktop rail helpers -------------------- */
+function DesktopRail({ open, setOpen, ready, navMain, navSettings, active, profile, logout, countForHref, onOpenSearch }) {
   return (
     <motion.aside
       initial={{ opacity: 0, width: COLLAPSED }}
@@ -163,12 +462,26 @@ function DesktopRail({ open, setOpen, ready, navMain, navSettings, active, profi
                  overflow-hidden bg-gradient-to-b from-black/80 to-black/60 backdrop-blur-xl
                  ring-1 ring-white/10 shadow-2xl"
     >
-      <div className="flex flex-col gap-6 p-4">
+      <div className="flex flex-col gap-4 p-4">
         <Brand open={open} />
-        <NavList items={navMain}     open={open} active={active} />
+
+        {/* Search trigger (desktop) */}
+        <button
+          onClick={onOpenSearch}
+          className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition
+            ${open ? "justify-start" : "justify-center"}
+            bg-black/40 text-white border-white/10 hover:bg-black/60`}
+          aria-label="Αναζήτηση"
+        >
+          <SearchIcon className="h-5 w-5" />
+          {open && <span>Αναζήτηση</span>}
+        </button>
+
+        <div className="h-2" />
+        <NavList items={navMain}     open={open} active={active} countForHref={countForHref} />
         <hr className="my-3 border-gray-700/60" />
         {open && <p className="px-4 pt-1 pb-2 text-[11px] uppercase tracking-wider text-gray-500">Ρυθμίσεις</p>}
-        <NavList items={navSettings} open={open} active={active} />
+        <NavList items={navSettings} open={open} active={active} countForHref={countForHref} />
       </div>
       <FooterBlock open={open} profile={profile} onLogout={logout} />
     </motion.aside>
@@ -192,21 +505,25 @@ const Brand = ({ open }) => (
   </div>
 );
 
-function NavList({ items, open, active }) {
+function NavList({ items, open, active, countForHref }) {
   return (
     <ul className="space-y-1">
       {items.map(({ id, label, href, icon: Icon }) => {
         const isActive = active === href;
         const layout   = open ? "justify-start px-4" : "justify-center px-0";
+        const count    = countForHref?.(href) || 0;
         return (
           <li key={id}>
             <Link
               to={href}
               className={`flex items-center gap-4 w-full rounded-xl py-3 ${layout}
                           ${isActive ? "bg-white text-black shadow-inner" : "text-gray-300 hover:bg-white/10"}
-                          transition-colors`}
+                          transition-colors relative`}
             >
-              <Icon className={`h-5 w-5 ${isActive ? "text-black" : ""}`} />
+              <div className="relative">
+                <Icon className={`h-5 w-5 ${isActive ? "text-black" : ""}`} />
+                <RedBadge count={count} />
+              </div>
               <AnimatePresence>
                 {open && (
                   <motion.span
@@ -230,7 +547,6 @@ function FooterBlock({ open, profile, onLogout }) {
   return (
     <div className="flex items-center gap-3 p-4 hover:bg-white/10 cursor-pointer">
       <Avatar url={profile.avatar_url} className="h-9 w-9" />
-
       <AnimatePresence>
         {open && (
           <motion.div
@@ -253,8 +569,8 @@ function FooterBlock({ open, profile, onLogout }) {
   );
 }
 
-/* ======= Mobile drawer helpers (slower) ======= */
-function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, profile, logout }) {
+/* -------------------- Mobile drawer -------------------- */
+function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, profile, logout, countForHref, onOpenSearch }) {
   if (!open) return null;
   return (
     <AnimatePresence>
@@ -273,13 +589,13 @@ function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, profile
                    flex flex-col bg-gradient-to-b from-black/90 to-black/70
                    border-r border-gray-800 shadow-2xl"
       >
-        <DrawerHeader close={() => setOpen(false)} />
+        <DrawerHeader close={() => setOpen(false)} onOpenSearch={onOpenSearch} />
         <div className="flex-1 overflow-y-auto p-4">
           <Section>Μενού</Section>
-          <DrawerLinks items={navMain} active={activePath} close={() => setOpen(false)} />
+          <DrawerLinks items={navMain} active={activePath} close={() => setOpen(false)} countForHref={countForHref} />
           <div className="my-5 h-px bg-gradient-to-r from-transparent via-gray-800 to-transparent" />
           <Section>Ρυθμίσεις</Section>
-          <DrawerLinks items={navSettings} active={activePath} close={() => setOpen(false)} />
+          <DrawerLinks items={navSettings} active={activePath} close={() => setOpen(false)} countForHref={countForHref} />
         </div>
         <DrawerFooter profile={profile} close={() => setOpen(false)} logout={logout} />
       </motion.aside>
@@ -291,7 +607,7 @@ const Section = ({ children }) => (
   <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">{children}</p>
 );
 
-function DrawerHeader({ close }) {
+function DrawerHeader({ close, onOpenSearch }) {
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-800">
       <div className="flex items-center gap-3">
@@ -300,29 +616,45 @@ function DrawerHeader({ close }) {
           User<span className="font-light text-gray-400">Hub</span>
         </span>
       </div>
-      <button onClick={close} className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10">
-        <X className="h-5 w-5" />
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onOpenSearch}
+          className="rounded-lg p-2 text-gray-300 hover:text-white hover:bg-white/10"
+          aria-label="Αναζήτηση"
+        >
+          <SearchIcon className="h-5 w-5" />
+        </button>
+        <button onClick={close} className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10" aria-label="Κλείσιμο">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   );
 }
 
-function DrawerLinks({ items, active, close }) {
+function DrawerLinks({ items, active, close, countForHref }) {
   return (
     <ul className="space-y-1">
-      {items.map(({ id, label, href, icon: Icon }) => (
-        <li key={id}>
-          <Link
-            to={href}
-            onClick={close}
-            className={`flex min-h-11 items-center gap-3 rounded-xl px-4 text-sm font-medium
-                        ${active === href ? "bg-white text-black" : "text-gray-300 hover:bg-gray-800"}`}
-          >
-            <Icon className="h-5 w-5 flex-shrink-0" />
-            {label}
-          </Link>
-        </li>
-      ))}
+      {items.map(({ id, label, href, icon: Icon }) => {
+        const count = countForHref?.(href) || 0;
+        return (
+          <li key={id}>
+            <Link
+              to={href}
+              onClick={close}
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-4 text-sm font-medium
+                          ${active === href ? "bg-white text-black" : "text-gray-300 hover:bg-gray-800"}
+                          relative`}
+            >
+              <div className="relative">
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                <RedBadge count={count} />
+              </div>
+              {label}
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -354,45 +686,43 @@ function DrawerFooter({ profile, close, logout }) {
   );
 }
 
-/* ======= Bottom nav (TRAINER-STYLE: glass card + active pill) ======= */
+/* -------------------- Bottom nav -------------------- */
 const CREAMY_WHITE = "#FFF5E6";
 
-function NavBtn({ href, label, icon: Icon, active, onClick }) {
+function NavBtn({ href, label, icon: Icon, active, onClick, count }) {
   if (active) {
     const Body = (
       <div
-        className="inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-black shadow-sm"
+        className="inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-black shadow-sm relative"
         style={{ backgroundColor: CREAMY_WHITE }}
       >
-        <Icon className="h-5 w-5" />
+        <div className="relative">
+          <Icon className="h-5 w-5" />
+          <RedBadge count={count} />
+        </div>
         <span className="text-xs font-semibold leading-none">{label}</span>
       </div>
     );
-    return href ? (
-      <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
-    ) : (
-      <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>
-    );
+    return href ? <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
+                : <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>;
   }
 
   const Body = (
-    <div className="flex items-center justify-center">
+    <div className="flex items-center justify-center relative">
       <Icon className="h-6 w-6 text-white/85" />
+      <RedBadge count={count} />
     </div>
   );
-  return href ? (
-    <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
-  ) : (
-    <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>
-  );
+  return href ? <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
+              : <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>;
 }
 
-function BottomNav({ items, route, drawerOpen, openDrawer }) {
+function BottomNav({ items, route, drawerOpen, openDrawer, countForHref }) {
   return (
     <motion.nav
       initial={{ y: 36, opacity: 0 }}
       animate={{ y: 0, opacity: drawerOpen ? 0 : 1, pointerEvents: drawerOpen ? "none" : "auto" }}
-      transition={{ duration: 0.85, ease: [0.25, 0.1, 0.25, 1] }} /* same slower tween */
+      transition={{ duration: 0.85, ease: [0.25, 0.1, 0.25, 1] }}
       className="lg:hidden fixed inset-x-0 bottom-0 z-40 pointer-events-none"
     >
       <div
@@ -403,20 +733,24 @@ function BottomNav({ items, route, drawerOpen, openDrawer }) {
                 border border-white/10 
                 bg-black/40 backdrop-blur-xl px-4 py-3 
                 shadow-[0_8px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]">
-          {/* glossy overlay for glass effect */}
-            <div className="pointer-events-none absolute inset-0 rounded-lg 
-                  bg-gradient-to-b from-black/30 via-black/10 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 rounded-lg 
+                bg-gradient-to-b from-black/30 via-black/10 to-transparent" />
           <div className="relative z-10 flex w-full items-center justify-between">
-            {items.map(({ href, label, icon }) => (
-              <NavBtn
-                key={label}
-                href={href !== "drawer" ? href : null}
-                label={label}
-                icon={icon}
-                active={href !== "drawer" && route === href}
-                onClick={href === "drawer" ? openDrawer : undefined}
-              />
-            ))}
+            {items.map(({ href, label, icon }) => {
+              const isActive = href !== "drawer" && route === href;
+              const count = countForHref?.(href) || 0;
+              return (
+                <NavBtn
+                  key={label}
+                  href={href !== "drawer" ? href : null}
+                  label={label}
+                  icon={icon}
+                  active={isActive}
+                  onClick={href === "drawer" ? openDrawer : undefined}
+                  count={count}
+                />
+              );
+            })}
           </div>
         </div>
       </div>

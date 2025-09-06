@@ -19,7 +19,8 @@ import {
   HelpCircle,
   Heart,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Banknote,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
@@ -36,14 +37,20 @@ const QuickBookModal = lazy(() => import("../components/QuickBookModal.tsx"));
 /* --------------------------- Small UI helpers --------------------------- */
 function PremiumButton({ children, variant = "primary", size = "default", className = "", ...props }) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/10 disabled:opacity-50 disabled:pointer-events-none rounded-2xl";
+    "w-full inline-flex items-center justify-center gap-2 font-semibold leading-none " +
+    "transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/10 " +
+    "disabled:opacity-50 disabled:pointer-events-none rounded-2xl";
   const variants = {
     primary: "bg-white text-black hover:bg-zinc-100 shadow-lg hover:shadow-xl active:scale-95",
     secondary: "bg-zinc-800/80 text-white hover:bg-zinc-700/80 border border-white/10 shadow-lg active:scale-95",
     outline: "border border-white/15 bg-black/40 backdrop-blur text-white hover:bg-white/10 hover:border-white/25",
     ghost: "text-white hover:bg-white/10",
   };
-  const sizes = { sm: "px-3 py-2 text-xs", default: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" };
+  const sizes = {
+    sm: "h-10 text-sm px-4",
+    default: "h-11 text-sm px-5",
+    lg: "h-12 text-base px-6",
+  };
   return (
     <button {...props} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}>
       {children}
@@ -115,7 +122,7 @@ const GREEK_CITIES = [
   { value: "Πειραιάς", label: "Πειραιάς", aliases: ["piraeus", "πειραιας", "pireaus", "pireas"] },
 ];
 
-/* ------------------- date helpers ------------------- */
+/* ------------------- date + format helpers ------------------- */
 const pad2 = (n) => String(n).padStart(2, "0");
 const toYMD = (input) => {
   if (!input) return "";
@@ -147,6 +154,45 @@ const formatDate = (d) => {
   } catch {
     return d;
   }
+};
+const formatCurrency = (amount, code = "EUR") => {
+  try {
+    const opts = { style: "currency", currency: code, maximumFractionDigits: amount % 1 === 0 ? 0 : 2 };
+    return new Intl.NumberFormat("el-GR", opts).format(amount);
+  } catch {
+    return `${amount} ${code}`;
+  }
+};
+const formatDuration = (min) => {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h && m) return `${h}ω ${m}’`;
+  if (h) return `${h}ω`;
+  return `${m}’`;
+};
+const median = (arr) => {
+  if (!arr || arr.length === 0) return null;
+  const a = [...arr].sort((x, y) => x - y);
+  const mid = Math.floor(a.length / 2);
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+};
+const mode = (arr) => {
+  if (!arr || arr.length === 0) return null;
+  const map = new Map();
+  let best = null, bestCount = 0;
+  for (const v of arr) {
+    const c = (map.get(v) || 0) + 1;
+    map.set(v, c);
+    if (c > bestCount) { best = v; bestCount = c; }
+  }
+  return best;
+};
+const timeToMinutes = (t) => {
+  if (!t) return null;
+  const [hh = "0", mm = "0"] = String(t).split(":");
+  const h = Number(hh), m = Number(mm);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
 };
 
 /* ------------------------------ Visual bits ------------------------------ */
@@ -279,6 +325,8 @@ const AvailabilityGrid = memo(function AvailabilityGrid({ availability }) {
 });
 
 /* ------------------------------ Trainer card ------------------------------ */
+const MAX_TAGS_PREVIEW = 4;
+
 const TrainerCard = memo(function TrainerCard({
   list = false,
   trainer,
@@ -458,21 +506,40 @@ const TrainerCard = memo(function TrainerCard({
             {cat?.label || "Γενικός Εκπαιδευτής"}
           </div>
 
-          {/* Tag preview */}
+          {/* Tag preview (max 4 + bubble) */}
           {Array.isArray(trainer.tags) && trainer.tags.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5" data-no-nav>
-              {trainer.tags.slice(0, 3).map((tag) => (
+              {trainer.tags.slice(0, 4).map((tag) => (
                 <span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-[11px]">
                   {tag}
                 </span>
               ))}
-              {trainer.tags.length > 3 && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-400 text-[11px]">
-                  +{trainer.tags.length - 3}
+              {trainer.tags.length > 4 && (
+                <span
+                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-400 text-[11px]"
+                  title={`${trainer.tags.length - 4} περισσότερα`}
+                >
+                  +{trainer.tags.length - 4} περισσότερα
                 </span>
               )}
             </div>
           )}
+
+          {/* Price + Duration chips */}
+          <div className="mt-3 flex flex-wrap items-center gap-2" data-no-nav>
+            {typeof trainer.typicalPrice === "number" && trainer.typicalPrice > 0 && (
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium">
+                <Banknote className="h-4 w-4" />
+                {formatCurrency(trainer.typicalPrice, trainer.currencyCode || "EUR")} / συνεδρία
+              </span>
+            )}
+            {trainer.typicalDurationMin ? (
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium">
+                <Clock className="h-4 w-4" />
+                {formatDuration(trainer.typicalDurationMin)}
+              </span>
+            ) : null}
+          </div>
 
           {/* Upcoming vacation */}
           {!currentVacation && (trainer.holidays?.length > 0) && (trainer.holidays || []).some(h => toYMD(h.starts_on) >= today) && (
@@ -483,23 +550,11 @@ const TrainerCard = memo(function TrainerCard({
           )}
         </div>
 
-        {/* Actions */}
-        <div className="mt-auto flex flex-col gap-2 pt-4">
-          <PremiumButton
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenBooking?.(trainer);
-            }}
-            title="Κράτηση τώρα"
-          >
-            <CalendarIcon className="h-4 w-4" />
-            Κράτηση τώρα
-          </PremiumButton>
-
+        {/* Secondary actions */}
+        <div className="mt-4 space-y-2">
           <PremiumButton
             variant="secondary"
-            size="sm"
+            size="default"
             onClick={(e) => {
               e.stopPropagation();
               goProfile();
@@ -512,7 +567,7 @@ const TrainerCard = memo(function TrainerCard({
 
           <PremiumButton
             variant="outline"
-            size="sm"
+            size="default"
             onClick={(e) => {
               e.stopPropagation();
               setExpanded((v) => !v);
@@ -521,6 +576,24 @@ const TrainerCard = memo(function TrainerCard({
           >
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             Δες περισσότερα
+          </PremiumButton>
+        </div>
+
+        {/* Push primary button to bottom */}
+        <div className="mt-auto" />
+
+        {/* Primary CTA */}
+        <div className="pt-4">
+          <PremiumButton
+            size="lg"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenBooking?.(trainer);
+            }}
+            title="Κράτηση τώρα"
+          >
+            <CalendarIcon className="h-5 w-5" />
+            Κράτηση τώρα
           </PremiumButton>
         </div>
 
@@ -565,9 +638,8 @@ const TrainerCard = memo(function TrainerCard({
 /* --------------------------------- Page --------------------------------- */
 
 const PAGE_SIZE = 12;
-// how many extra pages to scan per load; we’ll pass a bigger cap on reset
 const MAX_EXTRA_PAGES_PER_LOAD = 3;
-const RESET_SCAN_CAP = 12; // scan deeper on fresh filter change
+const RESET_SCAN_CAP = 12;
 
 export default function ServicesMarketplacePage() {
   useEffect(() => {
@@ -663,8 +735,6 @@ export default function ServicesMarketplacePage() {
       q = q.or(`ilike(full_name,%${s}%),ilike(location,%${s}%)`);
     }
 
-    // IMPORTANT: city is filtered client-side only (to avoid AND-ing two .or() groups)
-
     switch (sortBy) {
       case "name":
         q = q.order("full_name", { ascending: true });
@@ -673,7 +743,6 @@ export default function ServicesMarketplacePage() {
         q = q.order("experience_years", { ascending: false, nullsFirst: true });
         break;
       case "rating":
-        // we sort by rating on the client after hydration
         q = q.order("created_at", { ascending: false });
         break;
       default:
@@ -683,15 +752,28 @@ export default function ServicesMarketplacePage() {
     return q;
   }, [catFilter, onlyOnline, searchTerm, sortBy]);
 
-  // merge availability/holidays/reviews
+  // merge availability/holidays/reviews + pricing from trainer_pricing + duration from bookings/availability
   const hydrateTrainers = useCallback(async (rows) => {
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return [];
 
-    const [{ data: avs }, { data: hols }, { data: reviews }] = await Promise.all([
+    const [
+      { data: avs },
+      { data: hols },
+      { data: reviews },
+      { data: pricing },
+      { data: bookings },
+    ] = await Promise.all([
       supabase.from("trainer_availability").select("trainer_id, weekday, start_time, end_time, is_online").in("trainer_id", ids),
       supabase.from("trainer_holidays").select("trainer_id, starts_on, ends_on, reason").in("trainer_id", ids),
       supabase.from("trainer_reviews").select("trainer_id, rating").in("trainer_id", ids),
+      supabase.from("trainer_pricing").select("trainer_id, base_price, online_discount, specialty_pricing, currency_code").in("trainer_id", ids),
+      supabase
+        .from("trainer_bookings")
+        .select("trainer_id, duration_min, status, created_at")
+        .in("trainer_id", ids)
+        .in("status", ["accepted", "completed"])
+        .order("created_at", { ascending: false }),
     ]);
 
     const avByTrainer = (avs ?? []).reduce((m, r) => {
@@ -706,11 +788,54 @@ export default function ServicesMarketplacePage() {
       (m[r.trainer_id] ||= []).push(r.rating);
       return m;
     }, {});
+    const pricingByTrainer = (pricing ?? []).reduce((m, r) => {
+      m[r.trainer_id] = r;
+      return m;
+    }, {});
+    const bookingsByTrainer = (bookings ?? []).reduce((m, r) => {
+      (m[r.trainer_id] ||= []).push(r);
+      return m;
+    }, {});
+
+    const computeDisplayPrice = (prObj, specialty, isOnline) => {
+      if (!prObj) return { price: null, currency: "EUR" };
+      let base = Number(prObj.base_price ?? 0);
+      const specMap = prObj.specialty_pricing && typeof prObj.specialty_pricing === "object" ? prObj.specialty_pricing : {};
+      const specOverride = Number(specMap?.[specialty]);
+      if (Number.isFinite(specOverride) && specOverride > 0) base = specOverride;
+      const discountPct = Number(prObj.online_discount ?? 0);
+      if (isOnline && discountPct > 0) {
+        base = base * (1 - discountPct / 100);
+      }
+      return { price: base > 0 ? base : null, currency: prObj.currency_code || "EUR" };
+    };
 
     return rows.map((t) => {
       const trainerReviews = ratingsByTrainer[t.id] || [];
       const avgRating =
         trainerReviews.length > 0 ? trainerReviews.reduce((sum, rating) => sum + rating, 0) / trainerReviews.length : 0;
+
+      // price from trainer_pricing
+      const pr = pricingByTrainer[t.id] || null;
+      const { price: typicalPrice, currency: currencyCode } = computeDisplayPrice(pr, t.specialty, t.is_online);
+
+      // duration from bookings, fallback to availability slot lengths
+      const bs = bookingsByTrainer[t.id] || [];
+      const durFromBookings = bs.map((b) => Number(b.duration_min)).filter((n) => Number.isFinite(n) && n > 0);
+      let typicalDurationMin = mode(durFromBookings) ?? median(durFromBookings) ?? null;
+
+      if (!typicalDurationMin) {
+        const av = avByTrainer[t.id] ?? [];
+        const slotDurations = av
+          .map((s) => {
+            const start = timeToMinutes(s.start_time);
+            const end = timeToMinutes(s.end_time);
+            return start != null && end != null && end > start ? end - start : null;
+          })
+          .filter((n) => Number.isFinite(n) && n > 0);
+        typicalDurationMin = mode(slotDurations) ?? median(slotDurations) ?? null;
+      }
+
       return {
         ...t,
         tags: Array.isArray(t.roles) ? t.roles : [],
@@ -720,11 +845,14 @@ export default function ServicesMarketplacePage() {
         holidays: (holByTrainer[t.id] ?? []).sort((a, b) => toYMD(b.starts_on).localeCompare(toYMD(a.starts_on))),
         rating: avgRating,
         reviewCount: trainerReviews.length,
+        typicalPrice,
+        currencyCode,
+        typicalDurationMin,
       };
     });
   }, []);
 
-  // strong client filters
+  // client filters
   const matchesCity = (trainerLocation, selectedCity) => {
     if (!trainerLocation || selectedCity === "all") return true;
     const city = GREEK_CITIES.find((c) => c.value === selectedCity);
@@ -739,7 +867,6 @@ export default function ServicesMarketplacePage() {
   const applyClientFilters = useCallback((arr) => {
     let out = [...arr];
 
-    // City (client side only)
     if (selectedCity !== "all") {
       out = out.filter((t) => matchesCity(t.location, selectedCity));
     }
@@ -767,7 +894,7 @@ export default function ServicesMarketplacePage() {
     return out;
   }, [excludeVacation, selectedCity, selectedDate, sortBy]);
 
-  // Ref-based, race-safe loader; can scan multiple pages per call
+  // loader
   const loadMore = useCallback(
     async (forcedKey = null, minToAdd = PAGE_SIZE, pageScanCap = MAX_EXTRA_PAGES_PER_LOAD) => {
       const key = forcedKey ?? queryKeyRef.current;
@@ -783,7 +910,6 @@ export default function ServicesMarketplacePage() {
         let pagesScanned = 0;
         let localNew = [];
 
-        // snapshot existing ids for this batch
         let existingIds = new Set(items.map((t) => t.id));
 
         while (
@@ -794,7 +920,6 @@ export default function ServicesMarketplacePage() {
           const from = (pageRef.current + pagesScanned) * PAGE_SIZE;
           const to = from + PAGE_SIZE - 1;
 
-          // filters changed mid-flight? bail out & clear UI loaders
           if (key !== queryKeyRef.current) {
             loadingRef.current = false;
             setLoadingPage(false);
@@ -805,7 +930,6 @@ export default function ServicesMarketplacePage() {
           let q = buildProfilesQuery().range(from, to);
           const { data: rows, error } = await q;
 
-          // filters changed after query resolved? bail out & clear UI loaders
           if (key !== queryKeyRef.current) {
             loadingRef.current = false;
             setLoadingPage(false);
@@ -853,9 +977,9 @@ export default function ServicesMarketplacePage() {
     [applyClientFilters, buildProfilesQuery, hydrateTrainers, items]
   );
 
-  // Reset & first load when filters change
+  // Reset & first load
   useEffect(() => {
-    queryKeyRef.current += 1; // invalidate old loads
+    queryKeyRef.current += 1;
     pageRef.current = 0;
     hasMoreRef.current = true;
     loadingRef.current = false;
@@ -867,12 +991,11 @@ export default function ServicesMarketplacePage() {
     setInitialLoading(true);
 
     const currentKey = queryKeyRef.current;
-    // scan deeper on reset so we actually surface matches even if early pages get filtered out
     loadMore(currentKey, PAGE_SIZE, RESET_SCAN_CAP);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, sortBy, catFilter, onlyOnline, excludeVacation, selectedDate, selectedCity]);
 
-  // IntersectionObserver to load next page (guarded by refs)
+  // IntersectionObserver
   useEffect(() => {
     if (!sentinelRef.current) return;
     if (observerRef.current) observerRef.current.disconnect();
@@ -891,7 +1014,7 @@ export default function ServicesMarketplacePage() {
     return () => observerRef.current && observerRef.current.disconnect();
   }, [loadMore]);
 
-  // show skeleton only on boot load (not during later refreshes)
+  // boot skeleton
   const bootLoading = (loading || initialLoading) && items.length === 0;
   if (bootLoading) {
     return (

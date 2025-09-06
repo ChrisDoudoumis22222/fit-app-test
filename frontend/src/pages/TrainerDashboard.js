@@ -1,3 +1,4 @@
+// src/pages/TrainerDashboard.js
 "use client"
 import { useEffect, useState, lazy, Suspense, useMemo, useCallback, memo } from "react"
 import {
@@ -25,7 +26,7 @@ import {
   KeyRound,
   Lock,
   Loader2,
-  UserIcon,
+  User as UserIcon, // alias: lucide-react doesn't export "UserIcon"
   Smartphone,
   AlertCircle,
   Wifi,
@@ -286,16 +287,21 @@ const getHashSection = () => {
 
 const PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar"
 
-// Optimized Auth Hook with better error handling and memoization
+/* ------------------ FIXED Auth Hook ------------------ */
 const useAuth = () => {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
+
+  // `loading` NOW ONLY tracks the session/auth check (global splash)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // separate flag for profile fetches (optional local spinners)
+  const [profileLoading, setProfileLoading] = useState(false)
+
   const fetchProfile = useCallback(async (userId) => {
     try {
-      setLoading(true)
+      setProfileLoading(true)
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -306,6 +312,7 @@ const useAuth = () => {
       if (error) {
         if (error.code === "PGRST116") {
           setError("Δεν βρέθηκε προφίλ προπονητή")
+          setProfile(null)
         } else {
           throw error
         }
@@ -314,11 +321,12 @@ const useAuth = () => {
 
       setProfile(data)
       setError(null)
-    } catch (error) {
-      console.error("Error fetching profile:", error)
-      setError(error.message || "Σφάλμα φόρτωσης προφίλ")
+    } catch (e) {
+      console.error("Error fetching profile:", e)
+      setError(e.message || "Σφάλμα φόρτωσης προφίλ")
+      setProfile(null)
     } finally {
-      setLoading(false)
+      setProfileLoading(false) // don't touch `loading` here
     }
   }, [])
 
@@ -331,26 +339,26 @@ const useAuth = () => {
           data: { session },
           error,
         } = await supabase.auth.getSession()
-
         if (!mounted) return
 
         if (error) {
           setError(error.message)
-          setLoading(false)
+          setUser(null)
+          setProfile(null)
+          setLoading(false) // end splash even on error
           return
         }
 
         setUser(session?.user ?? null)
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-        } else {
-          setLoading(false)
-        }
-      } catch (error) {
-        if (mounted) {
-          setError(error.message)
-          setLoading(false)
-        }
+        setLoading(false) // end splash as soon as we know session
+        if (session?.user) fetchProfile(session.user.id) // fire & forget
+        else setProfile(null)
+      } catch (e) {
+        if (!mounted) return
+        setError(e.message)
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
       }
     }
 
@@ -358,21 +366,17 @@ const useAuth = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return
-
       setUser(session?.user ?? null)
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
-        setLoading(false)
-      }
+      setLoading(false)
+      if (session?.user) fetchProfile(session.user.id)
+      else setProfile(null)
     })
 
     return () => {
       mounted = false
-      subscription.unsubscribe()
+      subscription?.unsubscribe?.()
     }
   }, [fetchProfile])
 
@@ -392,9 +396,9 @@ const useAuth = () => {
 
         setProfile(data)
         return { data, error: null }
-      } catch (error) {
-        console.error("Error updating profile:", error)
-        return { error: error.message }
+      } catch (e) {
+        console.error("Error updating profile:", e)
+        return { error: e.message }
       }
     },
     [profile?.id],
@@ -403,9 +407,10 @@ const useAuth = () => {
   return {
     user,
     profile,
-    loading,
+    loading, // global auth/session loading (splash)
     error,
     updateProfile,
+    profileLoading, // optional local loading
     refetchProfile: useCallback(() => fetchProfile(user?.id), [fetchProfile, user?.id]),
   }
 }
@@ -668,7 +673,7 @@ const useTrainerData = (profile) => {
   }
 }
 
-// Stats
+// Stats (mobile: 2×2, md+: 4 across)
 const TrainerPerformanceStats = memo(({ performanceData, loading }) => {
   const stats = useMemo(
     () => [
@@ -713,7 +718,7 @@ const TrainerPerformanceStats = memo(({ performanceData, loading }) => {
   )
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
       {stats.map((stat, index) => (
         <motion.div
           key={stat.label}
@@ -997,10 +1002,9 @@ const QuickActionsCard = memo(() => {
 
   const handleActionClick = (path) => {
     if (path.startsWith("#")) {
-      // in-page tab via hash (triggers hashchange listener on the page)
+      // use hash assignment for deep link; the app listens for hashchange and updates state
       window.location.hash = path
     } else {
-      // full navigation
       window.location.href = path
     }
   }
@@ -1174,7 +1178,6 @@ function TrainerDashboard() {
     if (!SECTION_IDS.has(id)) return
     setSection(id)
     history.replaceState(null, "", `#${id}`)
-    // optional smooth scroll to the section wrapper
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
   }, [])
 
@@ -1342,10 +1345,9 @@ function TrainerDashboard() {
     () => TRAINER_CATEGORIES.find((cat) => cat.value === profileForm.specialty),
     [profileForm.specialty],
   )
-
   const CategoryIcon = currentCategory?.iconKey ? ICON_BY_KEY[currentCategory.iconKey] : Trophy
 
-  // Loading state
+  // Loading state (only while checking session)
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black">
@@ -1633,7 +1635,7 @@ function TrainerDashboard() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                       <div>
-                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-100">
+                        <label className="mb-2 flex items:center gap-2 text-sm font-medium text-zinc-100">
                           <Clock className="h-4 w-4" /> Χρόνια Εμπειρίας
                         </label>
                         <input

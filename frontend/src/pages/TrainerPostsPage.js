@@ -1,5 +1,11 @@
 "use client"
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -7,7 +13,6 @@ import {
   ImageIcon,
   X,
   Trash2,
-  Loader2,
   CalendarDays,
   Camera,
   Upload,
@@ -23,7 +28,6 @@ import {
   RotateCcw,
   ExternalLink,
   Eye,
-  Sparkles,
   RefreshCw,
 } from "lucide-react"
 import { supabase } from "../supabaseClient"
@@ -31,15 +35,16 @@ import { useAuth } from "../AuthProvider"
 import TrainerMenu from "../components/TrainerMenu"
 import PostPreviewModal from "../components/PostPreviewModal"
 
+/* -------------------- constants -------------------- */
 const MAX_BYTES = 1_024_000 // 1 MB
 const PLACEHOLDER = "/placeholder.svg?height=300&width=400&text=No+Image"
 const INITIAL_SHOW = 6
 const BATCH_SIZE = 6
 
-/* ---------- helpers ---------- */
+/* -------------------- helpers -------------------- */
 const arraysEqual = (a = [], b = []) => a.length === b.length && a.every((v, i) => v === b[i])
 
-/* ---------- Floating popup action bar ---------- */
+/* -------------------- floating save/cancel bar -------------------- */
 function DirtyActionBar({
   visible,
   saving = false,
@@ -64,7 +69,7 @@ function DirtyActionBar({
           <div className="sm:hidden w-full bg-gradient-to-br from-zinc-900/95 to-black/95 border-t border-white/10 px-4 pt-3 pb-4 shadow-[0_-6px_24px_rgba(0,0,0,0.6)]">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-zinc-300">
-                <Sparkles className="h-5 w-5" />
+                <RefreshCw className="h-5 w-5" />
                 <span className="text-sm">{message}</span>
               </div>
             </div>
@@ -95,7 +100,7 @@ function DirtyActionBar({
               <div className="rounded-2xl border border-white/15 bg-gradient-to-br from-zinc-900/90 to-black/90 backdrop-blur-xl shadow-2xl p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2 text-zinc-300">
-                    <Sparkles className="h-5 w-5" />
+                    <RefreshCw className="h-5 w-5" />
                     <span className="text-sm">{message}</span>
                   </div>
                   <div className="flex-1" />
@@ -128,7 +133,7 @@ function DirtyActionBar({
   )
 }
 
-/* ---------- Field (now supports dirty glow) ---------- */
+/* -------------------- input field -------------------- */
 const Field = ({ label, textarea = false, value, onChange, dirty = false }) => (
   <div className={dirty ? "halo rounded-2xl p-2 -m-2" : ""}>
     <div className="relative">
@@ -154,7 +159,7 @@ const Field = ({ label, textarea = false, value, onChange, dirty = false }) => (
   </div>
 )
 
-/* ---------- Popups ---------- */
+/* -------------------- popups -------------------- */
 const ErrorPopup = ({ open, onClose, title, message, rejectedFiles = [] }) => {
   if (!open) return null
   return (
@@ -236,7 +241,29 @@ const SuccessPopup = ({ open, onClose, title, message }) => {
   )
 }
 
-/* ---------- Edit Post Modal (with dirty highlights + floating bar) ---------- */
+/* -------------------- edit modal -------------------- */
+const EditImageThumb = ({ src, index, onRemove, type }) => (
+  <div className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-900 border border-white/10">
+    <img src={src || "/placeholder.svg"} alt={`Εικόνα ${index}`} className="h-full w-full object-cover" />
+    <div
+      className={`absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-medium ${
+        type === "new"
+          ? "bg-green-500/20 text-green-300 border border-green-500/30"
+          : "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+      }`}
+    >
+      {type === "new" ? "Νέα" : "Υπάρχουσα"}
+    </div>
+    <button
+      onClick={onRemove}
+      className="absolute right-2 top-2 p-1.5 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-600"
+    >
+      <X className="h-3 w-3" />
+    </button>
+    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+  </div>
+)
+
 const EditPostModal = ({ open, post, onClose, onSave }) => {
   const [editTitle, setEditTitle] = useState("")
   const [editDesc, setEditDesc] = useState("")
@@ -267,7 +294,6 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
   const titleDirty = (editTitle ?? "") !== (origRef.current.title ?? "")
   const descDirty = (editDesc ?? "") !== (origRef.current.description ?? "")
   const imagesDirty = !arraysEqual(editImages ?? [], origRef.current.images ?? []) || newFiles.length > 0
-
   const hasChanges = titleDirty || descDirty || imagesDirty
 
   const addNewFiles = useCallback((fileList) => {
@@ -277,13 +303,7 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
     arr.forEach((f) => {
       if (f.size > MAX_BYTES || !f.type.startsWith("image/")) return
       ok.push(f)
-      readers.push(
-        new Promise((res) => {
-          const r = new FileReader()
-          r.onload = () => res(r.result)
-          r.readAsDataURL(f)
-        }),
-      )
+      readers.push(new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f) }))
     })
     if (ok.length > 0) {
       Promise.all(readers).then((urls) => {
@@ -312,8 +332,8 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
         newFiles,
       })
       onClose()
-    } catch (e) {
-      console.error(e)
+    } catch {
+      /* handled upstream */
     } finally {
       setSaving(false)
     }
@@ -330,7 +350,6 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
   }
 
   if (!open || !post) return null
-
   const totalImages = editImages.length + newThumbs.length
 
   return (
@@ -360,7 +379,6 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
               <Field label="Τίτλος" value={editTitle} onChange={setEditTitle} dirty={titleDirty} />
               <Field label="Περιγραφή" textarea value={editDesc} onChange={setEditDesc} dirty={descDirty} />
 
-              {/* Images section with halo when changed */}
               <div className={imagesDirty ? "halo rounded-2xl p-2 -m-2" : ""}>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -420,7 +438,6 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
             </div>
           </div>
 
-          {/* Floating popup bar INSIDE modal */}
           <DirtyActionBar
             visible={hasChanges}
             saving={saving}
@@ -437,28 +454,7 @@ const EditPostModal = ({ open, post, onClose, onSave }) => {
   )
 }
 
-const EditImageThumb = ({ src, index, onRemove, type }) => (
-  <div className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-900 border border-white/10">
-    <img src={src || "/placeholder.svg"} alt={`Εικόνα ${index}`} className="h-full w-full object-cover" />
-    <div
-      className={`absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-medium ${
-        type === "new"
-          ? "bg-green-500/20 text-green-300 border border-green-500/30"
-          : "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-      }`}
-    >
-      {type === "new" ? "Νέα" : "Υπάρχουσα"}
-    </div>
-    <button
-      onClick={onRemove}
-      className="absolute right-2 top-2 p-1.5 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-600"
-    >
-      <X className="h-3 w-3" />
-    </button>
-    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-  </div>
-)
-
+/* -------------------- media thumbs / viewer / card -------------------- */
 const EnhancedThumb = ({ src, index, total, onOpen, onRemove }) => (
   <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.05 }} className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-900 border border-white/10">
     <img
@@ -551,7 +547,7 @@ function EnhancedViewer({ imgs, idx, onClose }) {
   )
 }
 
-function EnhancedPostCard({ post, index, onDelete, onOpen, onEdit, onViewDetails }) {
+function EnhancedPostCard({ post, index, onDelete, onEdit, onViewDetails }) {
   const imgs = post.image_urls?.length ? post.image_urls : [post.image_url || PLACEHOLDER]
   const hasMultipleImages = imgs.length > 1
 
@@ -629,21 +625,52 @@ function EnhancedPostCard({ post, index, onDelete, onOpen, onEdit, onViewDetails
   )
 }
 
-const EmptyState = () => (
-  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col items-center justify-center py-20 text-center">
-    <div className="p-12 max-w-md mx-auto rounded-3xl border border-white/10 bg-gradient-to-b from-zinc-900/60 to-black/60 backdrop-blur-xl">
-      <div className="p-6 rounded-full bg-zinc-800/50 mb-6 inline-block border border-white/10">
-        <ImageIcon className="h-12 w-12 text-zinc-400" />
+/* -------------------- empty state (larger on desktop) -------------------- */
+const EmptyState = ({ onCreate }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.2 }}
+    className="flex flex-col items-center justify-center py-16 text-center"
+  >
+    <div
+      className="
+        mx-auto rounded-3xl border border-white/10
+        bg-gradient-to-b from-zinc-900/60 to-black/60 backdrop-blur-xl
+        p-8 sm:p-10 md:p-12 lg:p-16 xl:p-20
+        max-w-md sm:max-w-lg md:max-w-xl lg:max-w-3xl
+      "
+    >
+      <div className="inline-block mb-6 md:mb-8 p-6 md:p-7 rounded-full bg-zinc-800/50 border border-white/10">
+        <ImageIcon className="h-12 w-12 md:h-16 md:w-16 text-zinc-400" />
       </div>
-      <h3 className="text-xl font-semibold text-zinc-100 mb-2">Δεν υπάρχουν ακόμη αναρτήσεις</h3>
-      <p className="text-zinc-400 max-w-md">
-        Ξεκινήστε να μοιράζεστε το περιεχόμενό σας με το κοινό σας δημιουργώντας την πρώτη σας ανάρτηση παραπάνω.
+
+      <h3 className="text-xl md:text-2xl lg:text-3xl font-semibold text-zinc-100 mb-2 md:mb-3">
+        Δεν έχεις ακόμη αναρτήσεις
+      </h3>
+
+      <p className="text-zinc-400 leading-relaxed md:text-lg lg:text-xl md:leading-8 mb-6 md:mb-8 max-w-2xl mx-auto">
+        Ανέβασε την πρώτη σου ανάρτηση για να δείξεις στους πελάτες σου τι ετοιμάζεις
+        και να παραμείνεις σε επαφή με το κοινό σου.
       </p>
+
+      <button
+        onClick={onCreate}
+        className="
+          inline-flex items-center gap-2
+          px-5 py-3 md:px-6 md:py-3.5 lg:px-8 lg:py-4
+          rounded-2xl bg-white text-black hover:bg-zinc-100 transition
+          text-base md:text-lg lg:text-xl font-medium
+        "
+      >
+        <PlusCircle className="h-5 w-5 md:h-6 md:w-6" />
+        Δημιούργησε ανάρτηση
+      </button>
     </div>
   </motion.div>
 )
 
-/* -------------------------------- Main Page -------------------------------- */
+/* ================================ PAGE ================================ */
 export default function TrainerPostsPage() {
   const navigate = useNavigate()
   const { profile, profileLoaded, session } = useAuth()
@@ -652,6 +679,11 @@ export default function TrainerPostsPage() {
   const [allPosts, setAllPosts] = useState([])
   const [visible, setVisible] = useState(INITIAL_SHOW)
 
+  // creator state (hidden until user clicks +)
+  const [showCreator, setShowCreator] = useState(false)
+  const composeRef = useRef(null)
+
+  // creator form
   const [title, setTitle] = useState("")
   const [desc, setDesc] = useState("")
   const [files, setFiles] = useState([])
@@ -674,13 +706,18 @@ export default function TrainerPostsPage() {
 
   useEffect(() => {
     setIsLoaded(profileLoaded)
-    setIsAuthorized(!!uid && profile.role === "trainer")
+    setIsAuthorized(!!uid && profile?.role === "trainer")
   }, [profileLoaded, uid, profile])
 
+  // fetch only the logged-in trainer's posts
   useEffect(() => {
     if (!isLoaded || !isAuthorized) return
     ;(async () => {
-      const { data, error } = await supabase.from("posts").select("*").order("created_at", { ascending: false })
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("trainer_id", uid)
+        .order("created_at", { ascending: false })
       if (error) {
         setErrorPopup({
           open: true,
@@ -692,8 +729,9 @@ export default function TrainerPostsPage() {
         setAllPosts(data)
       }
     })()
-  }, [isLoaded, isAuthorized])
+  }, [isLoaded, isAuthorized, uid])
 
+  // lazy pagination
   useEffect(() => {
     if (visible >= allPosts.length) return
     const sentinel = document.querySelector("#lazy-sentinel")
@@ -712,6 +750,7 @@ export default function TrainerPostsPage() {
     return () => io.disconnect()
   }, [visible, allPosts.length])
 
+  /* ---------- creator helpers ---------- */
   const addFiles = useCallback((fileList) => {
     const arr = Array.from(fileList || [])
     const ok = []
@@ -758,7 +797,15 @@ export default function TrainerPostsPage() {
     if (fileInput.current) fileInput.current.value = ""
   }, [])
 
-  // Core create logic (used by popup bar)
+  const openComposer = useCallback(() => {
+    setShowCreator(true)
+    setTimeout(() => {
+      const el = composeRef.current
+      if (el) window.scrollTo({ top: el.offsetTop - 16, behavior: "smooth" })
+    }, 60)
+  }, [])
+
+  /* ---------- create post ---------- */
   const doCreatePost = useCallback(async () => {
     if (!title || !desc) {
       setErrorPopup({ open: true, title: "Συμπληρώστε τα στοιχεία", message: "Παρακαλώ συμπληρώστε τον τίτλο και την περιγραφή της ανάρτησης.", rejectedFiles: [] })
@@ -786,7 +833,8 @@ export default function TrainerPostsPage() {
       if (error) throw error
       setAllPosts((p) => [{ ...data, _animate: true }, ...p])
       clearCreateForm()
-      setSuccessPopup({ open: true, title: "Μπράβο! Επιτυχής ανάρτηση!", message: "Η ανάρτησή σας δημοσιεύτηκε με επιτυχία και είναι πλέον ορατή στους μαθητές σας!" })
+      setShowCreator(false)
+      setSuccessPopup({ open: true, title: "Μπράβο! Επιτυχής ανάρτηση!", message: "Η ανάρτησή σου δημοσιεύτηκε με επιτυχία." })
     } catch (err) {
       setErrorPopup({ open: true, title: "Σφάλμα δημοσίευσης", message: "Δεν ήταν δυνατή η δημοσίευση της ανάρτησης. Παρακαλώ δοκιμάστε ξανά.", rejectedFiles: [] })
     } finally {
@@ -794,14 +842,16 @@ export default function TrainerPostsPage() {
     }
   }, [title, desc, files, uid, clearCreateForm])
 
-  // legacy submit handler (Enter in inputs)
-  const createPost = async (e) => {
-    e.preventDefault()
-    await doCreatePost()
-  }
+  const createPost = async (e) => { e.preventDefault(); await doCreatePost() }
 
+  /* ---------- edit/delete with ownership checks ---------- */
   const handleEditPost = async ({ title, description, existingImages, newFiles }) => {
     try {
+      if (!editModal.post || editModal.post.trainer_id !== uid) {
+        setErrorPopup({ open: true, title: "Δεν επιτρέπεται", message: "Δεν μπορείτε να επεξεργαστείτε ανάρτηση άλλου προπονητή.", rejectedFiles: [] })
+        throw new Error("not-owned")
+      }
+
       const newUrls = []
       for (const f of newFiles) {
         const ext = f.name.split(".").pop()
@@ -811,24 +861,34 @@ export default function TrainerPostsPage() {
         newUrls.push(supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl)
       }
       const allImages = [...existingImages, ...newUrls]
+
       const { data, error } = await supabase
         .from("posts")
         .update({ title, description, image_urls: allImages, image_url: allImages[0] || null })
         .eq("id", editModal.post.id)
+        .eq("trainer_id", uid) // extra guard
         .select("*")
-        .single()
-      if (error) throw error
+        .maybeSingle()
+
+      if (error || !data) throw error || new Error("update failed")
+
       setAllPosts((posts) => posts.map((p) => (p.id === editModal.post.id ? { ...data, _animate: true } : p)))
-      setSuccessPopup({ open: true, title: "Επιτυχής ενημέρωση!", message: "Η ανάρτησή σας ενημερώθηκε με επιτυχία!" })
+      setSuccessPopup({ open: true, title: "Επιτυχής ενημέρωση!", message: "Η ανάρτησή σου ενημερώθηκε με επιτυχία!" })
     } catch (err) {
+      if (String(err?.message).includes("not-owned")) return
       setErrorPopup({ open: true, title: "Σφάλμα ενημέρωσης", message: "Δεν ήταν δυνατή η ενημέρωση της ανάρτησης. Παρακαλώ δοκιμάστε ξανά.", rejectedFiles: [] })
       throw err
     }
   }
 
   const deletePost = async (id) => {
+    const post = allPosts.find((p) => p.id === id)
+    if (!post || post.trainer_id !== uid) {
+      setErrorPopup({ open: true, title: "Δεν επιτρέπεται", message: "Δεν μπορείτε να διαγράψετε ανάρτηση άλλου προπονητή.", rejectedFiles: [] })
+      return
+    }
     if (!confirm("Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την ανάρτηση;")) return
-    const { error } = await supabase.from("posts").delete().eq("id", id)
+    const { error } = await supabase.from("posts").delete().eq("id", id).eq("trainer_id", uid)
     if (error) {
       setErrorPopup({ open: true, title: "Σφάλμα διαγραφής", message: "Δεν ήταν δυνατή η διαγραφή της ανάρτησης. Παρακαλώ δοκιμάστε ξανά.", rejectedFiles: [] })
       return
@@ -837,6 +897,7 @@ export default function TrainerPostsPage() {
     setSuccessPopup({ open: true, title: "Διαγραφή επιτυχής", message: "Η ανάρτηση διαγράφηκε με επιτυχία." })
   }
 
+  /* ---------- misc ui helpers ---------- */
   const openViewer = (imgs, idx) => setViewer({ open: true, imgs, idx })
   const closeViewer = () => setViewer({ open: false, imgs: [], idx: 0 })
 
@@ -845,11 +906,7 @@ export default function TrainerPostsPage() {
 
   const openDetailView = (post) => setDetailView({ open: true, post })
   const closeDetailView = () => setDetailView({ open: false, post: null })
-
-  const navigateToPost = (post) => {
-    closeDetailView()
-    navigate(`/post/${post.id}`)
-  }
+  const navigateToPost = (post) => { closeDetailView(); navigate(`/post/${post.id}`) }
 
   const previewPost = {
     id: "preview",
@@ -859,8 +916,7 @@ export default function TrainerPostsPage() {
     created_at: new Date().toISOString(),
   }
 
-  // Show global create popup only when no modal/detail/preview is on top
-  const showCreatePopup = isCreateDirty && !editModal.open && !detailView.open && !previewOpen
+  const showCreatePopup = showCreator && isCreateDirty && !editModal.open && !detailView.open && !previewOpen
 
   /* -------------------------------- Render -------------------------------- */
   return (
@@ -872,7 +928,6 @@ export default function TrainerPostsPage() {
         @media (min-width: 1024px){ :root { --side-w: 280px; --nav-h: 0px; } }
         @media (min-width: 1280px){ :root { --side-w: 320px; } }
 
-        /* ===== Silvery animated halo (matches schedule page) ===== */
         @property --angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
         @keyframes halo-spin { to { --angle: 360deg; } }
         .halo { position: relative; isolation: isolate; }
@@ -924,6 +979,7 @@ export default function TrainerPostsPage() {
       <div className="relative min-h-screen overflow-x-hidden">
         <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] transition-[padding]">
           <main className="mx-auto max-w-7xl w-full p-4 sm:p-6 space-y-8 pb-[120px]">
+
             {/* Header */}
             <motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -937,115 +993,143 @@ export default function TrainerPostsPage() {
                     <span>Ζώνη ώρας: Ελλάδα (UTC+3)</span>
                   </div>
                 </div>
+
+                {/* show add button on desktop when there ARE posts (or anytime) */}
+                <div className="hidden lg:flex">
+                  <button
+                    type="button"
+                    onClick={openComposer}
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white text-black hover:bg-zinc-100 transition"
+                  >
+                    <PlusCircle className="h-5 w-5" />
+                    Νέα ανάρτηση
+                  </button>
+                </div>
               </div>
             </motion.header>
 
-            {/* Creator */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className={`group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-zinc-900/60 to-black/60 backdrop-blur-xl p-6 shadow-2xl ${isCreateDirty ? "halo" : ""}`}
-            >
-              <div className="relative mb-6 flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/20">
-                    <Camera className="h-6 w-6" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight break-words">Δημιουργία νέας ανάρτησης</h3>
-                    <p className="text-xs sm:text-sm text-zinc-300 mt-1 break-words">Προσθέστε τίτλο, περιγραφή και εικόνες</p>
-                  </div>
-                </div>
-                {thumbs.length > 0 && (
-                  <div className="relative z-10">
-                    <button
-                      type="button"
-                      onClick={() => setPreview(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border-2 border-white/20 bg-black/50 text-white hover:bg-white/10 transition"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Προεπισκόπηση
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <form onSubmit={createPost} className="space-y-6">
-                <Field label="Τίτλος" value={title} onChange={setTitle} dirty={createTitleDirty} />
-                <Field label="Περιγραφή" textarea value={desc} onChange={setDesc} dirty={createDescDirty} />
-
-                {/* Drop zone */}
-                <div className={createImagesDirty ? "halo rounded-2xl p-2 -m-2" : ""}>
-                  <div className="space-y-4">
-                    <label className="block text-sm font-medium text-zinc-300">Εικόνες</label>
-                    <label
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        addFiles(e.dataTransfer.files)
-                      }}
-                      className="group relative flex h-48 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-white/10 transition-all duration-300 hover:border-white/30 hover:bg-white/5"
-                    >
-                      <input
-                        ref={fileInput}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="sr-only"
-                        onChange={(e) => {
-                          addFiles(e.target.files)
-                          e.target.value = ""
-                        }}
-                      />
-                      <div className="flex flex-col items-center text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                        <div className="p-4 rounded-full bg-black/40 group-hover:bg-black/30 transition-colors mb-4 border border-white/10">
-                          <Upload className="h-8 w-8" />
-                        </div>
-                        <p className="text-lg font-medium mb-1">Σύρετε εικόνες εδώ ή κάντε κλικ για επιλογή</p>
-                        <p className="text-sm text-zinc-500">Υποστήριξη πολλαπλών εικόνων • Μέγιστο 1MB η κάθε μία</p>
+            {/* Creator (appears only after pressing +) */}
+            {showCreator && (
+              <div ref={composeRef}>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className={`group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-zinc-900/60 to-black/60 backdrop-blur-xl p-6 shadow-2xl ${isCreateDirty ? "halo" : ""}`}
+                >
+                  <div className="relative mb-6 flex items-start justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/20">
+                        <Camera className="h-6 w-6" />
                       </div>
-                    </label>
-                  </div>
-                </div>
-
-                {!!thumbs.length && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
-                        <Layers className="h-5 w-5 text-blue-400" />
-                        Επιλεγμένες εικόνες ({thumbs.length})
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => setPreview(true)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/20 text-white/90 hover:bg-white/10 transition"
-                      >
-                        <Eye className="h-4 w-4" /> Προεπισκόπηση
-                      </button>
+                      <div className="min-w-0">
+                        <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight break-words">Δημιουργία νέας ανάρτησης</h3>
+                        <p className="text-xs sm:text-sm text-zinc-300 mt-1 break-words">Προσθέστε τίτλο, περιγραφή και εικόνες</p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {thumbs.map((src, i) => (
-                        <EnhancedThumb
-                          key={i}
-                          src={src}
-                          index={i + 1}
-                          total={thumbs.length}
-                          onOpen={() => setViewer({ open: true, imgs: thumbs, idx: i })}
-                          onRemove={() => removeThumb(i)}
-                        />
-                      ))}
-                    </div>
+                    {thumbs.length > 0 && (
+                      <div className="relative z-10">
+                        <button
+                          type="button"
+                          onClick={() => setPreview(true)}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border-2 border-white/20 bg-black/50 text-white hover:bg-white/10 transition"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Προεπισκόπηση
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </form>
-            </motion.div>
 
-            {/* Posts grid */}
+                  <form onSubmit={createPost} className="space-y-6">
+                    <Field label="Τίτλος" value={title} onChange={setTitle} dirty={createTitleDirty} />
+                    <Field label="Περιγραφή" textarea value={desc} onChange={setDesc} dirty={createDescDirty} />
+
+                    {/* Drop zone */}
+                    <div className={createImagesDirty ? "halo rounded-2xl p-2 -m-2" : ""}>
+                      <div className="space-y-4">
+                        <label className="block text-sm font-medium text-zinc-300">Εικόνες</label>
+                        <label
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            addFiles(e.dataTransfer.files)
+                          }}
+                          className="group relative flex h-48 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-white/10 transition-all duration-300 hover:border-white/30 hover:bg-white/5"
+                        >
+                          <input
+                            ref={fileInput}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="sr-only"
+                            onChange={(e) => {
+                              addFiles(e.target.files)
+                              e.target.value = ""
+                            }}
+                          />
+                          <div className="flex flex-col items-center text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                            <div className="p-4 rounded-full bg-black/40 group-hover:bg-black/30 transition-colors mb-4 border border-white/10">
+                              <Upload className="h-8 w-8" />
+                            </div>
+                            <p className="text-lg font-medium mb-1">Σύρετε εικόνες εδώ ή κάντε κλικ για επιλογή</p>
+                            <p className="text-sm text-zinc-500">Υποστήριξη πολλαπλών εικόνων • Μέγιστο 1MB η κάθε μία</p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {!!thumbs.length && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+                            <Layers className="h-5 w-5 text-blue-400" />
+                            Επιλεγμένες εικόνες ({thumbs.length})
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setPreview(true)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/20 text-white/90 hover:bg-white/10 transition"
+                          >
+                            <Eye className="h-4 w-4" /> Προεπισκόπηση
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                          {thumbs.map((src, i) => (
+                            <EnhancedThumb
+                              key={i}
+                              src={src}
+                              index={i + 1}
+                              total={thumbs.length}
+                              onOpen={() => setViewer({ open: true, imgs: thumbs, idx: i })}
+                              onRemove={() => removeThumb(i)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </form>
+                </motion.div>
+              </div>
+            )}
+
+            {/* Posts grid OR Empty state */}
             {allPosts.length === 0 ? (
-              <EmptyState />
+              <EmptyState onCreate={openComposer} />
             ) : (
               <>
+                {/* mini toolbar (mobile) */}
+                <div className="lg:hidden">
+                  <button
+                    type="button"
+                    onClick={openComposer}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white text-black hover:bg-zinc-100 transition"
+                  >
+                    <PlusCircle className="h-5 w-5" />
+                    Νέα ανάρτηση
+                  </button>
+                </div>
+
                 <section className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                   {allPosts.slice(0, visible).map((p, index) => (
                     <EnhancedPostCard
@@ -1053,7 +1137,6 @@ export default function TrainerPostsPage() {
                       post={p}
                       index={index}
                       onDelete={deletePost}
-                      onOpen={openViewer}
                       onEdit={openEditModal}
                       onViewDetails={openDetailView}
                     />
@@ -1071,7 +1154,7 @@ export default function TrainerPostsPage() {
         visible={showCreatePopup}
         saving={busy}
         onSave={doCreatePost}
-        onCancel={clearCreateForm}
+        onCancel={() => { clearCreateForm(); setShowCreator(false) }}
         saveLabel="Δημοσίευση ανάρτησης"
         cancelLabel="Ακύρωση"
         message="Έχεις μη αποθηκευμένες αλλαγές στη νέα ανάρτηση."

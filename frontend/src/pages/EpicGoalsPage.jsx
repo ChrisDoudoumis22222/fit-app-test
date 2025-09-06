@@ -1,3 +1,4 @@
+// src/pages/EpicGoalsPage.jsx
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -29,7 +30,7 @@ import {
   Briefcase,
   AlertCircle,
   Tag,
-  Image as ImageIcon,
+  Image as ImageIcon, // (kept if you use it later)
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -351,7 +352,7 @@ export default function EpicGoalsPage() {
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       <main className="relative z-10 w-full lg:pl-[var(--side-w)]">
-        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 space-y-8 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:pb-10">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 space-y-8 pb-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] sm:pb-10">
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} className="relative">
             <div className="flex items-center gap-3 sm:gap-6 mb-8">
@@ -363,6 +364,7 @@ export default function EpicGoalsPage() {
               >
                 <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-300" />
               </motion.button>
+
               <div className="min-w-0">
                 <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-3 leading-tight">
                   Οι Στόχοι μου
@@ -370,6 +372,19 @@ export default function EpicGoalsPage() {
                 <p className="text-zinc-400 text-base sm:text-lg lg:text-xl">
                   Το ταξίδι σου προς την κορυφή της απόδοσης
                 </p>
+              </div>
+
+              {/* Mobile-only quick create */}
+              <div className="ml-auto sm:hidden">
+                <motion.button
+                  onClick={() => { setEditingGoal(null); setShowCreateForm(true); }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  aria-label="Νέος Στόχος"
+                  className="p-2 rounded-2xl bg-gradient-to-r from-zinc-700 to-zinc-800 text-white border border-zinc-600/40 shadow-md"
+                >
+                  <Plus className="w-5 h-5" />
+                </motion.button>
               </div>
             </div>
 
@@ -593,8 +608,8 @@ export default function EpicGoalsPage() {
           )}
         </div>
 
-        {/* Sticky mobile "Create" FAB */}
-        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] inset-x-4 z-40 sm:hidden">
+        {/* Sticky mobile "Create" FAB - ALWAYS visible on mobile */}
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] right-4 left-4 z-[200] sm:hidden">
           <motion.button
             onClick={() => {
               setEditingGoal(null);
@@ -602,7 +617,7 @@ export default function EpicGoalsPage() {
             }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-zinc-700 to-zinc-800 text-white font-semibold border border-zinc-600/40 shadow-lg"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-zinc-700 to-zinc-800 text-white font-semibold border border-zinc-600/40 shadow-xl"
           >
             <Plus className="w-5 h-5" />
             Νέος Στόχος
