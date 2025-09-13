@@ -17,8 +17,12 @@
     "start": "concurrently \"npm --prefix backend start\" \"npm --prefix frontend run preview\""
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.2.3",
     "@tabler/icons-react": "^3.34.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "react-day-picker": "^9.8.0",
-    "react-icons": "^5.5.0"
+    "react-icons": "^5.5.0",
+    "tailwind-merge": "^3.3.1"
   }
 }

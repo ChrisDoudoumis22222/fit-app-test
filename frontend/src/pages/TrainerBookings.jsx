@@ -1,3 +1,4 @@
+// src/pages/TrainerBookingsPage.js
 "use client"
 import React, {
   lazy,
@@ -17,7 +18,7 @@ import { useAuth } from "../AuthProvider"
 import { motion, AnimatePresence } from "framer-motion"
 import { supabase } from "../supabaseClient"
 
-/* external quick-book component */
+/* external components */
 import TrainerQuickBook from "../components/TrainerQuickBook"
 
 /* lazy components */
@@ -324,6 +325,155 @@ function BookingPill({ b, onOpen, compact = false }) {
   )
 }
 
+/* ======================= NEW: POPUP BAR (now minimizable, no 'Καθαρισμός') ======================= */
+function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
+  const [items, setItems] = useState([])
+  const [minimized, setMinimized] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  // initial load: ALL pending (no 48h limit), ordered by date & start_time
+  useEffect(() => {
+    let alive = true
+    if (!trainerId) return
+    ;(async () => {
+      try {
+        setLoading(true)
+        const { data, error } = await supabase
+          .from("trainer_bookings")
+          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at") // no price_eur
+          .eq("trainer_id", trainerId)
+          .eq("status", "pending")
+          .order("date", { ascending: true })
+          .order("start_time", { ascending: true })
+          .limit(50)
+        if (error) throw error
+        if (!alive) return
+        setItems(data ?? [])
+        // auto-show if there are items
+        setMinimized((data?.length ?? 0) === 0)
+      } catch {
+        if (!alive) return
+        setItems([])
+        setMinimized(true)
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [trainerId, refreshKey])
+
+  // realtime: push new INSERTs (pending only) for this trainer
+  useEffect(() => {
+    if (!trainerId) return
+    const channel = supabase.channel(`realtime-trainer-bookings-${trainerId}`)
+    channel.on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "trainer_bookings", filter: `trainer_id=eq.${trainerId}` },
+      (payload) => {
+        const b = payload.new
+        if ((b.status || "pending") !== "pending") return
+        setItems((prev) => {
+          const next = [b, ...prev]
+            .sort((a, c) => (a.date === c.date ? a.start_time.localeCompare(c.start_time) : a.date.localeCompare(c.date)))
+            .slice(0, 50)
+          return next
+        })
+        // keep minimized state; don't force open
+      }
+    )
+    // keep popup in sync on status updates (remove if no longer pending)
+    channel.on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "trainer_bookings", filter: `trainer_id=eq.${trainerId}` },
+      (payload) => {
+        const b = payload.new
+        setItems((prev) => {
+          const next = prev.map((x) => (x.id === b.id ? { ...x, ...b } : x))
+          return next.filter((x) => (x.status || "pending") === "pending")
+        })
+      }
+    )
+    channel.subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [trainerId])
+
+  // nothing to render when no items
+  if ((items?.length ?? 0) === 0) return null
+
+  // MINIMIZED: show a small sticky reopen button
+  if (minimized) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          key="new-bookings-min"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: .22, ease: [0.22,1,0.36,1] }}
+          className="sticky top-2 z-40"
+        >
+          <button
+            onClick={() => setMinimized(false)}
+            className="
+              w-fit px-3 sm:px-4 py-2 rounded-full
+              border border-white/10 bg-[rgba(17,18,21,.65)] backdrop-blur-xl
+              shadow-[inset_0_1px_0_rgba(255,255,255,.05),0_8px_20px_rgba(0,0,0,.45)]
+              text-white/90 hover:bg-white/[.08] transition flex items-center gap-2
+            "
+            aria-label="Άνοιγμα νέων κρατήσεων"
+            title="Άνοιγμα νέων κρατήσεων"
+          >
+            <CalendarClock className="h-4 w-4" />
+            <span className="text-sm font-medium">Νέα αιτήματα κράτησης</span>
+            <span className="text-xs text-white/70">({items.length})</span>
+          </button>
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  // EXPANDED: full popup bar (no 'Καθαρισμός' button)
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="new-bookings-popup"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: .22, ease: [0.22,1,0.36,1] }}
+        className="mb-3 md:mb-4 sticky top-2 z-40"
+      >
+        <Glass className="p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-white/90 font-medium">
+              Νέα αιτήματα κράτησης <span className="text-white/55">({items.length})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Close now minimizes instead of hiding permanently */}
+              <Button size="sm" variant="ghost" onClick={() => setMinimized(true)} aria-label="Μίνιμαϊζ">
+                <X className="h-4 w-4 text-white/85" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {loading && <div className="text-xs text-white/60 px-2 py-2">Φόρτωση…</div>}
+            {!loading && items.map((b) => (
+              <div key={b.id} className="min-w-[220px] sm:min-w-[240px]">
+                <BookingPill
+                  b={b}
+                  onOpen={(bb) => onOpenDetails?.(bb)}
+                  compact
+                />
+              </div>
+            ))}
+          </div>
+        </Glass>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 /* ======================= DAY VIEW ======================= */
 function DaySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
   const [day, setDay] = useState(startOfDay(new Date()))
@@ -592,7 +742,7 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
             <div
               key={idx}
               onClick={() => onSelectDate?.(key)}
-              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h-[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)] cursor-pointer hover:ring-1 hover:ring-white/15 transition`}
+              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h=[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)] cursor-pointer hover:ring-1 hover:ring-white/15 transition`}
               title="Κάνε κλικ για γρήγορη κράτηση"
             >
               <div className="flex items-center justify-between mb-0.5 sm:mb-1">
@@ -794,7 +944,6 @@ const Li = ({ icon: Icon, label, value }) => (
 
 /* ======================= STABLE VIEW SLIDE (desktop + mobile) ======================= */
 function CalendarStage({ view, childrenMap }) {
-  // Order for direction (left/right) calculation
   const order = { day: 0, week: 1, month: 2 }
   const [mounted, setMounted] = useState(() => new Set([view]))
   const prev = useRef(view)
@@ -807,7 +956,7 @@ function CalendarStage({ view, childrenMap }) {
   return (
     <div className="relative min-h-[520px] sm:min-h-[560px]">
       {[...mounted].map((k) => {
-        const rel = order[k] - order[view] // negative => left of current
+        const rel = order[k] - order[view]
         const isActive = k === view
         return (
           <motion.div
@@ -815,7 +964,7 @@ function CalendarStage({ view, childrenMap }) {
             initial={false}
             animate={{
               opacity: isActive ? 1 : 0,
-              x: isActive ? 0 : rel * 40,   // slide by index distance
+              x: isActive ? 0 : rel * 40,
               filter: isActive ? "blur(0px)" : "blur(1px)",
             }}
             transition={{ duration: .22, ease: [0.22, 1, 0.36, 1] }}
@@ -984,11 +1133,20 @@ export default function TrainerBookingsPage() {
             </div>
           </motion.div>
 
+          {/* Popup bar with NEW bookings (minimizable) */}
+          <div className="mx-4">
+            <NewBookingsPopup
+              trainerId={resolvedTrainerId}
+              onOpenDetails={openDetails}
+              refreshKey={refreshKey}
+            />
+          </div>
+
           {/* Calendar + details dock + conditional QuickBook */}
           <main className="mx-auto w-full max-w-none px-4 pb-28 md:pb-16">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: easing }}>
               <div className="grid grid-cols-1 lg:grid-cols-[1fr,420px] gap-4 md:gap-6 items-stretch">
-                {/* LEFT: calendar with direction-aware slide (desktop + mobile) */}
+                {/* LEFT: calendar */}
                 <ErrorBoundary>
                   <Suspense fallback={<Spinner />}>
                     <CalendarStage
