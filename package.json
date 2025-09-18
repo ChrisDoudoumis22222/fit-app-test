@@ -3,10 +3,21 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "// dev servers": "",
     "start": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
+    "start:dev": "npm run start",
     "start:prod": "npm --prefix backend run start",
-    "dev": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
-    "build": "npm --prefix frontend run build && npm --prefix backend run build --if-present"
+
+    "// builds": "",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build --if-present",
+
+    "// repo helpers": "",
+    "install:all": "npm ci --prefix frontend && npm ci --prefix backend",
+
+    "// vercel/ci helper (frontend-only build from monorepo root)": "",
+    "vercel-build": "npm ci --prefix frontend && npm run build --prefix frontend"
   },
   "devDependencies": {
     "concurrently": "^9.2.0",
