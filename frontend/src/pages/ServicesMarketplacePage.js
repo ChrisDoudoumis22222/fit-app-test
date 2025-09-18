@@ -1,4 +1,4 @@
-// src/pages/ServicesMarketplacePage.js
+// FILE: src/pages/ServicesMarketplacePage.js
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback, memo, lazy, Suspense } from "react";
@@ -27,6 +27,7 @@ import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
 import UserMenu from "../components/UserMenu";
 import TrainerMenu from "../components/TrainerMenu";
+import GlassmorphicNavbar from "../components/GlassmorphicNavbar"; // ← NEW
 
 // external search + filters UI
 import TrainerSearchNav from "../components/TrainerSearchNav.tsx";
@@ -140,7 +141,7 @@ const within = (dateStr, fromStr, toStr) => {
   if (!d || !f || !t) return false;
   return d >= f && d <= t;
 };
-const todayYMD = () => toYMD(new Date());
+const todayYMD = () => toYMD(new Date()); // ← fixed
 const weekdayKeyFromDate = (date) => {
   const keys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
   return keys[new Date(date).getDay()];
@@ -605,7 +606,7 @@ const TrainerCard = memo(function TrainerCard({
             Προβολή
           </PremiumButton>
 
-          <PremiumButton
+        <PremiumButton
             variant="outline"
             size="default"
             onClick={(e) => {
@@ -874,7 +875,36 @@ export default function ServicesMarketplacePage() {
 
   const { profile, loading } = useAuth();
   const navigate = useNavigate();
-  const MenuComponent = profile?.role === "trainer" ? TrainerMenu : UserMenu;
+
+  // role: prefer explicit trainer; otherwise any signed-in becomes "user"; else "guest"
+  const role = useMemo(() => {
+    if (profile?.role === "trainer") return "trainer";
+    if (profile?.id) return "user";
+    return "guest";
+  }, [profile?.role, profile?.id]);
+
+  const MenuComponent = role === "trainer" ? TrainerMenu : role === "user" ? UserMenu : GlassmorphicNavbar; // guests see the Next-style navbar
+
+  // auth gate helper for guest
+  const [toasts, setToasts] = useState([]);
+  const pushToast = useCallback((message) => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, message }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2200);
+  }, []);
+  const dismissToast = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+
+  const requireAuth = useCallback(
+    (nextPath = window.location.pathname) => {
+      if (!profile?.id) {
+        pushToast("Συνδέσου για να συνεχίσεις.");
+        navigate(`/login?next=${encodeURIComponent(nextPath)}`);
+        return false;
+      }
+      return true;
+    },
+    [profile?.id, navigate, pushToast]
+  );
 
   // data & pagination
   const [items, setItems] = useState([]);
@@ -899,15 +929,6 @@ export default function ServicesMarketplacePage() {
 
   // likes
   const [likedTrainerIds, setLikedTrainerIds] = useState([]);
-
-  // toasts
-  const [toasts, setToasts] = useState([]);
-  const pushToast = useCallback((message) => {
-    const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, message }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2200);
-  }, []);
-  const dismissToast = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
   // booking popup
   const [bookingTrainer, setBookingTrainer] = useState(null);
@@ -950,18 +971,19 @@ export default function ServicesMarketplacePage() {
     }
   }, [likedTrainerIds, profile?.id]);
 
-  // notify + toggle wrapper
+  // notify + toggle wrapper (gated)
   const handleToggleLike = useCallback(
     (trainer) => {
+      if (!requireAuth(`/trainer/${trainer.id}`)) return;
       const wasLiked = likedTrainerIds.includes(trainer.id);
       void toggleLikeTrainer(trainer.id);
-      if (wasLiked) {
-        pushToast("Ο επαγγελματίας αφαιρέθηκε από τα αγαπημένα");
-      } else {
-        pushToast("Ο επαγγελματίας αποθηκεύτηκε στα αγαπημένα");
-      }
+      pushToast(
+        wasLiked
+          ? "Ο επαγγελματίας αφαιρέθηκε από τα αγαπημένα"
+          : "Ο επαγγελματίας αποθηκεύτηκε στα αγαπημένα"
+      );
     },
-    [likedTrainerIds, toggleLikeTrainer, pushToast]
+    [likedTrainerIds, toggleLikeTrainer, pushToast, requireAuth]
   );
 
   // server-side friendly filters
@@ -1118,7 +1140,7 @@ export default function ServicesMarketplacePage() {
     return out;
   }, [excludeVacation, selectedCity, selectedDate, sortBy]);
 
-  // loader (uses itemsRef to avoid adding `items` to deps)
+  // loader
   const loadMore = useCallback(
     async (forcedKey = null, minToAdd = PAGE_SIZE, pageScanCap = MAX_EXTRA_PAGES_PER_LOAD) => {
       const key = forcedKey ?? queryKeyRef.current;
@@ -1182,7 +1204,7 @@ export default function ServicesMarketplacePage() {
     [applyClientFilters, buildProfilesQuery, hydrateTrainers]
   );
 
-  // Reset & first load (no eslint-disable needed)
+  // Reset & first load
   useEffect(() => {
     queryKeyRef.current += 1;
     pageRef.current = 0;
@@ -1265,11 +1287,20 @@ export default function ServicesMarketplacePage() {
           <div className="relative z-10">
             {MenuComponent ? <MenuComponent /> : null}
 
+            {/* EXTRA spacer below fixed guest navbar (desktop-heavy) */}
+            {role === "guest" && (
+              <div aria-hidden className="w-full">
+                {/* small push on mobile, BIG push on desktop */}
+                <div className="h-16 sm:h-20 md:h-28 lg:h-40 xl:h-56" />
+              </div>
+            )}
+
             {/* Edge-to-edge on mobile */}
             <main className="mx-auto w-full px-0 sm:px-6 lg:px-12 xl:px-16 pt-0 sm:pt-6 lg:pt-10 pb-[80px] lg:pb-[100px]">
               {/* Filters / Search */}
               <TrainerSearchNav
                 results={items.length}
+                guest={role === "guest"}
                 onChange={({ search, view, sort, cat, onlyOnline, excludeVacation, selectedDate, selectedCity }) => {
                   setSearchTerm(search ?? "");
                   setViewMode(view ?? "grid");
@@ -1335,7 +1366,14 @@ export default function ServicesMarketplacePage() {
                             badge={{ text: t.is_online ? "Online" : "Δια ζώσης", variant: "orange" }}
                             IconComp={IconComp}
                             onDetails={() => navigate(`/trainer/${t.id}`)}
-                            onBookNow={() => setBookingTrainer(t)}
+                            onBookNow={() => {
+                              if (!profile?.id) {
+                                pushToast("Δημιούργησε λογαριασμό για να κλείσεις κράτηση.");
+                                navigate(`/signup?next=${encodeURIComponent(`/trainer/${t.id}?book=1`)}`);
+                                return;
+                              }
+                              setBookingTrainer(t);
+                            }}
                             liked={likedTrainerIds.includes(t.id)}
                             onToggleLike={() => handleToggleLike(t)}
                           />
@@ -1366,7 +1404,14 @@ export default function ServicesMarketplacePage() {
                           onNavigate={navigate}
                           liked={likedTrainerIds.includes(t.id)}
                           onToggleLike={() => handleToggleLike(t)}
-                          onOpenBooking={(tr) => setBookingTrainer(tr)}
+                          onOpenBooking={(tr) => {
+                            if (!profile?.id) {
+                              pushToast("Συνδέσου ή κάνε εγγραφή για κράτηση.");
+                              navigate(`/signup?next=${encodeURIComponent(`/trainer/${tr.id}?book=1`)}`);
+                              return;
+                            }
+                            setBookingTrainer(tr);
+                          }}
                         />
                       </div>
                     ))}

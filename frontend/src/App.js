@@ -160,13 +160,12 @@ export default function App() {
             <Route path="/posts" element={<ProtectedRoute><AllPostsPage /></ProtectedRoute>} />
             <Route path="/post/:id" element={<ProtectedRoute><PostDetailPage /></ProtectedRoute>} />
             <Route path="/trainer/:trainerId/posts" element={<ProtectedRoute><TrainerPostsViewPage /></ProtectedRoute>} />
-            <Route path="/services" element={<ProtectedRoute><ServicesMarketplacePage /></ProtectedRoute>} />
-            <Route path="/service/:id" element={<ProtectedRoute><ServiceDetailPage /></ProtectedRoute>} />
 
-            {/* ───────── NEW: trainers marketplace + trainer detail (auth required) ───────── */}
-            <Route path="/trainers" element={<ProtectedRoute><TrainersMarketplacePage /></ProtectedRoute>} />
-            {/* NOTE: Your cards navigate to `/trainer/${trainer.id}`. This route will match that */}
-            <Route path="/trainer/:trainerId" element={<ProtectedRoute><TrainerDetailPage /></ProtectedRoute>} />
+            {/* ---------- PUBLIC: services & trainers marketplace + detail ---------- */}
+            <Route path="/services" element={<PublicRoute><ServicesMarketplacePage /></PublicRoute>} />
+            <Route path="/service/:id" element={<PublicRoute><ServiceDetailPage /></PublicRoute>} />
+            <Route path="/trainers" element={<PublicRoute><TrainersMarketplacePage /></PublicRoute>} />
+            <Route path="/trainer/:trainerId" element={<PublicRoute><TrainerDetailPage /></PublicRoute>} />
 
             {/* catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />
