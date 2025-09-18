@@ -3,5 +3,6 @@
   "framework": "create-react-app",
   "installCommand": "npm ci --prefix frontend",
   "buildCommand": "npm run build --prefix frontend",
-  "outputDirectory": "frontend/build"
+  "outputDirectory": "frontend/build",
+  "ignoreCommand": "echo no-ignore"
 }
