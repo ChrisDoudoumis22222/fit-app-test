@@ -1,3 +1,4 @@
+// src/pages/TrainerPostsPage.js
 "use client"
 import React, {
   useState,
@@ -476,10 +477,17 @@ const EnhancedThumb = ({ src, index, total, onOpen, onRemove }) => (
   </motion.div>
 )
 
+/* ---------- ESLint-safe viewer (no disable, stable deps) ---------- */
 function EnhancedViewer({ imgs, idx, onClose }) {
   const [i, setI] = useState(idx)
-  const prev = () => setI((i - 1 + imgs.length) % imgs.length)
-  const next = () => setI((i + 1) % imgs.length)
+
+  const prev = useCallback(() => {
+    setI((v) => (v - 1 + imgs.length) % imgs.length)
+  }, [imgs.length])
+
+  const next = useCallback(() => {
+    setI((v) => (v + 1) % imgs.length)
+  }, [imgs.length])
 
   useEffect(() => {
     const h = (e) => {
@@ -489,8 +497,7 @@ function EnhancedViewer({ imgs, idx, onClose }) {
     }
     window.addEventListener("keydown", h)
     return () => window.removeEventListener("keydown", h)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [i])
+  }, [onClose, prev, next])
 
   return (
     <AnimatePresence>

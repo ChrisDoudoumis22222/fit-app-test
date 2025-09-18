@@ -1,6 +1,8 @@
-// index.js
+// backend/index.js
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import "dotenv/config";
 
 import { supabaseAdmin, supabasePublic } from "./supabaseClient.js";
@@ -9,14 +11,22 @@ import { requireAuth } from "./authMiddleware.js";
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
+// ────────────────────────────────────────────────────────────
+// Core middleware
+// ────────────────────────────────────────────────────────────
+app.set("trust proxy", 1);
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || true, // set to your frontend origin in prod
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: "2mb" }));
 
-/* ────────────────────────────────────────────────────────────
-   Helpers – page catalog + fuzzy search (accent-insensitive)
-   ──────────────────────────────────────────────────────────── */
+// ────────────────────────────────────────────────────────────
+// Helpers – page catalog + fuzzy search (accent-insensitive)
+// ────────────────────────────────────────────────────────────
 const PAGES = [
-  // Trainer app (dashboard + subpages)
   { id: "trainer-home",     label: "Πίνακας (Dashboard)",   href: "/trainer",               tags: ["home", "dashboard", "πινακας", "πίνακας", "trainer", "αρχικη", "αρχική"] },
   { id: "trainer-profile",  label: "Ρυθμίσεις • Πληροφορίες", href: "/trainer#dashboard",   tags: ["settings", "profile", "προφιλ", "προφίλ", "ρυθμισεις", "ρυθμίσεις", "info"] },
   { id: "trainer-avatar",   label: "Ρυθμίσεις • Avatar",     href: "/trainer#avatar",       tags: ["avatar", "εικονα", "εικόνα", "profile photo", "φωτο"] },
@@ -25,18 +35,13 @@ const PAGES = [
   { id: "trainer-bookings", label: "Κρατήσεις",              href: "/trainer/bookings",     tags: ["bookings", "κρατησεις", "κρατήσεις", "ραντεβου", "ραντεβού"] },
   { id: "trainer-payments", label: "Πληρωμές",               href: "/trainer/payments",     tags: ["payments", "πληρωμες", "πληρωμές", "τιμολογια", "τιμολόγια", "χρεωσεις", "χρεώσεις"] },
   { id: "trainer-posts",    label: "Αναρτήσεις μου",         href: "/trainer/posts",        tags: ["posts", "articles", "αναρτησεις", "αναρτήσεις", "blog", "αρθρα", "άρθρα", "content", "αναρτ"] },
-
-  // Public listings / discovery
   { id: "all-posts",        label: "Όλες οι Αναρτήσεις",     href: "/posts",                tags: ["posts", "blog", "ολες οι αναρτησεις", "όλες οι αναρτήσεις", "αναρτ"] },
   { id: "services",         label: "Προπονητές",             href: "/services",             tags: ["trainers", "services", "προπονητες", "προπονητές", "coaches", "marketplace"] },
 ];
 
-/** Safe normalizer: lowercase, strip diacritics, normalize final sigma */
 const stripCombiningMarks = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const norm = (s = "") =>
-  stripCombiningMarks(String(s).toLowerCase())
-    .replace(/ς/g, "σ")
-    .trim();
+  stripCombiningMarks(String(s).toLowerCase()).replace(/ς/g, "σ").trim();
 
 function scorePage(page, qNorm) {
   const label = norm(page.label);
@@ -68,9 +73,15 @@ function searchPagesLocal(q, limit = 6) {
     .map(({ _score, ...rest }) => rest);
 }
 
-/* ────────────────────────────────────────────────────────────
-   1) Sign-Up → DB  (creates auth user + profile row)
-   ──────────────────────────────────────────────────────────── */
+// ────────────────────────────────────────────────────────────
+// Health & basic routes
+// ────────────────────────────────────────────────────────────
+app.get("/api/health", (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+app.get("/", (_req, res) => res.send("Backend up 🚀"));
+
+// ────────────────────────────────────────────────────────────
+// Auth & profile routes
+// ────────────────────────────────────────────────────────────
 app.post("/api/signup", async (req, res) => {
   const {
     email,
@@ -113,21 +124,11 @@ app.post("/api/signup", async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   2) Basic test route (public)
-   ──────────────────────────────────────────────────────────── */
-app.get("/", (_, res) => res.send("Backend up 🚀"));
-
-/* ────────────────────────────────────────────────────────────
-   3) Protected – get my profile (RLS via supabasePublic)
-   ──────────────────────────────────────────────────────────── */
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabasePublic
       .from("profiles")
-      .select(
-        "id, email, role, full_name, avatar_url, diploma_url, specialty, roles, location"
-      )
+      .select("id, email, role, full_name, avatar_url, diploma_url, specialty, roles, location")
       .eq("id", req.user.id)
       .single();
 
@@ -139,9 +140,6 @@ app.get("/api/profile", requireAuth, async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   4) Protected trainer-only sample
-   ──────────────────────────────────────────────────────────── */
 app.get("/api/trainer/secret", requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabasePublic
@@ -151,9 +149,7 @@ app.get("/api/trainer/secret", requireAuth, async (req, res) => {
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
-    if (data?.role !== "trainer") {
-      return res.status(403).json({ error: "Not a trainer" });
-    }
+    if (data?.role !== "trainer") return res.status(403).json({ error: "Not a trainer" });
     res.json({ message: "🎉 trainer-only data" });
   } catch (err) {
     console.error(err);
@@ -161,16 +157,11 @@ app.get("/api/trainer/secret", requireAuth, async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   5) Protected – update my diploma_url (service-role bypass)
-   ──────────────────────────────────────────────────────────── */
 app.post("/api/update-diploma", requireAuth, async (req, res) => {
   const { diploma_url } = req.body;
   const trainerId = req.user.id;
 
-  if (!diploma_url) {
-    return res.status(400).json({ error: "Missing diploma_url" });
-  }
+  if (!diploma_url) return res.status(400).json({ error: "Missing diploma_url" });
 
   try {
     const { error } = await supabaseAdmin
@@ -186,9 +177,9 @@ app.post("/api/update-diploma", requireAuth, async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   6) GOALS – CRUD
-   ──────────────────────────────────────────────────────────── */
+// ────────────────────────────────────────────────────────────
+// GOALS – CRUD
+// ────────────────────────────────────────────────────────────
 app.get("/api/goals", requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
@@ -217,9 +208,7 @@ app.post("/api/goals", requireAuth, async (req, res) => {
     due_date = null,
   } = req.body;
 
-  if (!title) {
-    return res.status(400).json({ error: "title is required" });
-  }
+  if (!title) return res.status(400).json({ error: "title is required" });
 
   try {
     const { data, error } = await supabaseAdmin
@@ -257,9 +246,7 @@ app.patch("/api/goals/:id", requireAuth, async (req, res) => {
       .eq("id", id)
       .single();
     if (getErr) throw getErr;
-    if (!row || row.user_id !== req.user.id) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    if (!row || row.user_id !== req.user.id) return res.status(403).json({ error: "Forbidden" });
 
     const { data, error } = await supabaseAdmin
       .from("goals")
@@ -285,9 +272,7 @@ app.post("/api/goals/:id/complete", requireAuth, async (req, res) => {
       .eq("id", id)
       .single();
     if (getErr) throw getErr;
-    if (!row || row.user_id !== req.user.id) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    if (!row || row.user_id !== req.user.id) return res.status(403).json({ error: "Forbidden" });
 
     const { data, error } = await supabaseAdmin
       .from("goals")
@@ -313,9 +298,7 @@ app.delete("/api/goals/:id", requireAuth, async (req, res) => {
       .eq("id", id)
       .single();
     if (getErr) throw getErr;
-    if (!row || row.user_id !== req.user.id) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    if (!row || row.user_id !== req.user.id) return res.status(403).json({ error: "Forbidden" });
 
     const { error } = await supabaseAdmin.from("goals").delete().eq("id", id);
     if (error) throw error;
@@ -327,10 +310,9 @@ app.delete("/api/goals/:id", requireAuth, async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   7) Public – trainers search (DB)
-   GET /api/search/trainers?q=...&limit=10
-   ──────────────────────────────────────────────────────────── */
+// ────────────────────────────────────────────────────────────
+// Public search – trainers (DB) & pages (local)
+// ────────────────────────────────────────────────────────────
 async function searchTrainersInDb(qRaw, limit) {
   const qTrim = String(qRaw || "").trim();
   if (!qTrim || qTrim.length < 2) return [];
@@ -372,9 +354,7 @@ async function searchTrainersInDb(qRaw, limit) {
     specialty: row.specialty,
     roles: row.roles || [],
     location: row.location,
-    // detail page (may be protected in your app)
     url: `/services/${row.id}`,
-    // always-public landing (list) with preselection
     publicUrl: `/services?trainer=${row.id}`,
   }));
 }
@@ -391,10 +371,6 @@ app.get("/api/search/trainers", async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   8) Public – pages search (in-memory over PAGES)
-   GET /api/search/pages?q=...&limit=6
-   ──────────────────────────────────────────────────────────── */
 app.get("/api/search/pages", async (req, res) => {
   try {
     const q = req.query.q || "";
@@ -407,10 +383,6 @@ app.get("/api/search/pages", async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   9) Public – combined search (pages + trainers)
-   GET /api/search/all?q=...&limitTrainers=8&limitPages=6
-   ──────────────────────────────────────────────────────────── */
 app.get("/api/search/all", async (req, res) => {
   try {
     const q = req.query.q || "";
@@ -429,9 +401,30 @@ app.get("/api/search/all", async (req, res) => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────
-   Start server
-   ──────────────────────────────────────────────────────────── */
-app.listen(PORT, () =>
-  console.log(`✅  Backend running at http://localhost:${PORT}`)
-);
+// ────────────────────────────────────────────────────────────
+/** 404 handler for unknown API routes (before static SPA) */
+// ────────────────────────────────────────────────────────────
+app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+
+// ────────────────────────────────────────────────────────────
+// Serve React build in production (SPA fallback)
+// ────────────────────────────────────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const FRONTEND_BUILD_DIR = path.join(__dirname, "../frontend/build");
+
+app.use(express.static(FRONTEND_BUILD_DIR));
+
+// Let API 404s be handled earlier; everything else -> index.html
+app.get("*", (req, res) => {
+  res.sendFile(path.join(FRONTEND_BUILD_DIR, "index.html"));
+});
+
+// ────────────────────────────────────────────────────────────
+// Start server
+// ────────────────────────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`✅  Backend running at http://localhost:${PORT}`);
+});
+
+export default app;

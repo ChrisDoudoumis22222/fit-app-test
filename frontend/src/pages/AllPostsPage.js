@@ -104,7 +104,50 @@ export default function AllPostsPage() {
   // Defer heavy filtering/sorting while user is typing
   const deferredSearch = useDeferredValue(searchTerm);
 
+  /* ----------------------- data fetch (stable callback) ---------------------- */
+  const fetchPosts = useCallback(
+    async (isRefresh = false) => {
+      try {
+        isRefresh ? setRefreshing(true) : setLoading(true);
+        setError(null);
+
+        const { data, error } = await supabase
+          .from("posts")
+          .select(`
+            id, title, description, image_url, image_urls, created_at, likes, comments_count,
+            trainer:profiles!trainer_id ( id, full_name, email, avatar_url )
+          `)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        const likedKey = `liked_posts_${profile?.id ?? "guest"}`;
+        const liked = JSON.parse(localStorage.getItem(likedKey) || "[]");
+        const prepared = (data || []).map((p) => ({
+          ...p,
+          like_count: p.likes ?? 0,
+          comment_count: p.comments_count ?? 0,
+          is_liked_by_user: liked.includes(p.id),
+        }));
+
+        setAllPosts(prepared);
+        setPage(1);
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [profile?.id]
+  );
+
+  /* -------------------------- infinite scroll IO ---------------------------- */
   useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node) return;
+
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMore && !loadingMore && !loading) {
@@ -113,48 +156,15 @@ export default function AllPostsPage() {
       },
       { rootMargin: "160px" }
     );
-    if (loadMoreRef.current) io.observe(loadMoreRef.current);
-    return () => io.disconnect();
-  }, [hasMore, loadingMore, loading, displayed]);
 
+    io.observe(node);
+    return () => io.disconnect();
+  }, [hasMore, loadingMore, loading, /* stable */ handleLoadMore]);
+
+  /* ----------------------------- initial fetch ------------------------------ */
   useEffect(() => {
     fetchPosts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function fetchPosts(isRefresh = false) {
-    try {
-      isRefresh ? setRefreshing(true) : setLoading(true);
-      setError(null);
-
-      const { data, error } = await supabase
-        .from("posts")
-        .select(`
-          id, title, description, image_url, image_urls, created_at, likes, comments_count,
-          trainer:profiles!trainer_id ( id, full_name, email, avatar_url )
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const liked = JSON.parse(localStorage.getItem(`liked_posts_${profile?.id}`) || "[]");
-      const prepared = (data || []).map((p) => ({
-        ...p,
-        like_count: p.likes ?? 0,
-        comment_count: p.comments_count ?? 0,
-        is_liked_by_user: liked.includes(p.id),
-      }));
-
-      setAllPosts(prepared);
-      setPage(1);
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+  }, [fetchPosts]);
 
   // One memoized pass for filtering + sorting (fast + stable)
   const filteredSortedList = useMemo(() => {
@@ -191,9 +201,10 @@ export default function AllPostsPage() {
 
   // Reset visible slice when source list changes
   useEffect(() => {
+    const initial = filteredSortedList.slice(0, POSTS_PER_PAGE);
     setPage(1);
-    setDisplayed(filteredSortedList.slice(0, POSTS_PER_PAGE));
-    setHasMore(filteredSortedList.length > POSTS_PER_PAGE);
+    setDisplayed(initial);
+    setHasMore(filteredSortedList.length > initial.length);
   }, [filteredSortedList]);
 
   const handleLoadMore = useCallback(() => {
@@ -212,7 +223,10 @@ export default function AllPostsPage() {
   }, [page, hasMore, loadingMore, filteredSortedList, startTransition]);
 
   async function handleLike(postId, isLiked) {
-    if (!profile?.id) return alert("Συνδεθείτε πρώτα");
+    if (!profile?.id) {
+      alert("Συνδεθείτε πρώτα");
+      return;
+    }
     if (likingPosts.has(postId)) return;
 
     setLikingPosts((prev) => new Set(prev).add(postId));
@@ -667,17 +681,17 @@ const PostCard = memo(
             </div>
           </div>
 
-          <h3 className="text-xl font-bold text-zinc-50 line-clamp-2">{post.title}</h3>
-          <p className="text-zinc-300 text-sm line-clamp-3">{post.description}</p>
+        <h3 className="text-xl font-bold text-zinc-50 line-clamp-2">{post.title}</h3>
+        <p className="text-zinc-300 text-sm line-clamp-3">{post.description}</p>
 
-          <div className="flex items-center justify-between pt-4 border-t border-white/10">
-            <div className="flex items-center gap-4">
-              <LikeBtn count={post.like_count} isLiked={isLiked} onClick={like} disabled={isLiking} />
-              <IconBtn icon={MessageCircle} label={post.comment_count} onClick={comment} />
-              <IconBtn icon={Share2} onClick={share} />
-            </div>
-            <IconBtn icon={Eye} onClick={view} />
+        <div className="flex items-center justify-between pt-4 border-t border-white/10">
+          <div className="flex items-center gap-4">
+            <LikeBtn count={post.like_count} isLiked={isLiked} onClick={like} disabled={isLiking} />
+            <IconBtn icon={MessageCircle} label={post.comment_count} onClick={comment} />
+            <IconBtn icon={Share2} onClick={share} />
           </div>
+          <IconBtn icon={Eye} onClick={view} />
+        </div>
         </div>
       </motion.article>
     );
