@@ -18,7 +18,8 @@ import {
   X,
   Home, CalendarClock, CalendarDays,
   Settings as SettingsIcon,
-  Search, CircleHelp,
+  Search, CircleHelp, Heart,          // ← added Heart
+  MoreHorizontal, // ← 3-dots icon
 } from "lucide-react";
 
 /* -------------------------------- Helpers -------------------------------- */
@@ -279,22 +280,26 @@ export default function TrainerMenu() {
     { id: "mark",     label: "Προπονητές",     href: "/services",           icon: ShoppingBag },
     { id: "books",    label: "Κρατήσεις",      href: "/trainer/bookings",   icon: CalendarCheck },  // badge: pending bookings
     { id: "pay",      label: "Πληρωμές",       href: "/trainer/payments",   icon: CreditCard },
+    { id: "likes", label: "Αγαπημένα", href: "/trainer/likes", icon: Heart },        // ✅ new page
     { id: "faq",      label: "FAQ",            href: "/faq",                icon: CircleHelp },
   ];
 
   const navSettings = [
     { id: "profile",  label: "Πληροφορίες", href: "/trainer#dashboard", icon: UserIcon },
     { id: "avatar",   label: "Avatar",      href: "/trainer#avatar",    icon: ImagePlus },
-    { id: "payments", label: "Πληρωμές",    href: "/trainer/payments",  icon: CreditCard },
     { id: "security", label: "Ασφάλεια",    href: "/trainer#security",  icon: ShieldCheck },
   ];
 
+  // MOBILE bottom nav:
+  // - keep first three the same (Home, Schedule, Bookings)
+  // - put Settings where FAQ used to be
+  // - put 3-dots "More" where Settings used to be; clicking opens drawer with all items
   const bottomNav = [
     { href: "/trainer",           label: "Αρχική",    icon: Home },
     { href: "/trainer/schedule",  label: "Πρόγραμμα", icon: CalendarClock },
     { href: "/trainer/bookings",  label: "Κρατήσεις", icon: CalendarDays }, // badge: pending
-    { href: "/faq",               label: "FAQ",       icon: CircleHelp },
-    { href: "/trainer#dashboard", label: "Ρυθμίσεις", icon: SettingsIcon },
+    { href: "/trainer#dashboard", label: "Ρυθμίσεις", icon: SettingsIcon }, // moved into FAQ slot
+    { href: "drawer",             label: "Περισσότερα", icon: MoreHorizontal }, // 3-dots in Settings slot
   ];
 
   const activePath = location.pathname;
@@ -346,7 +351,7 @@ export default function TrainerMenu() {
       {/* -------- SEARCH OVERLAY -------- */}
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {/* -------- MOBILE DRAWER -------- */}
+      {/* -------- MOBILE DRAWER (shows ALL pages) -------- */}
       <MobileDrawer
         open={drawer} setOpen={setDrawer}
         navMain={navMain} navSettings={navSettings}
@@ -618,7 +623,7 @@ function DrawerLinks({ items, activePath, activeHash, close, countForHref }) {
               to={href}
               onClick={close}
               className={`flex min-h-11 items-center gap-3 rounded-xl px-4 text-sm font-medium
-                          ${active ? "bg-white text-black" : "text-gray-300 hover:bg-gray-800"}
+                          ${active ? "bg-white text-black" : "text-gray-300 hover:bg.gray-800 hover:bg-gray-800"}
                           relative`}
             >
               <div className="relative">
@@ -699,7 +704,7 @@ function BottomNav({ items, path, hash, route, drawerOpen, openDrawer, countForH
           <div className="relative z-10 flex w-full items-center justify-between">
             {items.map(({ href, label, icon }) => {
               const active = href === "drawer" ? false : isActiveBottom(path, hash, href);
-              const count = countForHref?.(href) || 0;
+              const count = href === "drawer" ? 0 : (countForHref?.(href) || 0);
               return (
                 <NavBtn
                   key={label}

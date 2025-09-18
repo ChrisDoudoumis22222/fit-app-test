@@ -220,29 +220,45 @@ function AnimatedParticles() {
   );
 }
 
+/** Placeholder(s) */
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
+const FALLBACK_DATA_URI =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240' width='240' height='240'>
+      <defs>
+        <linearGradient id='g' x1='0' x2='0' y1='0' y2='1'>
+          <stop offset='0%' stop-color='#0b0b0b'/>
+          <stop offset='100%' stop-color='#111'/>
+        </linearGradient>
+      </defs>
+      <rect width='100%' height='100%' fill='url(#g)'/>
+      <circle cx='120' cy='100' r='46' fill='#2a2a2a'/>
+      <rect x='50' y='160' width='140' height='40' rx='20' fill='#2a2a2a'/>
+      <text x='120' y='225' fill='#777' font-size='18' text-anchor='middle' font-family='system-ui, sans-serif'>Avatar</text>
+    </svg>`
+  );
+
+/** Always render an <img>, fallback to placeholder -> data URI */
 const LargeAvatarCover = memo(function LargeAvatarCover({ url, alt }) {
-  if (url) {
-    return (
-      <img
-        src={url}
-        loading="lazy"
-        decoding="async"
-        alt={alt || "trainer"}
-        onError={(e) => {
-          e.currentTarget.onerror = null;
-          e.currentTarget.src = AVATAR_PLACEHOLDER;
-        }}
-        className="w-full h-full object-cover"
-      />
-    );
-  }
+  const src = url && String(url).trim() ? url : AVATAR_PLACEHOLDER;
   return (
-    <div className="w-full h-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center">
-      <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
-        <UserIcon className="h-8 w-8 text-white/60" />
-      </div>
-    </div>
+    <img
+      src={src}
+      loading="lazy"
+      decoding="async"
+      alt={alt || "trainer"}
+      onError={(e) => {
+        if (e.currentTarget.dataset.fbk === "1") return;
+        e.currentTarget.dataset.fbk = "1";
+        e.currentTarget.src = AVATAR_PLACEHOLDER;
+        e.currentTarget.onerror = () => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = FALLBACK_DATA_URI;
+        };
+      }}
+      className="w-full h-full object-cover"
+    />
   );
 });
 
@@ -324,6 +340,32 @@ const AvailabilityGrid = memo(function AvailabilityGrid({ availability }) {
   );
 });
 
+/* ------------------------------ Toast / Snackbar ------------------------------ */
+function ToastStack({ toasts, onDismiss }) {
+  return (
+    <div className="fixed inset-x-0 bottom-4 z-[200] flex justify-center px-4 pointer-events-none">
+      <div className="w-full max-w-md space-y-2">
+        <AnimatePresence>
+          {toasts.map((t) => (
+            <motion.div
+              key={t.id}
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 20, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+              className="pointer-events-auto rounded-2xl border border-white/10 bg-black/80 backdrop-blur-md text-white px-4 py-3 shadow-lg"
+              role="status"
+              onClick={() => onDismiss(t.id)}
+            >
+              {t.message}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------ Trainer card ------------------------------ */
 const MAX_TAGS_PREVIEW = 4;
 
@@ -391,9 +433,10 @@ const TrainerCard = memo(function TrainerCard({
       {/* Image */}
       <div className={list ? "relative h-44 lg:h-auto lg:w-64 shrink-0" : "relative h-44"}>
         <LargeAvatarCover url={trainer.avatar_url} alt={trainer.full_name} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        {/* Ensure overlay doesn't block clicks */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
 
-        {/* Favorite */}
+        {/* Favorite (top-left) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -502,30 +545,27 @@ const TrainerCard = memo(function TrainerCard({
 
           {/* Category chip */}
           <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium" data-no-nav>
-            {CatIcon ? <CatIcon className="h-4 w-4" /> : <Tag className="h-4 w-4" />}
+            {CatIcon ? <CatIcon className="h-4 w-4 text-zinc-300" /> : <Tag className="h-4 w-4 text-zinc-300" />}
             {cat?.label || "Γενικός Εκπαιδευτής"}
           </div>
 
-          {/* Tag preview (max 4 + bubble) */}
+          {/* Tag preview */}
           {Array.isArray(trainer.tags) && trainer.tags.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5" data-no-nav>
-              {trainer.tags.slice(0, 4).map((tag) => (
+              {trainer.tags.slice(0, MAX_TAGS_PREVIEW).map((tag) => (
                 <span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-[11px]">
                   {tag}
                 </span>
               ))}
-              {trainer.tags.length > 4 && (
-                <span
-                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-400 text-[11px]"
-                  title={`${trainer.tags.length - 4} περισσότερα`}
-                >
-                  +{trainer.tags.length - 4} περισσότερα
+              {trainer.tags.length > MAX_TAGS_PREVIEW && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-400 text-[11px]">
+                  +{trainer.tags.length - MAX_TAGS_PREVIEW} περισσότερα
                 </span>
               )}
             </div>
           )}
 
-          {/* Price + Duration chips */}
+          {/* Price + Duration */}
           <div className="mt-3 flex flex-wrap items-center gap-2" data-no-nav>
             {typeof trainer.typicalPrice === "number" && trainer.typicalPrice > 0 && (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium">
@@ -635,6 +675,187 @@ const TrainerCard = memo(function TrainerCard({
   );
 });
 
+/* ------------------------------ Card08Lite for grid ------------------------------ */
+function Card08Lite({
+  title = "Modern Design Systems",
+  subtitle = "Explore the fundamentals of contemporary UI design",
+  image = null,
+  badge = { text: "New", variant: "orange" },
+  onDetails,
+  onBookNow,
+  IconComp,
+  liked = false,
+  onToggleLike,
+}) {
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  const handleClick = (e) => {
+    e.preventDefault();
+    setIsFlipped((v) => !v);
+  };
+
+  return (
+    <div className="block w-full group" style={{ perspective: "1000px" }}>
+      <div
+        className={`relative w-full h-[240px] sm:h-[320px] transition-transform duration-500 will-change-transform ${isFlipped ? "[transform:rotateY(180deg)]" : ""}`}
+        onClick={handleClick}
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        {/* Front */}
+        <div
+          className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 shadow-xs"
+          style={{ backfaceVisibility: "hidden" }}
+        >
+          <div className="relative h-full overflow-hidden">
+            <img
+              src={image || AVATAR_PLACEHOLDER}
+              alt={title}
+              loading="lazy"
+              decoding="async"
+              className="object-cover w-full h-full"
+              onError={(e) => {
+                if (e.currentTarget.dataset.fbk === "1") {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = FALLBACK_DATA_URI;
+                  return;
+                }
+                e.currentTarget.dataset.fbk = "1";
+                e.currentTarget.src = AVATAR_PLACEHOLDER;
+              }}
+            />
+
+            {/* Like button (top-left) */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation(); // prevent flip
+                onToggleLike?.();
+              }}
+              className={`absolute top-2.5 left-2.5 h-9 w-9 grid place-items-center rounded-full border transition-all duration-200 hover:scale-110 ${
+                liked
+                  ? "bg-red-500/90 text-white border-white/20"
+                  : "bg-black/60 text-white border-white/15 hover:bg-black/80 backdrop-blur-sm"
+              }`}
+              aria-label={liked ? "Αφαίρεση από αγαπημένα" : "Προσθήκη στα αγαπημένα"}
+              title={liked ? "Αφαίρεση από αγαπημένα" : "Αγαπημένο"}
+            >
+              {liked ? <Heart className="h-5 w-5 fill-current" /> : <Heart className="h-5 w-5" />}
+            </button>
+          </div>
+
+          {/* gradient must not block clicks */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-black/10 sm:from-black/90 sm:via-black/70 sm:to-black/10 pointer-events-none" />
+
+          {/* tiny status badge */}
+          <div className="absolute top-2.5 right-2.5">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white text-zinc-800 shadow-sm border border-zinc-200 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {badge?.text || "New"}
+            </span>
+          </div>
+
+          {/* bottom compact panel */}
+          <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-5">
+            <div
+              className="
+                rounded-xl p-3 sm:p-4
+                border border-white/15
+                bg-white/5
+                shadow-[0_8px_30px_rgba(0,0,0,0.35)]
+                supports-[backdrop-filter]:backdrop-blur-md
+                supports-[backdrop-filter]:bg-white/10
+              "
+              style={{ backdropFilter: "saturate(140%) blur(10px)" }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {IconComp ? (
+                      <IconComp className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-200" />
+                    ) : (
+                      <svg className="w-4 h-4 text-zinc-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z"/>
+                      </svg>
+                    )}
+                    <h3 className="text-[13px] sm:text-lg font-semibold text-white leading-snug line-clamp-1">
+                      {title}
+                    </h3>
+                  </div>
+                  <p className="text-[11px] sm:text-sm text-zinc-100/90 line-clamp-1 sm:line-clamp-2">
+                    {subtitle}
+                  </p>
+                </div>
+
+                <div
+                  className="
+                    p-1.5 sm:p-2 rounded-full shrink-0
+                    border border-white/20
+                    bg-white/10
+                    supports-[backdrop-filter]:bg-white/20
+                    supports-[backdrop-filter]:backdrop-blur-md
+                  "
+                  style={{ backdropFilter: "saturate(140%) blur(10px)" }}
+                >
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17L17 7M17 7H7M17 7V17" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Back */}
+        <div
+          className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 shadow-xs flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 sm:p-6"
+          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+        >
+          <div className="text-center space-y-2 sm:space-y-3 mb-1 sm:mb-2">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto bg-zinc-100 dark:bg-zinc-800 rounded-xl grid place-items-center">
+              {IconComp ? <IconComp className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-600 dark:text-zinc-300" /> : null}
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base sm:text-lg font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-1">{title}</h3>
+              <p className="text-[12px] sm:text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">{subtitle}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 w-full sm:space-y-3">
+            <button
+              onClick={(e) => { e.stopPropagation(); onDetails?.(); }}
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-[12px] sm:text-sm font-medium border transition-colors duration-200 flex items-center justify-center gap-2"
+              style={{ backgroundColor: "#f4f4f5", color: "#18181b", borderColor: "#d4d4d8" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#e4e4e7")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#f4f4f5")}
+            >
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Λεπτομέρειες
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); onBookNow?.(); }}
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-[12px] sm:text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2 bg-black text-white"
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#27272a")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#18181b")}
+              style={{ backgroundColor: "#18181b" }}
+            >
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Κράτηση
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 /* --------------------------------- Page --------------------------------- */
 
 const PAGE_SIZE = 12;
@@ -657,6 +878,9 @@ export default function ServicesMarketplacePage() {
 
   // data & pagination
   const [items, setItems] = useState([]);
+  const itemsRef = useRef(items);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingPage, setLoadingPage] = useState(false);
@@ -676,6 +900,15 @@ export default function ServicesMarketplacePage() {
   // likes
   const [likedTrainerIds, setLikedTrainerIds] = useState([]);
 
+  // toasts
+  const [toasts, setToasts] = useState([]);
+  const pushToast = useCallback((message) => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, message }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2200);
+  }, []);
+  const dismissToast = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+
   // booking popup
   const [bookingTrainer, setBookingTrainer] = useState(null);
 
@@ -689,7 +922,7 @@ export default function ServicesMarketplacePage() {
   const hasMoreRef = useRef(true);
   const loadingRef = useRef(false);
 
-  // likes
+  // likes (bootstrap)
   useEffect(() => {
     (async () => {
       try {
@@ -699,7 +932,9 @@ export default function ServicesMarketplacePage() {
         }
         const { data, error } = await supabase.from("trainer_likes").select("trainer_id").eq("user_id", profile.id);
         if (!error) setLikedTrainerIds((data || []).map((r) => r.trainer_id));
-      } catch {}
+      } catch {
+        // ignore
+      }
     })();
   }, [profile?.id]);
 
@@ -714,6 +949,20 @@ export default function ServicesMarketplacePage() {
       if (!error) setLikedTrainerIds((prev) => [...prev, trainerId]);
     }
   }, [likedTrainerIds, profile?.id]);
+
+  // notify + toggle wrapper
+  const handleToggleLike = useCallback(
+    (trainer) => {
+      const wasLiked = likedTrainerIds.includes(trainer.id);
+      void toggleLikeTrainer(trainer.id);
+      if (wasLiked) {
+        pushToast("Ο επαγγελματίας αφαιρέθηκε από τα αγαπημένα");
+      } else {
+        pushToast("Ο επαγγελματίας αποθηκεύτηκε στα αγαπημένα");
+      }
+    },
+    [likedTrainerIds, toggleLikeTrainer, pushToast]
+  );
 
   // server-side friendly filters
   const buildProfilesQuery = useCallback(() => {
@@ -731,7 +980,6 @@ export default function ServicesMarketplacePage() {
     const qTerm = searchTerm.trim();
     if (qTerm) {
       const s = qTerm.replace(/,/g, "");
-      // search term: name OR location
       q = q.or(`ilike(full_name,%${s}%),ilike(location,%${s}%)`);
     }
 
@@ -752,7 +1000,7 @@ export default function ServicesMarketplacePage() {
     return q;
   }, [catFilter, onlyOnline, searchTerm, sortBy]);
 
-  // merge availability/holidays/reviews + pricing from trainer_pricing + duration from bookings/availability
+  // merge availability/holidays/reviews + pricing + duration
   const hydrateTrainers = useCallback(async (rows) => {
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return [];
@@ -776,26 +1024,11 @@ export default function ServicesMarketplacePage() {
         .order("created_at", { ascending: false }),
     ]);
 
-    const avByTrainer = (avs ?? []).reduce((m, r) => {
-      (m[r.trainer_id] ||= []).push(r);
-      return m;
-    }, {});
-    const holByTrainer = (hols ?? []).reduce((m, r) => {
-      (m[r.trainer_id] ||= []).push(r);
-      return m;
-    }, {});
-    const ratingsByTrainer = (reviews ?? []).reduce((m, r) => {
-      (m[r.trainer_id] ||= []).push(r.rating);
-      return m;
-    }, {});
-    const pricingByTrainer = (pricing ?? []).reduce((m, r) => {
-      m[r.trainer_id] = r;
-      return m;
-    }, {});
-    const bookingsByTrainer = (bookings ?? []).reduce((m, r) => {
-      (m[r.trainer_id] ||= []).push(r);
-      return m;
-    }, {});
+    const avByTrainer = (avs ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r); return m; }, {});
+    const holByTrainer = (hols ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r); return m; }, {});
+    const ratingsByTrainer = (reviews ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r.rating); return m; }, {});
+    const pricingByTrainer = (pricing ?? []).reduce((m, r) => { m[r.trainer_id] = r; return m; }, {});
+    const bookingsByTrainer = (bookings ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r); return m; }, {});
 
     const computeDisplayPrice = (prObj, specialty, isOnline) => {
       if (!prObj) return { price: null, currency: "EUR" };
@@ -804,22 +1037,17 @@ export default function ServicesMarketplacePage() {
       const specOverride = Number(specMap?.[specialty]);
       if (Number.isFinite(specOverride) && specOverride > 0) base = specOverride;
       const discountPct = Number(prObj.online_discount ?? 0);
-      if (isOnline && discountPct > 0) {
-        base = base * (1 - discountPct / 100);
-      }
+      if (isOnline && discountPct > 0) base = base * (1 - discountPct / 100);
       return { price: base > 0 ? base : null, currency: prObj.currency_code || "EUR" };
     };
 
     return rows.map((t) => {
       const trainerReviews = ratingsByTrainer[t.id] || [];
-      const avgRating =
-        trainerReviews.length > 0 ? trainerReviews.reduce((sum, rating) => sum + rating, 0) / trainerReviews.length : 0;
+      const avgRating = trainerReviews.length > 0 ? trainerReviews.reduce((s, r) => s + r, 0) / trainerReviews.length : 0;
 
-      // price from trainer_pricing
       const pr = pricingByTrainer[t.id] || null;
       const { price: typicalPrice, currency: currencyCode } = computeDisplayPrice(pr, t.specialty, t.is_online);
 
-      // duration from bookings, fallback to availability slot lengths
       const bs = bookingsByTrainer[t.id] || [];
       const durFromBookings = bs.map((b) => Number(b.duration_min)).filter((n) => Number.isFinite(n) && n > 0);
       let typicalDurationMin = mode(durFromBookings) ?? median(durFromBookings) ?? null;
@@ -853,9 +1081,9 @@ export default function ServicesMarketplacePage() {
   }, []);
 
   // client filters
-  const matchesCity = (trainerLocation, selectedCity) => {
-    if (!trainerLocation || selectedCity === "all") return true;
-    const city = GREEK_CITIES.find((c) => c.value === selectedCity);
+  const matchesCity = (trainerLocation, cityValue) => {
+    if (!trainerLocation || cityValue === "all") return true;
+    const city = GREEK_CITIES.find((c) => c.value === cityValue);
     if (!city) return false;
     const locationLower = String(trainerLocation).toLowerCase().trim();
     if (locationLower.includes(city.value.toLowerCase())) return true;
@@ -867,9 +1095,7 @@ export default function ServicesMarketplacePage() {
   const applyClientFilters = useCallback((arr) => {
     let out = [...arr];
 
-    if (selectedCity !== "all") {
-      out = out.filter((t) => matchesCity(t.location, selectedCity));
-    }
+    if (selectedCity !== "all") out = out.filter((t) => matchesCity(t.location, selectedCity));
 
     if (excludeVacation) {
       const today = todayYMD();
@@ -887,18 +1113,15 @@ export default function ServicesMarketplacePage() {
       });
     }
 
-    if (sortBy === "rating") {
-      out.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    }
+    if (sortBy === "rating") out.sort((a, b) => (b.rating || 0) - (a.rating || 0));
 
     return out;
   }, [excludeVacation, selectedCity, selectedDate, sortBy]);
 
-  // loader
+  // loader (uses itemsRef to avoid adding `items` to deps)
   const loadMore = useCallback(
     async (forcedKey = null, minToAdd = PAGE_SIZE, pageScanCap = MAX_EXTRA_PAGES_PER_LOAD) => {
       const key = forcedKey ?? queryKeyRef.current;
-
       if (loadingRef.current || !hasMoreRef.current) return;
 
       loadingRef.current = true;
@@ -910,37 +1133,19 @@ export default function ServicesMarketplacePage() {
         let pagesScanned = 0;
         let localNew = [];
 
-        let existingIds = new Set(items.map((t) => t.id));
+        const existingIds = new Set(itemsRef.current.map((t) => t.id));
 
-        while (
-          added < minToAdd &&
-          (hasMoreRef.current || pagesScanned === 0) &&
-          pagesScanned <= pageScanCap
-        ) {
+        while (added < minToAdd && (hasMoreRef.current || pagesScanned === 0) && pagesScanned <= pageScanCap) {
           const from = (pageRef.current + pagesScanned) * PAGE_SIZE;
           const to = from + PAGE_SIZE - 1;
 
-          if (key !== queryKeyRef.current) {
-            loadingRef.current = false;
-            setLoadingPage(false);
-            setInitialLoading(false);
-            return;
-          }
+          if (key !== queryKeyRef.current) break;
 
           let q = buildProfilesQuery().range(from, to);
           const { data: rows, error } = await q;
 
-          if (key !== queryKeyRef.current) {
-            loadingRef.current = false;
-            setLoadingPage(false);
-            setInitialLoading(false);
-            return;
-          }
-
-          if (error) {
-            setErrorMsg(error.message || "Σφάλμα φόρτωσης εκπαιδευτών.");
-            break;
-          }
+          if (key !== queryKeyRef.current) break;
+          if (error) { setErrorMsg(error.message || "Σφάλμα φόρτωσης εκπαιδευτών."); break; }
 
           const pageHasMore = (rows?.length || 0) === PAGE_SIZE;
           if (!pageHasMore) hasMoreRef.current = false;
@@ -974,10 +1179,10 @@ export default function ServicesMarketplacePage() {
         }
       }
     },
-    [applyClientFilters, buildProfilesQuery, hydrateTrainers, items]
+    [applyClientFilters, buildProfilesQuery, hydrateTrainers]
   );
 
-  // Reset & first load
+  // Reset & first load (no eslint-disable needed)
   useEffect(() => {
     queryKeyRef.current += 1;
     pageRef.current = 0;
@@ -991,9 +1196,8 @@ export default function ServicesMarketplacePage() {
     setInitialLoading(true);
 
     const currentKey = queryKeyRef.current;
-    loadMore(currentKey, PAGE_SIZE, RESET_SCAN_CAP);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, sortBy, catFilter, onlyOnline, excludeVacation, selectedDate, selectedCity]);
+    void loadMore(currentKey, PAGE_SIZE, RESET_SCAN_CAP);
+  }, [searchTerm, sortBy, catFilter, onlyOnline, excludeVacation, selectedDate, selectedCity, loadMore]);
 
   // IntersectionObserver
   useEffect(() => {
@@ -1004,7 +1208,7 @@ export default function ServicesMarketplacePage() {
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting && hasMoreRef.current && !loadingRef.current) {
-          loadMore(null, PAGE_SIZE, MAX_EXTRA_PAGES_PER_LOAD);
+          void loadMore(null, PAGE_SIZE, MAX_EXTRA_PAGES_PER_LOAD);
         }
       },
       { rootMargin: "600px 0px" }
@@ -1027,7 +1231,8 @@ export default function ServicesMarketplacePage() {
         <AnimatedParticles />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pt-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch auto-rows-fr">
+          {/* 2 columns on mobile for skeleton too */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
             {Array.from({ length: PAGE_SIZE }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -1107,19 +1312,42 @@ export default function ServicesMarketplacePage() {
                 <Empty search={searchTerm} />
               ) : viewMode === "grid" ? (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 items-stretch auto-rows-fr">
-                    {items.map((t) => (
-                      <TrainerCard
-                        key={t.id}
-                        trainer={t}
-                        onNavigate={navigate}
-                        liked={likedTrainerIds.includes(t.id)}
-                        onToggleLike={() => toggleLikeTrainer(t.id)}
-                        onOpenBooking={(tr) => setBookingTrainer(tr)}
-                      />
-                    ))}
+                  {/* results grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 items-stretch">
+                    {items.map((t) => {
+                      const cat = TRAINER_CATEGORIES.find(c => c.value === t.specialty) || null;
+                      const IconComp = cat?.iconKey ? ICON_BY_KEY[cat.iconKey] : null;
+
+                      return (
+                        <div key={t.id} className="w-full">
+                          <Card08Lite
+                            title={t.full_name}
+                            subtitle={
+                              [
+                                t.location || "—",
+                                cat?.label || "Γενικός Εκπαιδευτής",
+                                (typeof t.typicalPrice === "number" && t.typicalPrice > 0)
+                                  ? `${formatCurrency(t.typicalPrice, t.currencyCode || "EUR")} / συνεδρία`
+                                  : null
+                              ].filter(Boolean).join(" • ")
+                            }
+                            image={t.avatar_url || null}
+                            badge={{ text: t.is_online ? "Online" : "Δια ζώσης", variant: "orange" }}
+                            IconComp={IconComp}
+                            onDetails={() => navigate(`/trainer/${t.id}`)}
+                            onBookNow={() => setBookingTrainer(t)}
+                            liked={likedTrainerIds.includes(t.id)}
+                            onToggleLike={() => handleToggleLike(t)}
+                          />
+                        </div>
+                      );
+                    })}
                     {loadingPage &&
-                      Array.from({ length: Math.min(6, PAGE_SIZE / 2) }).map((_, i) => <SkeletonCard key={`sk-${i}`} />)}
+                      Array.from({ length: Math.min(6, PAGE_SIZE / 2) }).map((_, i) => (
+                        <div key={`sk-${i}`} className="w-full">
+                          <SkeletonCard />
+                        </div>
+                      ))}
                   </div>
 
                   <div ref={sentinelRef} className="h-12" />
@@ -1137,7 +1365,7 @@ export default function ServicesMarketplacePage() {
                           list
                           onNavigate={navigate}
                           liked={likedTrainerIds.includes(t.id)}
-                          onToggleLike={() => toggleLikeTrainer(t.id)}
+                          onToggleLike={() => handleToggleLike(t)}
                           onOpenBooking={(tr) => setBookingTrainer(tr)}
                         />
                       </div>
@@ -1165,6 +1393,9 @@ export default function ServicesMarketplacePage() {
           </div>
         </div>
       </div>
+
+      {/* Toasts */}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
       {/* Lazy external booking popup */}
       <AnimatePresence>

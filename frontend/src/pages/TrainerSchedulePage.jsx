@@ -1,3 +1,4 @@
+// src/pages/TrainerSchedulePage.jsx
 "use client";
 
 import React, {
@@ -13,8 +14,27 @@ import React, {
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
-// Lazy-load the big side menu
-const TrainerMenuLazy = lazy(() => import("../components/TrainerMenu"));
+
+/* ----------------------- safe lazy (timeout + retry) ----------------------- */
+function retry(fn, retries = 2, delay = 800) {
+  return fn().catch((err) =>
+    retries > 0
+      ? new Promise((res) => setTimeout(res, delay)).then(() => retry(fn, retries - 1, delay))
+      : Promise.reject(err)
+  );
+}
+function withTimeout(promise, ms = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("lazy-timeout")), ms)),
+  ]);
+}
+function safeLazy(importer) {
+  return lazy(() => withTimeout(retry(importer)));
+}
+
+const TrainerMenuLazy = safeLazy(() => import("../components/TrainerMenu"));
+
 import {
   CalendarDays,
   Clock,
@@ -22,7 +42,6 @@ import {
   Save,
   Wifi,
   WifiOff,
-  Plus,
   Trash2,
   Sun,
   CheckCircle2,
@@ -62,7 +81,6 @@ const deepEqual = (a, b) => {
   }
 };
 
-// mount children only when scrolled into view (perf)
 function LazySection({ children, rootMargin = "200px" }) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -96,7 +114,16 @@ function LazySection({ children, rootMargin = "200px" }) {
 
 /* -------------------------- Premium UI Components ------------------------- */
 
-function PremiumCard({ title, subtitle, icon, action, children, className = "", gradient = false, dirty = false }) {
+function PremiumCard({
+  title,
+  subtitle,
+  icon,
+  action,
+  children,
+  className = "",
+  gradient = false,
+  dirty = false,
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -132,7 +159,13 @@ function PremiumCard({ title, subtitle, icon, action, children, className = "", 
   );
 }
 
-function PremiumButton({ children, variant = "primary", size = "default", className = "", ...props }) {
+function PremiumButton({
+  children,
+  variant = "primary",
+  size = "default",
+  className = "",
+  ...props
+}) {
   const baseClasses =
     "inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none";
   const variants = {
@@ -146,7 +179,7 @@ function PremiumButton({ children, variant = "primary", size = "default", classN
     sm: "px-4 py-2 text-sm rounded-xl",
     default: "px-6 py-3 text-sm rounded-2xl",
     lg: "px-8 py-4 text-base rounded-2xl",
-    xl: "px-6 py-4 text-base rounded-2xl", // for mobile bottom sheet
+    xl: "px-6 py-4 text-base rounded-2xl",
   };
   return (
     <button {...props} className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`}>
@@ -155,7 +188,14 @@ function PremiumButton({ children, variant = "primary", size = "default", classN
   );
 }
 
-function PremiumInput({ label, icon, className = "", dirty = false, rounded = "rounded-2xl", ...props }) {
+function PremiumInput({
+  label,
+  icon,
+  className = "",
+  dirty = false,
+  rounded = "rounded-2xl",
+  ...props
+}) {
   return (
     <div className={["space-y-2", dirty ? `halo p-2 -m-2 ${rounded}` : ""].join(" ")}>
       {label && (
@@ -177,15 +217,21 @@ function PremiumInput({ label, icon, className = "", dirty = false, rounded = "r
   );
 }
 
-function PremiumSwitch({ checked, onChange, label, dirty = false }) {
+function PremiumSwitch({
+  checked,
+  onChange,
+  label,
+  dirty = false,
+  disabled = false,
+}) {
   return (
     <div className={["flex items-center gap-3", dirty ? "halo p-2 -m-2 rounded-full" : ""].join(" ")}>
       <button
         type="button"
-        onClick={() => onChange(!checked)}
+        onClick={() => !disabled && onChange(!checked)}
         className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white/20 ${
           checked ? "bg-green-500" : "bg-zinc-700"
-        }`}
+        } ${disabled ? "opacity-70 cursor-not-allowed" : ""}`}
       >
         <span
           className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
@@ -206,12 +252,20 @@ export default function TrainerSchedulePage() {
   const [loading, setLoading] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
 
-  const [modal, setModal] = useState({ open: false, type: "success", title: "", message: "" });
+  const [modal, setModal] = useState({
+    open: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
   const showSuccess = useCallback(
     (msg, title = "Η ενέργεια ολοκληρώθηκε") => setModal({ open: true, type: "success", title, message: msg }),
     []
   );
-  const showError = useCallback((msg, title = "Σφάλμα") => setModal({ open: true, type: "error", title, message: msg }), []);
+  const showError = useCallback(
+    (msg, title = "Σφάλμα") => setModal({ open: true, type: "error", title, message: msg }),
+    []
+  );
 
   // availability
   const [selectedDays, setSelectedDays] = useState(() => new Set(ALL_DAYS.map((d) => d.key)));
@@ -234,13 +288,23 @@ export default function TrainerSchedulePage() {
   const [holidayReason, setHolidayReason] = useState("");
   const [holidays, setHolidays] = useState([]);
   const [editingHolidayId, setEditingHolidayId] = useState(null);
-  const [holidayInitial, setHolidayInitial] = useState({ from: todayStr, to: todayStr, reason: "", editingId: null });
+  const [holidayInitial, setHolidayInitial] = useState({
+    from: todayStr,
+    to: todayStr,
+    reason: "",
+    editingId: null,
+  });
 
   // generation
   const [generating, setGenerating] = useState(false);
 
-  // pricing (state + original for cancel)
-  const defaultPricing = { basePrice: 50, onlineDiscount: 10, specialtyPricing: {}, paymentMethods: { cash: true, card: true } };
+  // pricing
+  const defaultPricing = {
+    basePrice: 50,
+    onlineDiscount: 10,
+    specialtyPricing: {},
+    paymentMethods: { cash: false, card: true },
+  };
   const [pricing, setPricing] = useState(defaultPricing);
   const [pricingInitial, setPricingInitial] = useState(defaultPricing);
 
@@ -248,11 +312,9 @@ export default function TrainerSchedulePage() {
   const effectiveSlot = slotPreset === "custom" ? Number(slotCustom || 0) : Number(slotPreset || 0);
   const effectiveBreak = breakPreset === "custom" ? Number(breakCustom || 0) : Number(breakPreset || 0);
 
-  // ---- field-level dirty flags (for glow) ----
+  // ---- dirty flags ----
   const basePriceDirty = pricing.basePrice !== pricingInitial.basePrice;
   const onlineDiscountDirty = pricing.onlineDiscount !== pricingInitial.onlineDiscount;
-  const cashDirty = !!pricing.paymentMethods?.cash !== !!pricingInitial.paymentMethods?.cash;
-  const cardDirty = !!pricing.paymentMethods?.card !== !!pricingInitial.paymentMethods?.card;
 
   const selectedDaysDirty = useMemo(() => {
     if (!availabilityInitial) return false;
@@ -273,113 +335,158 @@ export default function TrainerSchedulePage() {
   const holidayReasonDirty = (holidayReason || "") !== (holidayInitial.reason || "");
   const holidayEditingDirty = editingHolidayId !== holidayInitial.editingId;
 
-  // ---- section-level dirty flags ----
-  const availabilityDirty =
-    selectedDaysDirty || startTimeDirty || endTimeDirty || isOnlineDirty;
-
-  const scheduleDirty =
-    slotDirty || breakDirty;
-
-  const pricingDirty =
-    basePriceDirty || onlineDiscountDirty || cashDirty || cardDirty || !deepEqual(pricing.specialtyPricing, pricingInitial.specialtyPricing);
-
-  const holidayDirty =
-    holidayFromDirty || holidayToDirty || holidayReasonDirty || holidayEditingDirty;
+  const availabilityDirty = selectedDaysDirty || startTimeDirty || endTimeDirty || isOnlineDirty;
+  const scheduleDirty = slotDirty || breakDirty;
+  const pricingDirty = basePriceDirty || onlineDiscountDirty;
+  const holidayDirty = holidayFromDirty || holidayToDirty || holidayReasonDirty || holidayEditingDirty;
 
   const somethingDirty = availabilityDirty || scheduleDirty || pricingDirty || holidayDirty;
   const dirtyCount =
     (availabilityDirty ? 1 : 0) + (scheduleDirty ? 1 : 0) + (pricingDirty ? 1 : 0) + (holidayDirty ? 1 : 0);
 
+  /* ------------------------ init guards ------------------------ */
+  const initializedRef = useRef(false);
+  const lastTrainerIdRef = useRef(null);
+
   /* ------------------------ effects / data load ------------------------ */
+  // eslint-disable-next-line
   useEffect(() => {
     if (!profileLoaded || !profile?.id) return;
 
-    if (typeof profile.is_online === "boolean") setIsOnline(!!profile.is_online);
+    if (initializedRef.current && lastTrainerIdRef.current === profile.id) return;
+
+    let aborted = false;
+    initializedRef.current = true;
+    lastTrainerIdRef.current = profile.id;
+
+    const allowHydrate = !somethingDirty;
 
     (async () => {
-      // schedule settings
-      const { data: settings } = await supabase
-        .from("trainer_schedule_settings")
-        .select("*")
-        .eq("trainer_id", profile.id)
-        .single();
-      let slotVal = 60;
-      let breakVal = 0;
-      if (settings) {
-        slotVal = Number(settings.slot_minutes || 60);
-        breakVal = Number(settings.break_minutes || 0);
-        if ([30, 45, 60, 90].includes(slotVal)) {
-          setSlotPreset(slotVal);
-          setSlotCustom(slotVal);
+      try {
+        if (typeof profile.is_online === "boolean" && !isOnlineDirty) setIsOnline(!!profile.is_online);
+
+        const { data: settings } = await supabase
+          .from("trainer_schedule_settings")
+          .select("*")
+          .eq("trainer_id", profile.id)
+          .maybeSingle();
+
+        if (aborted) return;
+
+        let slotVal = Number(settings?.slot_minutes ?? 60);
+        let breakVal = Number(settings?.break_minutes ?? 0);
+
+        if (allowHydrate) {
+          if (SLOT_PRESETS.includes(slotVal)) {
+            setSlotPreset(slotVal);
+            setSlotCustom(slotVal);
+          } else {
+            setSlotPreset("custom");
+            setSlotCustom(slotVal);
+          }
+          if (BREAK_PRESETS.includes(breakVal)) {
+            setBreakPreset(breakVal);
+            setBreakCustom(breakVal);
+          } else {
+            setBreakPreset("custom");
+            setBreakCustom(breakVal);
+          }
+          setScheduleInitial({ slot: slotVal, breakMin: breakVal });
         } else {
-          setSlotPreset("custom");
-          setSlotCustom(slotVal);
+          if (!scheduleInitial) setScheduleInitial({ slot: slotVal, breakMin: breakVal });
         }
-        if ([0, 5, 10, 15, 30].includes(breakVal)) {
-          setBreakPreset(breakVal);
-          setBreakCustom(breakVal);
+
+        const { data: availData } = await supabase
+          .from("trainer_availability")
+          .select("*")
+          .eq("trainer_id", profile.id);
+
+        if (aborted) return;
+
+        if (Array.isArray(availData) && availData.length > 0) {
+          const days = new Set(availData.map((r) => r.weekday));
+          const minStart = availData.map((r) => r.start_time).sort()[0] || "08:00";
+          const maxEnd = availData.map((r) => r.end_time).sort().slice(-1)[0] || "21:00";
+          const online = availData.some((r) => !!r.is_online);
+
+          if (allowHydrate) {
+            setSelectedDays(days);
+            setStartTime(minStart);
+            setEndTime(maxEnd);
+            setIsOnline(online);
+          }
+          setAvailabilityInitial({ days: Array.from(days), startTime: minStart, endTime: maxEnd, isOnline: online });
         } else {
-          setBreakPreset("custom");
-          setBreakCustom(breakVal);
+          const init = {
+            days: ALL_DAYS.map((d) => d.key),
+            startTime: "08:00",
+            endTime: "21:00",
+            isOnline: !!profile.is_online,
+          };
+          if (allowHydrate) {
+            setSelectedDays(new Set(init.days));
+            setStartTime(init.startTime);
+            setEndTime(init.endTime);
+            setIsOnline(init.isOnline);
+          }
+          setAvailabilityInitial(init);
         }
+
+        const { data: holData } = await supabase
+          .from("trainer_holidays")
+          .select("*")
+          .eq("trainer_id", profile.id)
+          .order("starts_on", { ascending: false });
+
+        if (aborted) return;
+
+        if (allowHydrate) setHolidays(holData || []);
+        setHolidayInitial({ from: todayStr, to: todayStr, reason: "", editingId: null });
+      } catch (e) {
+        if (!aborted) showError("Αποτυχία αρχικοποίησης. Προσπάθησε ξανά.");
+        console.error(e);
       }
-      setScheduleInitial({ slot: slotVal, breakMin: breakVal });
-
-      // availability
-      const { data: availData } = await supabase
-        .from("trainer_availability")
-        .select("*")
-        .eq("trainer_id", profile.id);
-
-      if (Array.isArray(availData) && availData.length > 0) {
-        const days = new Set(availData.map((r) => r.weekday));
-        const minStart = availData.map((r) => r.start_time).sort()[0] || "08:00";
-        const maxEnd = availData.map((r) => r.end_time).sort().slice(-1)[0] || "21:00";
-        const online = availData.some((r) => !!r.is_online);
-        setSelectedDays(days);
-        setStartTime(minStart);
-        setEndTime(maxEnd);
-        setIsOnline(online);
-        setAvailabilityInitial({ days: Array.from(days), startTime: minStart, endTime: maxEnd, isOnline: online });
-      } else {
-        const init = {
-          days: ALL_DAYS.map((d) => d.key),
-          startTime: "08:00",
-          endTime: "21:00",
-          isOnline: !!profile.is_online,
-        };
-        setAvailabilityInitial(init);
-      }
-
-      // holidays list
-      const { data: holData } = await supabase
-        .from("trainer_holidays")
-        .select("*")
-        .eq("trainer_id", profile.id)
-        .order("starts_on", { ascending: false });
-      setHolidays(holData || []);
-      setHolidayInitial({ from: todayStr, to: todayStr, reason: "", editingId: null });
     })();
-  }, [profileLoaded, profile?.id, todayStr]);
 
-  // load pricing from DB
+    return () => {
+      aborted = true;
+    };
+    // intentionally minimal deps to avoid clobbering local edits
+  }, [profileLoaded, profile?.id, todayStr]); // <-- reverted to minimal
+
+  // eslint-disable-next-line
   useEffect(() => {
     if (!profile?.id) return;
-    loadPricing(profile.id);
-  }, [profile?.id]);
+    let aborted = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("trainer_pricing").select("*").eq("trainer_id", profile.id).maybeSingle();
+        if (aborted) return;
+        if (error) console.warn("trainer_pricing error:", error);
+        const incoming = {
+          basePrice: Number(data?.base_price ?? defaultPricing.basePrice),
+          onlineDiscount: Number(data?.online_discount ?? defaultPricing.onlineDiscount),
+          specialtyPricing: data?.specialty_pricing ?? {},
+          paymentMethods: { cash: false, card: true },
+        };
+        if (!(basePriceDirty || onlineDiscountDirty)) setPricing(incoming);
+        setPricingInitial(incoming);
+      } catch (e) {
+        if (!aborted) console.error(e);
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, [profile?.id]); // <-- minimal again
 
-  async function loadPricing(trainerId) {
-    const { data, error } = await supabase.from("trainer_pricing").select("*").eq("trainer_id", trainerId).single();
-    if (error || !data) {
-      setPricing(defaultPricing);
-      setPricingInitial(defaultPricing);
-      return;
-    }
+  async function loadPricingFresh(trainerId) {
+    const { data } = await supabase.from("trainer_pricing").select("*").eq("trainer_id", trainerId).maybeSingle();
     const incoming = {
-      basePrice: Number(data.base_price ?? 0),
-      onlineDiscount: Number(data.online_discount ?? 0),
-      specialtyPricing: data.specialty_pricing ?? {},
-      paymentMethods: data.payment_methods ?? { cash: true, card: true },
+      basePrice: Number(data?.base_price ?? defaultPricing.basePrice),
+      onlineDiscount: Number(data?.online_discount ?? defaultPricing.onlineDiscount),
+      specialtyPricing: data?.specialty_pricing ?? {},
+      paymentMethods: { cash: false, card: true },
     };
     setPricing(incoming);
     setPricingInitial(incoming);
@@ -404,15 +511,23 @@ export default function TrainerSchedulePage() {
     }
     const base = Number(pricing.basePrice ?? 0);
     const disc = Number(pricing.onlineDiscount ?? 0);
-    if (base < 0) return showError("Η βασική τιμή δεν μπορεί να είναι αρνητική.");
-    if (disc < 0 || disc > 50) return showError("Η έκπτωση Online πρέπει να είναι 0–50%.");
+    if (Number.isNaN(base) || base < 0) {
+      showError("Η βασική τιμή δεν μπορεί να είναι αρνητική.");
+      return false;
+    }
+    if (Number.isNaN(disc) || disc < 0 || disc > 50) {
+      showError("Η έκπτωση Online πρέπει να είναι 0–50%.");
+      return false;
+    }
+
+    const paymentMethods = { cash: false, card: true };
 
     const payload = {
       trainer_id: profile.id,
       base_price: base,
       online_discount: disc,
       specialty_pricing: pricing.specialtyPricing ?? {},
-      payment_methods: pricing.paymentMethods ?? { cash: true, card: true },
+      payment_methods: paymentMethods,
       updated_at: new Date().toISOString(),
     };
 
@@ -421,12 +536,14 @@ export default function TrainerSchedulePage() {
       showError("Αποτυχία αποθήκευσης τιμών: " + (error.message || JSON.stringify(error)));
       return false;
     }
+
     setPricingInitial({
       basePrice: base,
       onlineDiscount: disc,
       specialtyPricing: payload.specialty_pricing,
-      paymentMethods: payload.payment_methods,
+      paymentMethods,
     });
+    setPricing((p) => ({ ...p, paymentMethods }));
     return true;
   }
 
@@ -449,6 +566,7 @@ export default function TrainerSchedulePage() {
     }
 
     const trainerId = profile.id;
+
     const { error: delErr } = await supabase.from("trainer_availability").delete().eq("trainer_id", trainerId);
     if (delErr) {
       showError("Αποτυχία καθαρισμού παλιών εγγραφών.");
@@ -556,6 +674,7 @@ export default function TrainerSchedulePage() {
   /* ----------------------- Save All / Cancel All ----------------------- */
 
   async function handleSaveAll() {
+    if (savingAll) return;
     setSavingAll(true);
     try {
       const results = [];
@@ -564,7 +683,10 @@ export default function TrainerSchedulePage() {
       if (scheduleDirty) results.push(await saveSchedule());
       if (holidayDirty) results.push(await saveHoliday());
       const ok = results.every(Boolean);
-      if (ok) showSuccess("Όλες οι αλλαγές αποθηκεύτηκαν.", "Επιτυχής αποθήκευση");
+      if (ok) {
+        showSuccess("Όλες οι αλλαγές αποθηκεύτηκαν.", "Επιτυχής αποθήκευση");
+        if (profile?.id) await loadPricingFresh(profile.id);
+      }
     } finally {
       setSavingAll(false);
     }
@@ -580,16 +702,16 @@ export default function TrainerSchedulePage() {
         setIsOnline(!!availabilityInitial.isOnline);
       }
       if (scheduleInitial) {
-        const s = scheduleInitial.slot;
-        const b = scheduleInitial.breakMin;
-        if ([30, 45, 60, 90].includes(s)) {
+        const s = Number(scheduleInitial.slot);
+        const b = Number(scheduleInitial.breakMin);
+        if (SLOT_PRESETS.includes(s)) {
           setSlotPreset(s);
           setSlotCustom(s);
         } else {
           setSlotPreset("custom");
           setSlotCustom(s);
         }
-        if ([0, 5, 10, 15, 30].includes(b)) {
+        if (BREAK_PRESETS.includes(b)) {
           setBreakPreset(b);
           setBreakCustom(b);
         } else {
@@ -607,191 +729,208 @@ export default function TrainerSchedulePage() {
   /* ----------------------- Slots generator ----------------------- */
   async function generateOpenSlotsForFuture(trainerId, horizonDays = GENERATION_HORIZON_DAYS) {
     setGenerating(true);
-    {
-      const { error: tableErr } = await supabase
-        .from("trainer_open_slots")
-        .select("trainer_id", { count: "exact", head: true })
-        .limit(1);
-      if (tableErr) {
-        setGenerating(false);
-        showError("Ο πίνακας 'trainer_open_slots' δεν είναι διαθέσιμος ή δεν έχεις δικαιώματα.\n" + errText(tableErr));
-        return;
-      }
-    }
-    const [{ data: avail, error: aErr }, { data: settings, error: sErr }, { data: hols, error: hErr }] = await Promise.all([
-      supabase.from("trainer_availability").select("weekday,start_time,end_time,is_online").eq("trainer_id", trainerId),
-      supabase.from("trainer_schedule_settings").select("*").eq("trainer_id", trainerId).single(),
-      supabase.from("trainer_holidays").select("starts_on,ends_on").eq("trainer_id", trainerId),
-    ]);
-    if (aErr || sErr || hErr) {
-      setGenerating(false);
-      showError("Σφάλμα ανάκτησης ρυθμίσεων/διαθεσιμότητας/αδειών: " + [aErr, sErr, hErr].filter(Boolean).map(errText).join(" • "));
-      return;
-    }
-    const slotMin = Math.max(15, Number(settings?.slot_minutes || effectiveSlot || 60));
-    const brkMin = Math.max(0, Number(settings?.break_minutes || effectiveBreak || 0));
-    const step = Math.max(5, slotMin + brkMin);
-    const availability = Array.isArray(avail) ? avail : [];
-    const holidayList = Array.isArray(hols) ? hols : [];
-    const start = new Date();
-    const end = dateAddDays(start, horizonDays - 1);
-    const startISO = dateISO(start);
-    const endISO = dateISO(end);
-    const { data: bookings, error: bErr } = await supabase
-      .from("trainer_bookings")
-      .select("date,start_time,end_time,status,break_before_min,break_after_min")
-      .eq("trainer_id", trainerId)
-      .gte("date", startISO)
-      .lte("date", endISO)
-      .in("status", ["pending", "accepted"]);
-    if (bErr) {
-      setGenerating(false);
-      showError("Σφάλμα ανάκτησης κρατήσεων: " + errText(bErr));
-      return;
-    }
-    const toMinutesLoc = (hhmm) => {
-      const [h, m] = hhmm.split(":").map(Number);
-      return h * 60 + m;
-    };
-    const minutesToTimeLoc = (mins) => {
-      const h = Math.floor(mins / 60);
-      const m = mins % 60;
-      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-    };
-    const conflict = (dateStr, sT, eT) => {
-      const sMin = toMinutesLoc(sT);
-      const eMin = toMinutesLoc(eT);
-      return (bookings || [])
-        .filter((b) => b.date === dateStr)
-        .some((b) => {
-          const bs = toMinutesLoc(b.start_time) - (Number(b.break_before_min) || 0);
-          const be = toMinutesLoc(b.end_time) + (Number(b.break_after_min) || 0);
-          return sMin < be && eMin > bs;
-        });
-    };
-    const rows = [];
-    for (let i = 0; i < horizonDays; i++) {
-      const d = dateAddDays(start, i);
-      const ds = dateISO(d);
-      const wd = new Date(ds).getDay();
-      const wk = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][wd];
-      const inHoliday = holidayList.some((h) => ds >= h.starts_on && ds <= h.ends_on);
-      if (inHoliday) continue;
-      const todaysBlocks = availability.filter((a) => a.weekday === wk);
-      if (!todaysBlocks.length) continue;
-      for (const b of todaysBlocks) {
-        let cur = toMinutesLoc(b.start_time);
-        const endM = toMinutesLoc(b.end_time);
-        while (cur + slotMin <= endM) {
-          const s = minutesToTimeLoc(cur);
-          const e = minutesToTimeLoc(cur + slotMin);
-          if (!conflict(ds, s, e))
-            rows.push({ trainer_id: trainerId, date: ds, start_time: s, end_time: e, is_online: !!b.is_online, status: "open" });
-          cur += step;
+    try {
+      {
+        const { error: tableErr } = await supabase
+          .from("trainer_open_slots")
+          .select("trainer_id", { count: "exact", head: true })
+          .limit(1);
+        if (tableErr) {
+          showError("Ο πίνακας 'trainer_open_slots' δεν είναι διαθέσιμος ή δεν έχεις δικαιώματα.\n" + errText(tableErr));
+          return;
         }
       }
-    }
-    if (rows.length === 0) {
-      setGenerating(false);
-      showSuccess("Δεν βρέθηκαν νέα slots για δημιουργία (ίσως είσαι σε άδεια ή όλα είναι κλεισμένα).");
-      return;
-    }
-    const chunkSize = 500;
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
-      const { error } = await supabase.from("trainer_open_slots").upsert(chunk, { onConflict: "trainer_id,date,start_time" });
-      if (error) {
-        setGenerating(false);
-        showError("Σφάλμα δημιουργίας μελλοντικών slots: " + errText(error));
+      const [{ data: avail, error: aErr }, { data: settings, error: sErr }, { data: hols, error: hErr }] = await Promise.all([
+        supabase.from("trainer_availability").select("weekday,start_time,end_time,is_online").eq("trainer_id", trainerId),
+        supabase.from("trainer_schedule_settings").select("*").eq("trainer_id", trainerId).maybeSingle(),
+        supabase.from("trainer_holidays").select("starts_on,ends_on").eq("trainer_id", trainerId),
+      ]);
+      if (aErr || sErr || hErr) {
+        showError(
+          "Σφάλμα ανάκτησης ρυθμίσεων/διαθεσιμότητας/αδειών: " + [aErr, sErr, hErr].filter(Boolean).map(errText).join(" • ")
+        );
         return;
       }
+      const slotMin = Math.max(15, Number(settings?.slot_minutes ?? effectiveSlot ?? 60));
+      const brkMin = Math.max(0, Number(settings?.break_minutes ?? effectiveBreak ?? 0));
+      const step = Math.max(5, slotMin + brkMin);
+      const availability = Array.isArray(avail) ? avail : [];
+      const holidayList = Array.isArray(hols) ? hols : [];
+      const start = new Date();
+      const end = dateAddDays(start, horizonDays - 1);
+      const startISO = dateISO(start);
+      const endISO = dateISO(end);
+      const { data: bookings, error: bErr } = await supabase
+        .from("trainer_bookings")
+        .select("date,start_time,end_time,status,break_before_min,break_after_min")
+        .eq("trainer_id", trainerId)
+        .gte("date", startISO)
+        .lte("date", endISO)
+        .in("status", ["pending", "accepted"]);
+      if (bErr) {
+        showError("Σφάλμα ανάκτησης κρατήσεων: " + errText(bErr));
+        return;
+      }
+      const toMinutesLoc = (hhmm) => {
+        const [h, m] = hhmm.split(":").map(Number);
+        return h * 60 + m;
+      };
+      const minutesToTimeLoc = (mins) => {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      };
+      const conflict = (dateStr, sT, eT) => {
+        const sMin = toMinutesLoc(sT);
+        const eMin = toMinutesLoc(eT);
+        return (bookings || [])
+          .filter((b) => b.date === dateStr)
+          .some((b) => {
+            const bs = toMinutesLoc(b.start_time) - (Number(b.break_before_min) || 0);
+            const be = toMinutesLoc(b.end_time) + (Number(b.break_after_min) || 0);
+            return sMin < be && eMin > bs;
+          });
+      };
+      const rows = [];
+      for (let i = 0; i < horizonDays; i++) {
+        const d = dateAddDays(start, i);
+        const ds = dateISO(d);
+        const wd = new Date(ds).getDay();
+        const wk = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][wd];
+        const inHoliday = holidayList.some((h) => ds >= h.starts_on && ds <= h.ends_on);
+        if (inHoliday) continue;
+        const todaysBlocks = availability.filter((a) => a.weekday === wk);
+        if (!todaysBlocks.length) continue;
+        for (const b of todaysBlocks) {
+          let cur = toMinutesLoc(b.start_time);
+          const endM = toMinutesLoc(b.end_time);
+          while (cur + slotMin <= endM) {
+            const s = minutesToTimeLoc(cur);
+            const e = minutesToTimeLoc(cur + slotMin);
+            if (!conflict(ds, s, e))
+              rows.push({ trainer_id: trainerId, date: ds, start_time: s, end_time: e, is_online: !!b.is_online, status: "open" });
+            cur += step;
+          }
+        }
+      }
+      if (rows.length === 0) {
+        showSuccess("Δεν βρέθηκαν νέα slots για δημιουργία (ίσως είσαι σε άδεια ή όλα είναι κλεισμένα).");
+        return;
+      }
+      const chunkSize = 500;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize);
+        const { error } = await supabase.from("trainer_open_slots").upsert(chunk, { onConflict: "trainer_id,date,start_time" });
+        if (error) {
+          showError("Σφάλμα δημιουργίας μελλοντικών slots: " + errText(error));
+          return;
+        }
+      }
+      showSuccess(`Δημιουργήθηκαν ανοικτά ραντεβού (${rows.length}) για τους επόμενους ${horizonDays} ημέρες.`);
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
-    showSuccess(`Δημιουργήθηκαν ανοικτά ραντεβού (${rows.length}) για τους επόμενους ${horizonDays} ημέρες.`);
   }
 
   /* ------------------------------- render ----------------------------- */
 
   return (
-    <>
-      {/* GLOBAL SIZE VARS + safe-area padding + halo CSS */}
-      <style jsx global>{`
+  <>
+    <style jsx global>{`
+      :root {
+        --side-w: 0px;
+        --nav-h: 64px;
+      }
+      @media (min-width: 640px) {
         :root {
-          --side-w: 0px;
-          --nav-h: 64px;
+          --nav-h: 72px;
         }
-        @media (min-width: 640px) {
-          :root {
-            --nav-h: 72px;
-          }
-        }
-        @media (min-width: 1024px) {
-          :root {
-            --side-w: 280px;
-            --nav-h: 0px;
-          }
-        }
-        @media (min-width: 1280px) {
-          :root {
-            --side-w: 320px;
-          }
-        }
-        .safe-bottom {
-          padding-bottom: max(16px, env(safe-area-inset-bottom));
-        }
+      }
 
-        /* ===== Silvery circular halo (animated conic ring) ===== */
-        @property --angle {
-          syntax: "<angle>";
-          inherits: false;
-          initial-value: 0deg;
+      
+      @media (min-width: 1024px) {
+        :root {
+          --side-w: 280px;
+          --nav-h: 0px;
         }
-        @keyframes halo-spin {
-          to { --angle: 360deg; }
+      }
+      @media (min-width: 1280px) {
+        :root {
+          --side-w: 320px;
         }
-        .halo {
-          position: relative;
-          isolation: isolate; /* keep halo under content */
+      }
+      .safe-bottom {
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+      }
+      @property --angle {
+        syntax: "<angle>";
+        inherits: false;
+        initial-value: 0deg;
+      }
+      @keyframes halo-spin {
+        to {
+          --angle: 360deg;
         }
-        .halo::before {
-          content: "";
-          position: absolute;
-          inset: -3px;
-          border-radius: inherit;
-          padding: 3px; /* ring thickness */
-          background:
-            conic-gradient(from var(--angle),
-              rgba(255,255,255,0.92) 0%,
-              rgba(190,190,190,0.28) 18%,
-              rgba(255,255,255,0.92) 36%,
-              rgba(190,190,190,0.28) 54%,
-              rgba(255,255,255,0.92) 72%,
-              rgba(190,190,190,0.28) 90%,
-              rgba(255,255,255,0.92) 100%);
-          -webkit-mask:
-            linear-gradient(#000 0 0) content-box,
-            linear-gradient(#000 0 0);
-          -webkit-mask-composite: xor;
-                  mask-composite: exclude;
-          animation: halo-spin 8s linear infinite;
-          opacity: 0.85;
-          z-index: -1;
-          pointer-events: none;
-        }
-        .halo::after {
-          content: "";
-          position: absolute;
-          inset: -12px;
-          border-radius: inherit;
-          background:
-            radial-gradient(closest-side, rgba(255,255,255,0.18), rgba(255,255,255,0.06) 40%, transparent 70%);
-          filter: blur(8px);
-          z-index: -2;
-          pointer-events: none;
-        }
-      `}</style>
+      }
+      .halo {
+        position: relative;
+        isolation: isolate;
+      }
+      .halo::before {
+        content: "";
+        position: absolute;
+        inset: -3px;
+        border-radius: inherit;
+        padding: 3px;
+        background: conic-gradient(
+          from var(--angle),
+          rgba(255, 255, 255, 0.92) 0%,
+          rgba(190, 190, 190, 0.28) 18%,
+          rgba(255, 255, 255, 0.92) 36%,
+          rgba(190, 190, 190, 0.28) 54%,
+          rgba(255, 255, 255, 0.92) 72%,
+          rgba(190, 190, 190, 0.28) 90%,
+          rgba(255, 255, 255, 0.92) 100%
+        );
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        animation: halo-spin 8s linear infinite;
+        opacity: 0.85;
+        z-index: -1;
+        pointer-events: none;
+      }
+      .halo::after {
+        content: "";
+        position: absolute;
+        inset: -12px;
+        border-radius: inherit;
+        background: radial-gradient(
+          closest-side,
+          rgba(255, 255, 255, 0.18),
+          rgba(255, 255, 255, 0.06) 40%,
+          transparent 70%
+        );
+        filter: blur(8px);
+        z-index: -2;
+        pointer-events: none;
+      }
 
-      {/* Background behind EVERYTHING */}
+      /* ✅ Make date & time picker icons white */
+      input[type="date"]::-webkit-calendar-picker-indicator,
+      input[type="time"]::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        opacity: 0.8;
+      }
+
+      /* Firefox */
+      input[type="date"],
+      input[type="time"] {
+        color-scheme: dark;
+      }
+    `}</style>
+
+
       <div className="fixed inset-0 -z-50 bg-black">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_50%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -802,9 +941,7 @@ export default function TrainerSchedulePage() {
       </Suspense>
 
       <div className="relative min-h-screen overflow-x-hidden">
-        {/* left padding only when side menu is visible; top padding on mobile for fixed top nav */}
         <div className="lg:pl-[calc(var(--side-w)+8px)] pl-0 lg:pt-0 pt-[var(--nav-h)] transition-[padding]">
-          {/* add bottom padding for mobile bottom sheet space */}
           <main className="mx-auto max-w-screen-2xl 2xl:max-w-[1700px] w-full px-3 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 pb-[160px]">
             <motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative">
               <div className="flex flex-col gap-3 sm:gap-4">
@@ -814,7 +951,7 @@ export default function TrainerSchedulePage() {
                   </h1>
                   <p className="text-sm sm:text-lg text-zinc-300 break-words">Διαχείριση διαθεσιμότητας και τιμών συνεδριών</p>
                   <div className="flex items-center gap-2 text-xs sm:text-sm text-zinc-400">
-                    <CalendarDays className="h-4 w-4 shrink-0" />
+                    <CalendarDays className="h-4 w-4 text-white" />
                     <span>Ζώνη ώρας: Ελλάδα (UTC+3)</span>
                   </div>
                 </div>
@@ -830,7 +967,6 @@ export default function TrainerSchedulePage() {
               </div>
             )}
 
-            {/* Sign-in guard */}
             {!hasTrainer && profileLoaded && (
               <PremiumCard
                 title="Απαιτείται σύνδεση"
@@ -841,7 +977,6 @@ export default function TrainerSchedulePage() {
               </PremiumCard>
             )}
 
-            {/* ======= CONTENT ======= */}
             {hasTrainer ? (
               <div className="space-y-6 sm:space-y-8">
                 {/* Row 1: Availability + Pricing */}
@@ -858,7 +993,7 @@ export default function TrainerSchedulePage() {
                       action={
                         <PremiumButton
                           variant="outline"
-                          onClick={() => generateOpenSlotsForFuture(profile.id)}
+                          onClick={() => profile?.id && generateOpenSlotsForFuture(profile.id)}
                           disabled={generating}
                           className="max-sm:hidden"
                         >
@@ -888,7 +1023,7 @@ export default function TrainerSchedulePage() {
                                   className={`w-full justify-center px-4 py-2 rounded-2xl text-sm font-semibold shadow-sm ring-1 transition ${
                                     active
                                       ? "bg-white text-black ring-white/30 shadow-white/20"
-                                      : "bg-white/5 text-white/90 ring-white/10 hover:bg-white/10 hover:ring-white/20"
+                                      : "bg-white/5 text-white/90 ring-white/10 hover:bg:white/10 hover:ring-white/20"
                                   }`}
                                 >
                                   {d.label}
@@ -987,50 +1122,25 @@ export default function TrainerSchedulePage() {
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-zinc-800/20 p-4 sm:p-6">
-                          <h4 className="font-semibold text-white mb-4">Μέθοδοι Πληρωμής</h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {[
-                              { key: "cash", title: "Μετρητά", sub: "Cash payments", iconPath: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z", dirty: cashDirty },
-                              { key: "card", title: "Κάρτα", sub: "Card payments", iconPath: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z", dirty: cardDirty },
-                            ].map((m) => (
-                              <div
-                                key={m.key}
-                                className={[
-                                  "flex items-center justify-between p-4 rounded-xl bg-black/50 border",
-                                  m.dirty ? "halo" : "border-white/10",
-                                ].join(" ")}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
-                                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={m.iconPath} />
-                                    </svg>
-                                  </div>
-                                  <div>
-                                    <div className="font-medium text-white">{m.title}</div>
-                                    <div className="text-sm text-zinc-400">{m.sub}</div>
-                                  </div>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!pricing.paymentMethods[m.key]}
-                                    onChange={(e) =>
-                                      setPricing((p) => ({
-                                        ...p,
-                                        paymentMethods: { ...p.paymentMethods, [m.key]: e.target.checked },
-                                      }))
-                                    }
-                                    className="sr-only peer"
-                                  />
-                                  <div
-                                    className="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:bg-green-500 peer-checked:after:bg-white relative 
-    after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white 
-    after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"
-                                  ></div>
-                                </label>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+                                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                </svg>
                               </div>
-                            ))}
+                              <div>
+                                <div className="font-medium text-white">Κάρτα</div>
+                                <div className="text-sm text-zinc-400">Οι πληρωμές γίνονται αποκλειστικά με κάρτα.</div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-semibold text-white/80 px-2 py-1 rounded-full border border-white/20 bg-black/40">
+                                Υποχρεωτικό
+                              </span>
+                              <PremiumSwitch checked={true} onChange={() => {}} disabled />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1058,7 +1168,9 @@ export default function TrainerSchedulePage() {
                                 key={mins}
                                 onClick={() => setSlotPreset(mins)}
                                 className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                                  slotPreset === mins ? "bg-white text-black shadow-lg" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                  slotPreset === mins
+                                    ? "bg-white text-black shadow-lg"
+                                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text:white"
                                 }`}
                               >
                                 {mins} λεπτά
@@ -1082,14 +1194,16 @@ export default function TrainerSchedulePage() {
                         </div>
 
                         <div className={breakDirty ? "halo rounded-2xl p-2 -m-2" : ""}>
-                          <label className="text-sm font-medium text-white mb-3 block">Διάλειμμα</label>
+                          <label className="text-sm font-medium text:white mb-3 block">Διάλειμμα</label>
                           <div className="grid grid-cols-2 gap-2">
                             {BREAK_PRESETS.map((mins) => (
                               <button
                                 key={mins}
                                 onClick={() => setBreakPreset(mins)}
                                 className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                                  breakPreset === mins ? "bg-zinc-200 text-black shadow-lg" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                  breakPreset === mins
+                                    ? "bg-zinc-200 text-black shadow-lg"
+                                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text:white"
                                 }`}
                               >
                                 {mins} λεπτά
@@ -1112,7 +1226,7 @@ export default function TrainerSchedulePage() {
                           )}
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-zinc-800/20 p-4">
+                        <div className="rounded-2xl border border:white/10 bg-zinc-800/20 p-4">
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-zinc-400">Διάρκεια:</span>
@@ -1241,7 +1355,7 @@ export default function TrainerSchedulePage() {
         </div>
       </div>
 
-      {/* Floating global Save/Cancel bar (responsive for mobile) */}
+      {/* Floating global Save/Cancel bar */}
       <AnimatePresence>
         {somethingDirty && (
           <motion.div
@@ -1251,13 +1365,13 @@ export default function TrainerSchedulePage() {
             transition={{ type: "spring", stiffness: 280, damping: 28 }}
             className="fixed z-50 left-0 right-0 bottom-0 sm:bottom-4"
           >
-            {/* mobile: full width bottom sheet; desktop: centered pill */}
             <div className="sm:hidden w-full bg-gradient-to-br from-zinc-900/95 to-black/95 border-t border-white/10 safe-bottom px-4 pt-3 pb-4 shadow-[0_-6px_24px_rgba(0,0,0,0.6)]">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-zinc-300">
                   <Sparkles className="h-5 w-5" />
                   <span className="text-sm">
-                    Έχεις <span className="font-semibold text-white">{dirtyCount}</span> μη αποθηκευμένη{dirtyCount === 1 ? "" : "ς"} αλλαγ{dirtyCount === 1 ? "ή" : "ές"}.
+                    Έχεις <span className="font-semibold text-white">{dirtyCount}</span> μη αποθηκευμένη{dirtyCount === 1 ? "" : "ς"} αλλαγ
+                    {dirtyCount === 1 ? "ή" : "ές"}.
                   </span>
                 </div>
               </div>
@@ -1278,7 +1392,8 @@ export default function TrainerSchedulePage() {
                     <div className="flex items-center gap-2 text-zinc-300">
                       <Sparkles className="h-5 w-5" />
                       <span className="text-sm">
-                        Έχεις <span className="font-semibold text-white">{dirtyCount}</span> μη αποθηκευμένη{dirtyCount === 1 ? "" : "ς"} αλλαγ{dirtyCount === 1 ? "ή" : "ές"}.
+                        Έχεις <span className="font-semibold text-white">{dirtyCount}</span> μη αποθηκευμένη{dirtyCount === 1 ? "" : "ς"} αλλαγ
+                        {dirtyCount === 1 ? "ή" : "ές"}.
                       </span>
                     </div>
                     <div className="flex-1" />
@@ -1294,7 +1409,6 @@ export default function TrainerSchedulePage() {
                 </div>
               </div>
             </div>
-
           </motion.div>
         )}
       </AnimatePresence>

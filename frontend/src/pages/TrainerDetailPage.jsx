@@ -7,7 +7,6 @@ import { motion, useScroll, useTransform, AnimatePresence, useInView } from "fra
 import {
   ArrowLeft,
   Wifi,
-  CheckCircle2,
   Clock,
   ChevronUp,
   Calendar,
@@ -24,8 +23,6 @@ import {
   Award,
   BadgeCheck,
   ExternalLink,
-  Edit2,
-  Trash2,
   CreditCard,
   Banknote,
   Share2,
@@ -128,7 +125,10 @@ const DEFAULT_AVATAR_DATA_URI =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500"><rect width="100%" height="100%" fill="%2318181b"/><circle cx="200" cy="180" r="80" fill="%2327272a"/><rect x="80" y="290" width="240" height="130" rx="65" fill="%2327272a"/></svg>'
 
 const hasImage = (s) =>
-  typeof s === "string" && s.trim() !== "" && s.trim().toLowerCase() !== "null" && s.trim().toLowerCase() !== "undefined"
+  typeof s === "string" &&
+  s.trim() !== "" &&
+  s.trim().toLowerCase() !== "null" &&
+  s.trim().toLowerCase() !== "undefined"
 
 const safeAvatar = (url) => (url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : "")
 
@@ -536,9 +536,7 @@ function ProfileSideCard({
           <div className="lg:hidden absolute top-3 left-1/2 -translate-x-1/2 w-[92%] flex flex-col items-center gap-2 text-center">
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-white">
               <span className={`h-2.5 w-2.5 rounded-full ${data.is_online ? "bg-green-400" : "bg-zinc-400"}`} />
-              <span className="text-xs font-medium">
-                {data.is_online ? "Διαθέσιμος" : "Μη διαθέσιμος"}
-              </span>
+              <span className="text-xs font-medium">{data.is_online ? "Διαθέσιμος" : "Μη διαθέσιμος"}</span>
             </span>
 
             <h1 className="px-3 py-1 rounded-lg bg-black/50 backdrop-blur-md border border-white/10 text-white text-lg font-semibold leading-tight drop-shadow-md line-clamp-2">
@@ -566,7 +564,10 @@ function ProfileSideCard({
           {data.full_name || "Προπονητής"}
           {hasDiploma && (
             <span title="Verified diploma" className="align-middle inline-block">
-              <BadgeCheck className="inline-block ml-2 h-5 w-5 text-blue-400 align-middle" aria-label="Verified diploma" />
+              <BadgeCheck
+                className="inline-block ml-2 h-5 w-5 text-blue-400 align-middle"
+                aria-label="Verified diploma"
+              />
             </span>
           )}
         </h1>
@@ -622,7 +623,8 @@ function ProfileSideCard({
             <div className="hidden lg:flex flex-wrap items-center gap-2">
               {typeof priceInfo.typicalPrice === "number" && priceInfo.typicalPrice > 0 && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/50 border border-zinc-700/50 text-zinc-200 text-xs">
-                  <Banknote className="h-4 w-4" /> {formatCurrency(priceInfo.typicalPrice, priceInfo.currencyCode || "EUR")} / συνεδρία
+                  <Banknote className="h-4 w-4" />{" "}
+                  {formatCurrency(priceInfo.typicalPrice, priceInfo.currencyCode || "EUR")} / συνεδρία
                 </span>
               )}
               {priceInfo.typicalDurationMin ? (
@@ -1078,7 +1080,11 @@ function PremiumReviews({ trainerId, stats }) {
   const handleDeleteReview = async (reviewId) => {
     if (!confirm("Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την κριτική;")) return
     try {
-      const { error } = await supabase.from("trainer_reviews").delete().eq("id", reviewId).eq("user_id", session.user.id)
+      const { error } = await supabase
+        .from("trainer_reviews")
+        .delete()
+        .eq("id", reviewId)
+        .eq("user_id", session.user.id)
       if (error) throw error
       setReviews(reviews.filter((r) => r.id !== reviewId))
       alert("Η κριτική διαγράφηκε επιτυχώς!")
@@ -1095,17 +1101,24 @@ function PremiumReviews({ trainerId, stats }) {
       <div className="w-full px-[20px] sm:px-[30px] lg:px-[60px] xl:px-[80px]">
         <ScrollReveal>
           <div className="text-center mb-12 lg:mb-16">
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extralight text-white mb-4 lg:mb-6 tracking-tight">Κριτικές</h2>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extralight text-white mb-4 lg:mb-6 tracking-tight">
+              Κριτικές
+            </h2>
             <div className="flex items-center justify-center gap-2 sm:gap-4 mb-3 sm:mb-4">
               <div className="flex items-center gap-2">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className={`w-5 h-5 ${i < Math.floor(stats.avgRating) ? "text-slate-300 fill-current" : "text-slate-700"}`} />
+                  <Star
+                    key={i}
+                    className={`w-5 h-5 ${i < Math.floor(stats.avgRating) ? "text-slate-300 fill-current" : "text-slate-700"}`}
+                  />
                 ))}
               </div>
               <span className="text-2xl font-extralight text-white">{stats.avgRating.toFixed(1)}</span>
               <span className="text-slate-400 text-sm sm:text-base">({stats.reviewsCount} κριτικές)</span>
             </div>
-            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">Αυθεντικές κριτικές από ικανοποιημένους πελάτες</p>
+            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+              Αυθεντικές κριτικές από ικανοποιημένους πελάτες
+            </p>
           </div>
         </ScrollReveal>
 
@@ -1120,10 +1133,30 @@ function PremiumReviews({ trainerId, stats }) {
 function StatsSection({ data, bookingsCount = 0, avgRating = 0, reviewsCount = 0 }) {
   const successRate = bookingsCount > 0 ? Math.min(95, Math.round(bookingsCount * 0.85 + Math.random() * 10)) : 0
   const stats = [
-    { icon: Users, value: bookingsCount > 0 ? `${bookingsCount}+` : "0", label: "Ολοκληρωμένες συνεδρίες", color: "from-blue-500 to-blue-600" },
-    { icon: Trophy, value: data.experience_years ? `${data.experience_years}` : "<1", label: "Χρόνια εμπειρίας", color: "from-yellow-500 to-yellow-600" },
-    { icon: Target, value: successRate > 0 ? `${successRate}%` : "N/A", label: "Ποσοστό επιτυχίας", color: "from-green-500 to-green-600" },
-    { icon: Star, value: avgRating > 0 ? avgRating.toFixed(1) : "N/A", label: "Μέσος όρος αξιολόγησης", color: "from-purple-500 to-purple-600" },
+    {
+      icon: Users,
+      value: bookingsCount > 0 ? `${bookingsCount}+` : "0",
+      label: "Ολοκληρωμένες συνεδρίες",
+      color: "from-blue-500 to-blue-600",
+    },
+    {
+      icon: Trophy,
+      value: data.experience_years ? `${data.experience_years}` : "<1",
+      label: "Χρόνια εμπειρίας",
+      color: "from-yellow-500 to-yellow-600",
+    },
+    {
+      icon: Target,
+      value: successRate > 0 ? `${successRate}%` : "N/A",
+      label: "Ποσοστό επιτυχίας",
+      color: "from-green-500 to-green-600",
+    },
+    {
+      icon: Star,
+      value: avgRating > 0 ? avgRating.toFixed(1) : "N/A",
+      label: "Μέσος όρος αξιολόγησης",
+      color: "from-purple-500 to-purple-600",
+    },
   ]
   return (
     <PremiumCard>
@@ -1138,7 +1171,9 @@ function StatsSection({ data, bookingsCount = 0, avgRating = 0, reviewsCount = 0
           {stats.map((stat, index) => (
             <ScrollReveal key={index} delay={index * 0.1}>
               <div className="text-center p-4 lg:p-6 rounded-xl bg-zinc-800/30 border border-zinc-700/50">
-                <div className={`w-12 h-12 lg:w-16 lg:h-16 mx-auto mb-3 rounded-full bg-gradient-to-r ${stat.color} flex items-center justify-center`}>
+                <div
+                  className={`w-12 h-12 lg:w-16 lg:h-16 mx-auto mb-3 rounded-full bg-gradient-to-r ${stat.color} flex items-center justify-center`}
+                >
                   <stat.icon className="h-6 w-6 lg:h-8 lg:w-8 text-zinc-200" />
                 </div>
                 <div className="text-2xl lg:text-3xl font-bold text-zinc-200 mb-1">{stat.value}</div>
@@ -1203,7 +1238,9 @@ export default function TrainerDetailPage() {
         setError("")
         const { data: p, error: e1 } = await supabase
           .from("profiles")
-          .select("id, full_name, avatar_url, bio, specialty, roles, location, is_online, experience_years, certifications, diploma_url, created_at, email")
+          .select(
+            "id, full_name, avatar_url, bio, specialty, roles, location, is_online, experience_years, certifications, diploma_url, created_at, email",
+          )
           .eq("id", trainerIdParam)
           .single()
 
@@ -1219,12 +1256,11 @@ export default function TrainerDetailPage() {
           return
         }
 
-        const [
-          { data: av, error: e2 },
-          { data: hol, error: e3 },
-          { data: pm, error: e4 },
-        ] = await Promise.all([
-          supabase.from("trainer_availability").select("weekday, start_time, end_time, is_online").eq("trainer_id", trainerIdParam),
+        const [{ data: av, error: e2 }, { data: hol, error: e3 }, { data: pm, error: e4 }] = await Promise.all([
+          supabase
+            .from("trainer_availability")
+            .select("weekday, start_time, end_time, is_online")
+            .eq("trainer_id", trainerIdParam),
           supabase.from("trainer_holidays").select("starts_on, ends_on, reason").eq("trainer_id", trainerIdParam),
           supabase.from("trainer_payment_methods").select("method, is_enabled").eq("trainer_id", trainerIdParam),
         ])
@@ -1239,8 +1275,14 @@ export default function TrainerDetailPage() {
         setAccepts({ cash: acceptsCash, card: acceptsCard })
 
         setData(p)
-        setAvailability((av || []).sort((a, b) => ALL_DAYS.findIndex((d) => d.key === a.weekday) - ALL_DAYS.findIndex((d) => d.key === b.weekday)))
-        setHolidays((hol || []).sort((a, b) => new Date(`${a.starts_on}T00:00:00`) - new Date(`${b.starts_on}T00:00:00`)))
+        setAvailability(
+          (av || []).sort(
+            (a, b) => ALL_DAYS.findIndex((d) => d.key === a.weekday) - ALL_DAYS.findIndex((d) => d.key === b.weekday),
+          ),
+        )
+        setHolidays(
+          (hol || []).sort((a, b) => new Date(`${a.starts_on}T00:00:00`) - new Date(`${b.starts_on}T00:00:00`)),
+        )
       } catch {
         if (alive) setError("Κάτι πήγε στραβά.")
       } finally {
@@ -1301,7 +1343,7 @@ export default function TrainerDetailPage() {
           let base = Number(prObj.base_price ?? 0)
           const specMap =
             prObj.specialty_pricing && typeof prObj.specialty_pricing === "object" ? prObj.specialty_pricing : null
-          const specOverride = specMap ? Number(specMap[data.specialty]) : NaN
+          const specOverride = specMap ? Number(specMap[data.specialty]) : Number.NaN
           if (Number.isFinite(specOverride) && specOverride > 0) base = specOverride
           const discountPct = Number(prObj.online_discount ?? 0)
           if (isOnline && discountPct > 0) base = base * (1 - discountPct / 100)
@@ -1328,10 +1370,15 @@ export default function TrainerDetailPage() {
   }, [data?.id, data?.specialty, data?.is_online, data?.created_at, availability])
 
   const todayISO = useMemo(() => localDateISO(0), [])
-  const currentVacation = useMemo(() => (holidays || []).find((h) => within(todayISO, h.starts_on, h.ends_on)) || null, [holidays, todayISO])
+  const currentVacation = useMemo(
+    () => (holidays || []).find((h) => within(todayISO, h.starts_on, h.ends_on)) || null,
+    [holidays, todayISO],
+  )
 
-  const scrollToBooking = () => document.getElementById("booking-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
-  const scrollToReviews = () => document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
+  const scrollToBooking = () =>
+    document.getElementById("booking-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
+  const scrollToReviews = () =>
+    document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
 
   if (initialLoading) {
     return (
@@ -1341,7 +1388,10 @@ export default function TrainerDetailPage() {
           <div className="flex flex-col items-center gap-6">
             <div className="relative">
               <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-zinc-700/30 border-t-zinc-500 rounded-full animate-spin" />
-              <div className="absolute inset-2 border-2 border-zinc-800/30 border-t-zinc-600 rounded-full animate-spin" style={{ animationDirection: "reverse" }} />
+              <div
+                className="absolute inset-2 border-2 border-zinc-800/30 border-t-zinc-600 rounded-full animate-spin"
+                style={{ animationDirection: "reverse" }}
+              />
             </div>
             <div className="text-center">
               <p className="text-zinc-300 text-base sm:text-lg font-semibold">Φόρτωση προφίλ</p>
@@ -1359,8 +1409,14 @@ export default function TrainerDetailPage() {
         <FloatingElements />
         <div className="max-w-4xl mx-auto px-4 py-16 sm:py-24 space-y-4">
           <h1 className="text-xl sm:text-2xl font-semibold text-zinc-200">Προβολή προπονητή</h1>
-          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 px-4 py-3">{error || "Το προφίλ δεν βρέθηκε."}</div>
-          <motion.button onClick={() => navigate(-1)} whileHover={{ x: -5 }} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-600/50 text-sm sm:text-base">
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 px-4 py-3">
+            {error || "Το προφίλ δεν βρέθηκε."}
+          </div>
+          <motion.button
+            onClick={() => navigate(-1)}
+            whileHover={{ x: -5 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-600/50 text-sm sm:text-base"
+          >
             <ArrowLeft className="h-4 w-4" /> Πίσω
           </motion.button>
         </div>
@@ -1433,7 +1489,12 @@ export default function TrainerDetailPage() {
                 </ScrollReveal>
               )}
 
-              <StatsSection data={data} bookingsCount={stats.bookingsCount} avgRating={stats.avgRating} reviewsCount={stats.reviewsCount} />
+              <StatsSection
+                data={data}
+                bookingsCount={stats.bookingsCount}
+                avgRating={stats.avgRating}
+                reviewsCount={stats.reviewsCount}
+              />
 
               {(Boolean(data.diploma_url?.trim()) || normalizeCerts(data.certifications).length > 0) && (
                 <PremiumCard>
@@ -1457,7 +1518,13 @@ export default function TrainerDetailPage() {
                             <Award className="h-5 w-5 text-green-400" />
                             <span className="text-zinc-200 font-medium">Επίσημο Δίπλωμα</span>
                             {isUrl(data.diploma_url) && (
-                              <motion.a href={data.diploma_url} target="_blank" rel="noopener noreferrer" whileHover={{ scale: 1.05 }} className="ml-auto text-zinc-400 hover:text-zinc-200 transition-colors">
+                              <motion.a
+                                href={data.diploma_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                whileHover={{ scale: 1.05 }}
+                                className="ml-auto text-zinc-400 hover:text-zinc-200 transition-colors"
+                              >
                                 <ExternalLink className="h-4 w-4" />
                               </motion.a>
                             )}

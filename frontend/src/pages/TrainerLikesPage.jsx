@@ -1,4 +1,4 @@
-// FILE: src/pages/UserLikesPage.jsx
+// FILE: src/pages/TrainerLikesPage.jsx
 "use client";
 
 import React, {
@@ -26,6 +26,7 @@ import {
 
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
+import TrainerMenu from "../components/TrainerMenu";
 import UserMenu from "../components/UserMenu";
 
 const QuickBookModal = lazy(() => import("../components/QuickBookModal.tsx"));
@@ -150,11 +151,14 @@ function ToastStack({ toasts, onDismiss }) {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 20, opacity: 0 }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              className={`pointer-events-auto rounded-2xl px-4 py-3 shadow-xl border backdrop-blur-md ${
-                t.variant === "danger"
+              className={`
+                pointer-events-auto rounded-2xl px-4 py-3 shadow-xl border
+                backdrop-blur-md
+                ${t.variant === "danger"
                   ? "bg-red-600/60 border-red-300/40 text-white"
                   : "bg-white/10 border-white/20 text-white"
-              }`}
+                }
+              `}
               role="status"
               style={{
                 boxShadow:
@@ -290,7 +294,7 @@ function TrainerTile({
         </div>
       </div>
 
-      {/* Info */}
+      {/* Info panel */}
       <div className="p-4">
         <div className="flex items-center gap-2 justify-between">
           <h3 className="text-white font-semibold text-[15px] sm:text-base leading-tight line-clamp-1">
@@ -368,7 +372,7 @@ function Empty() {
       <p className="text-zinc-400 mb-8 max-w-md mx-auto">
         Επισκέψου το Marketplace και πρόσθεσε προπονητές στα αγαπημένα σου.
       </p>
-      <PremiumButton onClick={() => { window.location.href = "/services"; }}>
+      <PremiumButton onClick={() => (window.location.href = "/services")}>
         Αναζήτηση Προπονητών
       </PremiumButton>
     </motion.div>
@@ -376,16 +380,18 @@ function Empty() {
 }
 
 /* ------------------------------ Page ------------------------------ */
-export default function UserLikesPage() {
+export default function TrainerLikesPage() {
   const { profile, loading } = useAuth();
   const uid = profile?.id;
   const navigate = useNavigate();
+
+  const MenuComponent = profile?.role === "trainer" ? TrainerMenu : UserMenu;
 
   const [likes, setLikes] = useState([]); // [{ id: likeId, trainer: {...} }]
   const [loadingLikes, setLoadingLikes] = useState(true);
   const [errText, setErrText] = useState("");
 
-  // booking modal state (matching trainer page fix)
+  // booking modal state (FIX)
   const [bookingTrainer, setBookingTrainer] = useState(null);
 
   // toasts
@@ -427,7 +433,6 @@ export default function UserLikesPage() {
     setLoadingLikes(true);
     setErrText("");
 
-    // 1) get raw likes
     const { data: likeRows, error: likeErr } = await supabase
       .from("trainer_likes")
       .select("id, created_at, trainer_id")
@@ -449,10 +454,11 @@ export default function UserLikesPage() {
       return;
     }
 
-    // 2) fetch trainer profiles
     const { data: trainers, error: profErr } = await supabase
       .from("profiles")
-      .select("id, full_name, avatar_url, role, location, is_online, diploma_url")
+      .select(
+        "id, full_name, avatar_url, role, location, is_online, diploma_url"
+      )
       .in("id", trainerIds)
       .eq("role", "trainer");
 
@@ -463,7 +469,6 @@ export default function UserLikesPage() {
       return;
     }
 
-    // 3) ratings (optional)
     const { data: reviews } = await supabase
       .from("trainer_reviews")
       .select("trainer_id, rating")
@@ -517,11 +522,10 @@ export default function UserLikesPage() {
     };
   }, [uid, loadLikes]);
 
-  // Unlike with 10s Undo
+  // Unlike with Undo
   const unlike = useCallback(
     async (likeId, trainerObj) => {
       if (!likeId || !uid) return;
-
       // optimistic remove
       setLikes((prev) => prev.filter((r) => r.id !== likeId));
 
@@ -532,7 +536,7 @@ export default function UserLikesPage() {
 
       if (error) {
         setErrText(`Σφάλμα αφαίρεσης αγαπημένου: ${error.message}`);
-        // revert on failure
+        // revert if deletion failed
         setLikes((prev) => [{ id: likeId, trainer: trainerObj }, ...prev]);
         return;
       }
@@ -568,11 +572,10 @@ export default function UserLikesPage() {
     };
   }, []);
 
-  // Auth loading/endless spinner guard (same behavior as TrainerLikesPage)
   if (loading) {
     return (
       <>
-        <UserMenu />
+        {MenuComponent ? <MenuComponent /> : null}
         <div className="min-h-screen text-gray-100 pl:[calc(var(--side-w)+4px)] lg:pt-0 grid place-items-center">
           <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
         </div>
@@ -583,7 +586,7 @@ export default function UserLikesPage() {
   if (!uid) {
     return (
       <>
-        <UserMenu />
+        {MenuComponent ? <MenuComponent /> : null}
         <div className="min-h-screen text-gray-100 pl-[calc(var(--side-w)+4px)] lg:pt-0">
           <main className="mx-auto max-w-7xl w-full p-4 sm:p-6 pb-24">
             <Empty />
@@ -595,7 +598,7 @@ export default function UserLikesPage() {
 
   return (
     <>
-      <UserMenu />
+      {MenuComponent ? <MenuComponent /> : null}
 
       <div className="min-h-screen text-gray-100 pl-[calc(var(--side-w)+4px)] lg:pt-0">
         <div className="lg:pt-0 pt-14">
@@ -603,10 +606,10 @@ export default function UserLikesPage() {
             <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
               <div>
                 <h1 className="text-[28px] sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  Οι Αγαπημένοι σας Προπονητές
+                  Αγαπημένοι Προπονητές
                 </h1>
                 <p className="text-zinc-400 mt-1 text-sm sm:text-base">
-                  Οι επαγγελματίες που ξεχωρίσατε.
+                  Οι επαγγελματίες που ξεχώρισες.
                 </p>
               </div>
               <div className="flex items-center gap-6">
@@ -664,10 +667,10 @@ export default function UserLikesPage() {
         </div>
       </div>
 
-      {/* Toasts */}
+      {/* Toasts (glass + responsive) */}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Book-now modal (glass) */}
+      {/* Book-now modal */}
       <AnimatePresence>
         {bookingTrainer && (
           <Suspense

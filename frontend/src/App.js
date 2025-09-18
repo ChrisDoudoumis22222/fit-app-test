@@ -24,6 +24,7 @@ const EpicGoalsPage           = lazy(() => import("./pages/EpicGoalsPage"));
 const TrainerSchedulePage     = lazy(() => import("./pages/TrainerSchedulePage"));
 const UserFAQPage             = lazy(() => import("./pages/UserFAQPage")); // <-- fixed
 const UserLikesPage           = lazy(() => import("./pages/UserLikesPage")); // <-- NEW
+const TrainerLikesPage        = lazy(() => import("./pages/TrainerLikesPage")); // <-- NEW
 
 /* ───────── NEW: users bookings page ───────── */
 const UserBookingsPage        = lazy(() => import("./pages/UserBookingsPage"));
@@ -138,7 +139,8 @@ export default function App() {
             {/* ---------- user (auth required, light-pass popup if not) ---------- */}
             <Route path="/user" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
             <Route path="/user/bookings" element={<ProtectedRoute><UserBookingsPage /></ProtectedRoute>} />
-            <Route path="/user/likes" element={<ProtectedRoute><UserLikesPage /></ProtectedRoute>} /> {/* NEW */}
+            <Route path="/user/likes" element={<ProtectedRoute><UserLikesPage /></ProtectedRoute>} /> {/* existing */}
+            <Route path="/userlikes" element={<ProtectedRoute><UserLikesPage /></ProtectedRoute>} /> {/* alias for side-menu link */}
             <Route path="/goals" element={<ProtectedRoute><EpicGoalsPage /></ProtectedRoute>} />
 
             {/* ---------- trainer (auth required; these remain simple protected) ---------- */}
@@ -150,6 +152,9 @@ export default function App() {
 
             {/* ---------- trainer schedule (role-gated light-pass) ---------- */}
             <Route path="/trainer/schedule" element={<TrainerScheduleWrapper />} />
+
+            {/* ---------- trainer likes (auth required) ---------- */}
+            <Route path="/trainer/likes" element={<ProtectedRoute><TrainerLikesPage /></ProtectedRoute>} /> {/* NEW */}
 
             {/* ---------- shared (auth required) ---------- */}
             <Route path="/posts" element={<ProtectedRoute><AllPostsPage /></ProtectedRoute>} />
