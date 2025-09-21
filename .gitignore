@@ -1,0 +1,14 @@
+node_modules/ 
+build/ 
+dist/ 
+.env 
+*.log 
+.DS_Store 
+.vscode/ 
+
+# Ignore history files
+history.*
+*.history
+*.hist
+*history.log
+*chat-history*

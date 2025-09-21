@@ -1,0 +1,20 @@
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
+    "start:prod": "npm --prefix backend run start",
+    "dev": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "@babel/preset-typescript": "^7.27.1",
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19.1.7",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "typescript": "^5.9.2"
+  }
+}
