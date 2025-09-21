@@ -6,11 +6,10 @@ import React, {
   memo,
   useState,
   useMemo,
-  useRef,
 } from "react";
 import {
   Loader2, Calendar, Users, Clock, AlertCircle, X,
-  CalendarClock, CheckCircle, Ban, Wifi, User, Mail, MapPin,
+  CalendarClock, CheckCircle, Wifi, User, Mail, MapPin,
   ChevronLeft, ChevronRight, Euro
 } from "lucide-react";
 import { useAuth } from "../AuthProvider";
@@ -26,25 +25,67 @@ const toYMDLocal = (d) => {
   const x = d instanceof Date ? d : new Date(d);
   return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
 };
-const hhmm = (t) => (typeof t === "string" ? (t.match(/^(\d{1,2}:\d{2})/)?.[1] ?? t) : t);
-const timeToMinutes = (t) => { if (!t) return 0; const [h,m] = t.split(":").map((x) => parseInt(x,10)); return (h||0)*60 + (m||0) };
+const hhmm = (t) =>
+  typeof t === "string" ? (t.match(/^(\d{1,2}:\d{2})/)?.[1] ?? t) : t;
+const timeToMinutes = (t) => {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+  return (h || 0) * 60 + (m || 0);
+};
 const fmtShortDay = (d) => d.toLocaleDateString("el-GR", { weekday: "short" });
-const fmtLongDay  = (d) => d.toLocaleDateString("el-GR", { weekday: "long" });
-const fmtDayNum   = (d) => d.toLocaleDateString("el-GR", { day: "2-digit" });
-const fmtMonth    = (d) => d.toLocaleDateString("el-GR", { month: "long" });
-const fmtMonthYear= (d) => d.toLocaleDateString("el-GR", { month: "long", year: "numeric" });
-function startOfWeek(date, weekStartsOn = 1) { const d = new Date(date); const day = d.getDay() || 7; if (day !== weekStartsOn) d.setDate(d.getDate() - (day - weekStartsOn)); d.setHours(0,0,0,0); return d }
-function startOfDay(date){ const d=new Date(date); d.setHours(0,0,0,0); return d }
-function startOfMonth(date){ const d=new Date(date.getFullYear(), date.getMonth(), 1); d.setHours(0,0,0,0); return d }
+const fmtLongDay = (d) => d.toLocaleDateString("el-GR", { weekday: "long" });
+const fmtDayNum = (d) => d.toLocaleDateString("el-GR", { day: "2-digit" });
+const fmtMonth = (d) => d.toLocaleDateString("el-GR", { month: "long" });
+const fmtMonthYear = (d) =>
+  d.toLocaleDateString("el-GR", { month: "long", year: "numeric" });
+function startOfWeek(date, weekStartsOn = 1) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  if (day !== weekStartsOn) d.setDate(d.getDate() - (day - weekStartsOn));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function startOfMonth(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 const safeId = (b) => (b && (b.id ?? b.booking_id ?? b.uid ?? b.pk ?? null)) || null;
-function toLocalDate(input) { if (!input) return null; const d = new Date(input); return isNaN(d.getTime()) ? null : d }
-function combineDateTime(date, time) { if (!date) return null; const d = new Date(`${date}T${time ?? "00:00:00"}`); return isNaN(d.getTime()) ? null : d }
+function toLocalDate(input) {
+  if (!input) return null;
+  const d = new Date(input);
+  return isNaN(d.getTime()) ? null : d;
+}
+function combineDateTime(date, time) {
+  if (!date) return null;
+  const d = new Date(`${date}T${time ?? "00:00:00"}`);
+  return isNaN(d.getTime()) ? null : d;
+}
 const fmtDate = (d) => {
   if (!d) return "—";
   const obj = typeof d === "string" ? new Date(`${d}T00:00:00`) : d;
-  return obj.toLocaleDateString("el-GR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  return obj.toLocaleDateString("el-GR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 };
-const fmtTs   = (ts) => ts ? ts.toLocaleString("el-GR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+const fmtTs = (ts) =>
+  ts
+    ? ts.toLocaleString("el-GR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
 
 /* ---------- Background ---------- */
 const BaseBackground = memo(() => (
@@ -117,7 +158,12 @@ function Spinner({ full = false }) {
         <BaseBackground />
         <AthleticBackground />
         <div className="relative z-10 flex items-center justify-center h-screen">
-          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .25, ease: [0.22,1,0.36,1] }} className="flex flex-col items-center gap-6 p-8 rounded-3xl bg-[rgba(17,18,21,.65)] backdrop-blur-xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_10px_30px_rgba(0,0,0,.45)]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col items-center gap-6 p-8 rounded-3xl bg-[rgba(17,18,21,.65)] backdrop-blur-xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_10px_30px_rgba(0,0,0,.45)]"
+          >
             <Loader2 className="h-12 w-12 animate-spin text-blue-200" />
             <div className="text-center space-y-2">
               <h3 className="text-xl font-semibold text-white">Φόρτωση κρατήσεων</h3>
@@ -140,11 +186,18 @@ function Spinner({ full = false }) {
 
 /* ---------- Error Boundary ---------- */
 class ErrorBoundary extends React.Component {
-  constructor(props){ super(props); this.state = { hasError:false, error:null } }
-  static getDerivedStateFromError(error){ return { hasError:true, error } }
-  componentDidCatch(error, info){ console.error("Calendar crashed:", error, info) }
-  render(){
-    if(this.state.hasError){
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("Calendar crashed:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
       return (
         <ColorCard color="red" className="p-6">
           <div className="flex items-start gap-3">
@@ -152,7 +205,7 @@ class ErrorBoundary extends React.Component {
             <div>
               <p className="font-semibold">Κάτι πήγε στραβά στη λίστα κρατήσεων.</p>
               <button
-                onClick={() => this.setState({ hasError:false, error:null })}
+                onClick={() => this.setState({ hasError: false, error: null })}
                 className="mt-4 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition"
               >
                 Προσπάθησε ξανά
@@ -183,8 +236,8 @@ function useIsMobile(bp = 640) {
 /* ======================= SWITCHER (with slide) ======================= */
 function ViewSwitch({ value, onChange }) {
   const options = [
-    { k: "day",   label: "Ημερήσιο" },
-    { k: "week",  label: "Εβδομαδιαίο" },
+    { k: "day", label: "Ημερήσιο" },
+    { k: "week", label: "Εβδομαδιαίο" },
     { k: "month", label: "Μηνιαίο" },
   ];
 
@@ -230,7 +283,7 @@ function ViewSwitch({ value, onChange }) {
               className="relative z-10 block"
               initial={false}
               animate={{ y: active ? 0 : 1, opacity: active ? 1 : 0.75 }}
-              transition={{ duration: .18 }}
+              transition={{ duration: 0.18 }}
             >
               {o.label}
             </motion.span>
@@ -242,13 +295,16 @@ function ViewSwitch({ value, onChange }) {
 }
 
 /* ---------- Shared Button ---------- */
-function Button({ children, variant="secondary", size="md", className="", ...props }) {
-  const base = "inline-flex items-center justify-center rounded-xl font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
+function Button({ children, variant = "secondary", size = "md", className = "", ...props }) {
+  const base =
+    "inline-flex items-center justify-center rounded-xl font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
   const sizes = { sm: "h-9 px-3 text-sm", md: "h-10 px-4 text-sm" };
   const variants = {
-    primary: "bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/20 shadow-[0_6px_18px_rgba(16,185,129,.25)]",
+    primary:
+      "bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/20 shadow-[0_6px_18px_rgba(16,185,129,.25)]",
     secondary: "bg-white/6 hover:bg-white/10 text-white border border-white/10",
-    danger: "bg-rose-600/90 hover:bg-rose-600 text-white border border-rose-400/20 shadow-[0_6px_18px_rgba(244,63,94,.25)]",
+    danger:
+      "bg-rose-600/90 hover:bg-rose-600 text-white border border-rose-400/20 shadow-[0_6px_18px_rgba(244,63,94,.25)]",
     ghost: "bg-transparent hover:bg-white/5 text-white border border-white/10",
   };
   return (
@@ -262,27 +318,37 @@ function Button({ children, variant="secondary", size="md", className="", ...pro
 function BookingPill({ b, onOpen, compact = false }) {
   const status = (b.status || "pending").toLowerCase();
   const ring =
-    status === "accepted" ? "ring-emerald-400/35" :
-    status === "declined" || status === "cancelled" ? "ring-rose-400/35" :
-    "ring-amber-400/35";
+    status === "accepted"
+      ? "ring-emerald-400/35"
+      : status === "declined" || status === "cancelled"
+      ? "ring-rose-400/35"
+      : "ring-amber-400/35";
   const tint =
-    status === "accepted" ? "bg-emerald-500/10" :
-    status === "declined" || status === "cancelled" ? "bg-rose-500/10" :
-    "bg-amber-500/10";
+    status === "accepted"
+      ? "bg-emerald-500/10"
+      : status === "declined" || status === "cancelled"
+      ? "bg-rose-500/10"
+      : "bg-amber-500/10";
 
   const minutes =
-    (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)) || b.duration_min;
+    timeToMinutes(b.end_time) - timeToMinutes(b.start_time) || b.duration_min;
   const durationStr = minutes ? `${minutes}’` : null;
   const price = b.amount ?? b.price_eur ?? b.total_price ?? b.price;
 
   const pad = compact ? "px-2 py-1.5" : "px-3 py-2.5";
   const timeCls = compact ? "text-[12px] text-white/70" : "text-xs text-white/70";
   const nameCls = compact ? "text-[12px]" : "text-sm";
-  const endCls  = "text-[11px] text-white/60";
+  const endCls = "text-[11px] text-white/60";
   const onlineCls = compact ? "text-[9px] px-1" : "text-[10px] px-1.5";
 
   return (
-    <button onClick={(e) => { e.stopPropagation(); onOpen?.(b) }} className="w-full text-left">
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen?.(b);
+      }}
+      className="w-full text-left"
+    >
       <GlassTile className={`${pad} ring-1 ${ring} ${tint}`}>
         <div className="flex items-center justify-between">
           <span className={timeCls}>{hhmm(b.start_time)}</span>
@@ -310,52 +376,67 @@ function BookingPill({ b, onOpen, compact = false }) {
   );
 }
 
-<<<<<<< HEAD
 /* ======================= DAY VIEW (USER) – mobile friendly ======================= */
-=======
-/* ======================= DAY VIEW (USER) ======================= */
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
   const [day, setDay] = useState(startOfDay(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
-<<<<<<< HEAD
   const [showAll, setShowAll] = useState(false);
 
   const isMobile = useIsMobile(640);
   const maxItems = isMobile ? 6 : 12; // πόσα pills να φανούν πριν το “+N ακόμα”
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const dayStr = useMemo(() => toYMDLocal(day), [day]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!userId) return;
-      setLoading(true); setError(null);
+      setLoading(true);
+      setError(null);
       try {
         const { data, error } = await supabase
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )")
+          .select(
+            "id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )"
+          )
           .eq("user_id", userId)
           .eq("date", dayStr);
         if (error) throw error;
-        const list = (data ?? []).map(r => ({ ...r, trainer: r.trainer?.[0] || r.trainer }));
-        const sorted = list.sort((a,b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+        const list = (data ?? []).map((r) => ({
+          ...r,
+          trainer: r.trainer?.[0] || r.trainer,
+        }));
+        const sorted = list.sort(
+          (a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+        );
         if (!alive) return;
-        setRows(sorted); setLoading(false);
+        setRows(sorted);
+        setLoading(false);
       } catch (e) {
         if (!alive) return;
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false);
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων");
+        setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [userId, dayStr, refreshKey]);
 
-  const goPrev = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return startOfDay(n) });
-  const goNext = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return startOfDay(n) });
-<<<<<<< HEAD
+  const goPrev = () =>
+    setDay((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() - 1);
+      return startOfDay(n);
+    });
+  const goNext = () =>
+    setDay((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() + 1);
+      return startOfDay(n);
+    });
+
   const isToday = toYMDLocal(new Date()) === dayStr;
 
   // items προς εμφάνιση (με “εμφάνιση περισσότερων” σε mobile)
@@ -384,7 +465,12 @@ function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) 
             </button>
             <p className="ml-1 sm:ml-2 text-white/90">
               {fmtLongDay(day)} {fmtDayNum(day)} {fmtMonth(day)}
-              {isToday && <span className="ml-2 inline-flex items-center gap-1 text-emerald-300 text-xs"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Σήμερα</span>}
+              {isToday && (
+                <span className="ml-2 inline-flex items-center gap-1 text-emerald-300 text-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Σήμερα
+                </span>
+              )}
             </p>
           </div>
           <div className="hidden md:block">
@@ -400,12 +486,17 @@ function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) 
       <div className="mt-2">
         {loading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
-            {[...Array(6)].map((_,i)=>
-              <div key={i} className="h-16 sm:h-20 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />
-            )}
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-16 sm:h-20 rounded-2xl bg-white/[.06] animate-pulse border border-white/10"
+              />
+            ))}
           </div>
         ) : error ? (
-          <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
+          <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">
+            {error}
+          </div>
         ) : rows.length === 0 ? (
           <div className="text-xs sm:text-sm text-white/70 px-3 py-8 text-center border border-dashed border-white/12 rounded-2xl">
             Καμία κράτηση για σήμερα
@@ -413,8 +504,13 @@ function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) 
         ) : (
           <>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
-              {visibleRows.map((b)=> (
-                <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact={isMobile} />
+              {visibleRows.map((b) => (
+                <BookingPill
+                  key={b.id}
+                  b={b}
+                  onOpen={onOpenDetails}
+                  compact={isMobile}
+                />
               ))}
             </div>
             {hiddenCount > 0 && (
@@ -430,129 +526,130 @@ function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) 
               </div>
             )}
           </>
-=======
-
-  return (
-    <Glass className="p-4 sm:p-6">
-      <div className="flex items-center justify-between mb-2 sm:mb-3">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
-          <p className="ml-1 sm:ml-2 text-white/90">{fmtLongDay(day)} {fmtDayNum(day)} {fmtMonth(day)}</p>
-        </div>
-        <div className="hidden md:block">
-          <ViewSwitch value={view} onChange={onChangeView} />
-        </div>
-      </div>
-      <div className="md:hidden mb-3 flex justify-center">
-        <ViewSwitch value={view} onChange={onChangeView} />
-      </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {loading ? (
-          [...Array(6)].map((_,i)=><div key={i} className="h-20 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />)
-        ) : error ? (
-          <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
-        ) : rows.length === 0 ? (
-          <div className="text-xs text-white/60 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl col-span-full">
-            Καμία κράτηση για σήμερα
-          </div>
-        ) : (
-          rows.map((b)=> <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         )}
       </div>
     </Glass>
   );
 }
 
-<<<<<<< HEAD
-/* ======================= WEEK VIEW (USER) – mobile friendly ======================= */
-=======
 /* ======================= WEEK VIEW (USER) ======================= */
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), 1));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
 
-<<<<<<< HEAD
   const isMobile = useIsMobile(640);
   const isTablet = useIsMobile(768);
   const maxPills = isMobile ? 2 : 3;
 
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const days = useMemo(() => {
-    const arr = []; for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(d.getDate() + i); arr.push(d) }
+    const arr = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      arr.push(d);
+    }
     return arr;
   }, [weekStart]);
 
   const dateStr = (d) => toYMDLocal(d);
-<<<<<<< HEAD
   const todayStr = toYMDLocal(startOfDay(new Date()));
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       if (!userId) return;
-      setLoading(true); setError(null);
+      setLoading(true);
+      setError(null);
       try {
         const start = dateStr(weekStart);
-        const endDate = new Date(weekStart); endDate.setDate(endDate.getDate() + 6);
+        const endDate = new Date(weekStart);
+        endDate.setDate(endDate.getDate() + 6);
         const end = dateStr(endDate);
 
         const { data, error } = await supabase
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )")
+          .select(
+            "id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )"
+          )
           .eq("user_id", userId)
           .gte("date", start)
           .lte("date", end);
 
         if (error) throw error;
-        const list = (data ?? []).map(r => ({ ...r, trainer: r.trainer?.[0] || r.trainer }));
-        const sorted = list.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+        const list = (data ?? []).map((r) => ({
+          ...r,
+          trainer: r.trainer?.[0] || r.trainer,
+        }));
+        const sorted = list.sort(
+          (a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+        );
         if (!alive) return;
-        setRows(sorted); setLoading(false);
+        setRows(sorted);
+        setLoading(false);
       } catch (e) {
         if (!alive) return;
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false);
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων");
+        setLoading(false);
       }
     };
     load();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [userId, weekStart, refreshKey]);
 
   const grouped = useMemo(() => {
     const map = new Map();
     days.forEach((d) => map.set(dateStr(d), []));
-    rows.forEach((r) => { const key = r.date; if (!map.has(key)) map.set(key, []); map.get(key).push(r) });
+    rows.forEach((r) => {
+      const key = r.date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(r);
+    });
     return map;
   }, [rows, days]);
 
-  const goPrev = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return startOfWeek(n, 1) });
-  const goNext = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return startOfWeek(n, 1) });
+  const goPrev = () =>
+    setWeekStart((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() - 7);
+      return startOfWeek(n, 1);
+    });
+  const goNext = () =>
+    setWeekStart((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() + 7);
+      return startOfWeek(n, 1);
+    });
 
-  const end = new Date(weekStart); end.setDate(end.getDate() + 6);
-  const label = weekStart.getMonth() === end.getMonth()
-    ? `${weekStart.getDate()}–${end.getDate()} ${fmtMonth(weekStart)}`
-    : `${weekStart.getDate()} ${fmtMonth(weekStart)} – ${end.getDate()} ${fmtMonth(end)}`;
+  const end = new Date(weekStart);
+  end.setDate(end.getDate() + 6);
+  const label =
+    weekStart.getMonth() === end.getMonth()
+      ? `${weekStart.getDate()}–${end.getDate()} ${fmtMonth(weekStart)}`
+      : `${weekStart.getDate()} ${fmtMonth(weekStart)} – ${end.getDate()} ${fmtMonth(end)}`;
 
-<<<<<<< HEAD
   // κρατάμε 7 στήλες με οριζόντιο scroll σε μικρές οθόνες
   const gridMinWidth = isTablet ? "min-w-[770px]" : "min-w-[770px]";
 
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   return (
     <Glass className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-2 sm:mb-3">
         <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
+          <button
+            onClick={goPrev}
+            className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={goNext}
+            className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
           <p className="ml-1 sm:ml-2 text-white/90">{label}</p>
         </div>
         <div className="hidden md:block">
@@ -563,12 +660,11 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
         <ViewSwitch value={view} onChange={onChangeView} />
       </div>
 
-<<<<<<< HEAD
       {/* Scroll container so 7 columns remain readable on mobile */}
       <div className="-mx-2 sm:mx-0 overflow-x-auto">
         <div className={`px-2 sm:px-0 ${gridMinWidth}`}>
           <div className="grid grid-cols-7 gap-3 sm:gap-4">
-            {days.map((d, i) => {
+            {days.map((d) => {
               const key = dateStr(d);
               const dayRows = grouped.get(key) || [];
               const isToday = key === todayStr;
@@ -578,16 +674,29 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
                   key={key}
                   className="rounded-3xl p-2 sm:p-3 border border-white/10 bg-[rgba(17,18,21,.55)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]"
                 >
-                  {/* Column header (weekday + day num) */}
-                  <GlassTile className={`px-2.5 sm:px-3 py-1.5 sm:py-2 mb-2 sm:mb-3 ${isToday ? "ring-1 ring-emerald-400/40" : ""}`}>
+                  {/* Column header */}
+                  <GlassTile
+                    className={`px-2.5 sm:px-3 py-1.5 sm:py-2 mb-2 sm:mb-3 ${
+                      isToday ? "ring-1 ring-emerald-400/40" : ""
+                    }`}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <div className={`text-[11px] sm:text-sm ${isToday ? "text-white font-medium" : "text-white/85"}`}>
+                        <div
+                          className={`text-[11px] sm:text-sm ${
+                            isToday ? "text-white font-medium" : "text-white/85"
+                          }`}
+                        >
                           {fmtShortDay(d)}
                         </div>
-                        {isToday && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />}
+                        {isToday && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+                            aria-hidden
+                          />
+                        )}
                       </div>
-                      <div className={`text-[11px] sm:text-sm font-semibold ${isToday ? "text-white" : "text-white"}`}>
+                      <div className={`text-[11px] sm:text-sm font-semibold text-white`}>
                         {fmtDayNum(d)}
                       </div>
                     </div>
@@ -597,10 +706,15 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
                   <div className="space-y-1.5 sm:space-y-2">
                     {loading ? (
                       [...Array(3)].map((_, idx) => (
-                        <div key={idx} className="h-14 sm:h-16 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />
+                        <div
+                          key={idx}
+                          className="h-14 sm:h-16 rounded-2xl bg-white/[.06] animate-pulse border border-white/10"
+                        />
                       ))
                     ) : error ? (
-                      <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-2">{error}</div>
+                      <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-2">
+                        {error}
+                      </div>
                     ) : dayRows.length === 0 ? (
                       <div className="text-[10px] sm:text-xs text-white/40 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl">
                         Καμία κράτηση
@@ -608,7 +722,12 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
                     ) : (
                       <>
                         {dayRows.slice(0, maxPills).map((b) => (
-                          <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact={isMobile} />
+                          <BookingPill
+                            key={b.id}
+                            b={b}
+                            onOpen={onOpenDetails}
+                            compact={isMobile}
+                          />
                         ))}
                         {dayRows.length > maxPills && (
                           <button
@@ -625,56 +744,18 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
               );
             })}
           </div>
-=======
-      <div className="overflow-x-auto">
-        <div className="min-w-[1000px] grid grid-cols-7 gap-3 sm:gap-4">
-          {days.map((d) => {
-            const key = dateStr(d);
-            const dayRows = grouped.get(key) || [];
-            return (
-              <div
-                key={key}
-                className="rounded-3xl p-3 border border-white/10 bg-[rgba(17,18,21,.55)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]"
-              >
-                <GlassTile className="px-3 py-2 mb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-white/85">{fmtShortDay(d)}</div>
-                    <div className="text-sm font-semibold text-white">{fmtDayNum(d)}</div>
-                  </div>
-                </GlassTile>
-
-                <div className="space-y-3">
-                  {loading ? (
-                    [...Array(4)].map((_, i) => <div key={i} className="h-16 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />)
-                  ) : error ? (
-                    <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
-                  ) : dayRows.length === 0 ? (
-                    <div className="text-xs text-white/40 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl">Καμία κράτηση</div>
-                  ) : (
-                    dayRows.map((b) => <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
-                  )}
-                </div>
-              </div>
-            );
-          })}
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
       </div>
     </Glass>
   );
 }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 /* ======================= MONTH VIEW (USER) ======================= */
 function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
   const [anchor, setAnchor] = useState(startOfMonth(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
-<<<<<<< HEAD
 
   // breakpoints
   const isMobile = useIsMobile(640);
@@ -682,80 +763,97 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
   const maxPills = isMobile ? 2 : 3;
 
   // grid dates
-=======
-  const isMobile = useIsMobile(640);
-  const maxPills = isMobile ? 2 : 3;
-
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const gridStart = useMemo(() => startOfWeek(startOfMonth(anchor), 1), [anchor]);
   const gridDays = useMemo(() => {
     const arr = [];
-    for (let i = 0; i < 42; i++) { const d = new Date(gridStart); d.setDate(d.getDate() + i); arr.push(d) }
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart);
+      d.setDate(d.getDate() + i);
+      arr.push(d);
+    }
     return arr;
   }, [gridStart]);
   const startStr = toYMDLocal(gridStart);
-  const endStr = useMemo(() => { const e = new Date(gridStart); e.setDate(e.getDate()+41); return toYMDLocal(e) }, [gridStart]);
+  const endStr = useMemo(() => {
+    const e = new Date(gridStart);
+    e.setDate(e.getDate() + 41);
+    return toYMDLocal(e);
+  }, [gridStart]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!userId) return;
-      setLoading(true); setError(null);
+      setLoading(true);
+      setError(null);
       try {
         const { data, error } = await supabase
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )")
+          .select(
+            "id,date,start_time,end_time,duration_min,status,is_online,trainer_name,created_at,amount,trainer:profiles!trainer_bookings_trainer_id_fkey ( full_name, avatar_url )"
+          )
           .eq("user_id", userId)
           .gte("date", startStr)
           .lte("date", endStr);
         if (error) throw error;
-        const list = (data ?? []).map(r => ({ ...r, trainer: r.trainer?.[0] || r.trainer }));
+        const list = (data ?? []).map((r) => ({
+          ...r,
+          trainer: r.trainer?.[0] || r.trainer,
+        }));
         if (!alive) return;
-        setRows(list); setLoading(false);
+        setRows(list);
+        setLoading(false);
       } catch (e) {
         if (!alive) return;
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false);
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων");
+        setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [userId, startStr, endStr, refreshKey]);
 
   const byDate = useMemo(() => {
     const m = new Map();
-    rows.forEach(r => { if (!m.has(r.date)) m.set(r.date, []); m.get(r.date).push(r) });
-    m.forEach(list => list.sort((a,b)=>timeToMinutes(a.start_time)-timeToMinutes(b.start_time)));
+    rows.forEach((r) => {
+      if (!m.has(r.date)) m.set(r.date, []);
+      m.get(r.date).push(r);
+    });
+    m.forEach((list) =>
+      list.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
+    );
     return m;
   }, [rows]);
 
-  const goPrev = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()-1, 1));
-  const goNext = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()+1, 1));
+  const goPrev = () =>
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNext = () =>
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   const weekdays = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
 
-<<<<<<< HEAD
   // today helper
   const todayStr = toYMDLocal(startOfDay(new Date()));
 
-  // min width so 7 στήλες να μην «σπάνε» σε κινητό – γίνεται οριζόντιο scroll
-  // 7 columns × ~110px ανά κελί σε κινητό
+  // 7 columns min width => horizontal scroll on small screens
   const gridMinWidth = isTablet ? "min-w-[770px]" : "min-w-[770px]";
 
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   return (
     <Glass className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-2 sm:mb-3">
         <div className="flex items-center gap-2 sm:gap-3">
-<<<<<<< HEAD
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10">
+          <button
+            onClick={goPrev}
+            className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"
+          >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10">
+          <button
+            onClick={goNext}
+            className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"
+          >
             <ChevronRight className="h-5 w-5" />
           </button>
-=======
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           <p className="ml-1 sm:ml-2 text-white/90">{fmtMonthYear(anchor)}</p>
         </div>
         <div className="hidden md:block">
@@ -766,12 +864,11 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
         <ViewSwitch value={view} onChange={onChangeView} />
       </div>
 
-<<<<<<< HEAD
       {/* Scroll container for mobile so 7-cols calendar remains readable */}
       <div className="-mx-2 sm:mx-0 overflow-x-auto">
         <div className={`px-2 sm:px-0 ${gridMinWidth}`}>
-          {/* Weekday headers (sticky for better context while scrolling) */}
-          <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 sticky top-0 z-10 bg-black/40 backdrop-blur supports-[backdrop-filter]:backdrop-blur-xl rounded-xl sm:rounded-2xl p-1">
+          {/* Weekday headers */}
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 sticky top-0 z-10 bg-black/40 backdrop-blur rounded-xl sm:rounded-2xl p-1">
             {weekdays.map((w) => (
               <div
                 key={w}
@@ -795,40 +892,54 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
                   key={idx}
                   className={[
                     "rounded-xl sm:rounded-2xl border border-white/10",
-                    // tighter padding/heights on mobile
                     "p-1.5 sm:p-2",
                     isMobile ? "min-h-[92px]" : "min-h-[110px]",
-                    inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70",
+                    inMonth
+                      ? "bg[rgba(17,18,21,.55)] bg-[rgba(17,18,21,.55)]"
+                      : "bg-[rgba(17,18,21,.35)] opacity-70",
                     "backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]",
-                    "transition-colors"
+                    "transition-colors",
                   ].join(" ")}
-                  aria-label={`Ημέρα ${fmtDayNum(d)} ${fmtMonth(d)}${isToday ? " (Σήμερα)" : ""}`}
+                  aria-label={`Ημέρα ${fmtDayNum(d)} ${fmtMonth(d)}${
+                    isToday ? " (Σήμερα)" : ""
+                  }`}
                 >
                   {/* Header line: day number + today dot */}
                   <div className="flex items-center justify-between mb-0.5 sm:mb-1">
                     <div className="flex items-center gap-1.5">
                       <span
-                        className={`text-[10px] sm:text-[11px] ${inMonth ? "text-white/80" : "text-white/40"} ${isToday ? "font-semibold text-white" : ""}`}
+                        className={`text-[10px] sm:text-[11px] ${
+                          inMonth ? "text-white/80" : "text-white/40"
+                        } ${isToday ? "font-semibold text-white" : ""}`}
                       >
                         {fmtDayNum(d)}
                       </span>
                       {isToday && (
-                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />
+                        <span
+                          className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"
+                          aria-hidden
+                        />
                       )}
                     </div>
-                    {loading && idx < 7 ? <span className="text-[9px] sm:text-[10px] text-white/30">…</span> : null}
+                    {loading && idx < 7 ? (
+                      <span className="text-[9px] sm:text[10px] text-white/30">…</span>
+                    ) : null}
                   </div>
 
                   {/* Body */}
                   {loading ? (
                     <div className="h-12 sm:h-16 rounded-lg sm:rounded-xl bg-white/[.06] animate-pulse border border-white/10" />
                   ) : error ? (
-                    <div className="text-[10px] sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5">Σφάλμα</div>
+                    <div className="text-[10px] sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5">
+                      Σφάλμα
+                    </div>
                   ) : dayRows.length === 0 ? (
-                    <div className="text-[9px] sm:text-[10px] text-white/60 select-none">—</div>
+                    <div className="text-[9px] sm:text-[10px] text-white/60 select-none">
+                      —
+                    </div>
                   ) : (
                     <div className="space-y-1">
-                      {dayRows.slice(0, maxPills).map((b)=>(
+                      {dayRows.slice(0, maxPills).map((b) => (
                         <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact />
                       ))}
                       {dayRows.length > maxPills && (
@@ -846,48 +957,6 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
             })}
           </div>
         </div>
-=======
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2">
-        {weekdays.map((w) => (
-          <div key={w} className="text-center text-[10px] sm:text-xs text-white/60">{w}</div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-        {gridDays.map((d, idx) => {
-          const inMonth = d.getMonth() === anchor.getMonth();
-          const key = toYMDLocal(d);
-          const dayRows = byDate.get(key) || [];
-          return (
-            <div
-              key={idx}
-              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h-[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]`}
-            >
-              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                <span className={`text-[10px] sm:text-[11px] ${inMonth ? "text-white/80" : "text-white/40"}`}>{fmtDayNum(d)}</span>
-                {loading && idx < 7 ? <span className="text-[9px] sm:text-[10px] text-white/30">…</span> : null}
-              </div>
-
-              {loading ? (
-                <div className="h-12 sm:h-16 rounded-lg sm:rounded-xl bg-white/[.06] animate-pulse border border-white/10" />
-              ) : error ? (
-                <div className="text-[10px] sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5">Σφάλμα</div>
-              ) : dayRows.length === 0 ? (
-                <div className="text-[9px] sm:text-[10px] text-white/60">—</div>
-              ) : (
-                <div className="space-y-1">
-                  {dayRows.slice(0, maxPills).map((b)=>(
-                    <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact />
-                  ))}
-                  {dayRows.length > maxPills && (
-                    <div className="text-[9px] sm:text-[10px] text-white/50">+{dayRows.length - maxPills} ακόμα</div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       </div>
     </Glass>
   );
@@ -905,11 +974,19 @@ function BookingDetailsDock({ booking, bookingId, userId, onClose }) {
     if (!id) return;
 
     const hasEverything =
-      booking && booking.date && booking.start_time && (booking.trainer_name || booking.trainer?.full_name);
-    if (hasEverything) { setFull(booking); setLoading(false); return }
+      booking &&
+      booking.date &&
+      booking.start_time &&
+      (booking.trainer_name || booking.trainer?.full_name);
+    if (hasEverything) {
+      setFull(booking);
+      setLoading(false);
+      return;
+    }
 
     (async () => {
-      setLoading(true); setErr(null);
+      setLoading(true);
+      setErr(null);
       const { data, error } = await supabase
         .from("trainer_bookings")
         .select(`
@@ -922,21 +999,29 @@ function BookingDetailsDock({ booking, bookingId, userId, onClose }) {
         .single();
 
       if (!alive) return;
-      if (error) { setErr(error.message || "Σφάλμα ανάγνωσης κράτησης"); setLoading(false); return }
+      if (error) {
+        setErr(error.message || "Σφάλμα ανάγνωσης κράτησης");
+        setLoading(false);
+        return;
+      }
 
       const normalized = {
         ...data,
         trainer: data.trainer?.[0] || data.trainer || null,
       };
-      setFull(normalized); setLoading(false);
+      setFull(normalized);
+      setLoading(false);
     })();
 
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [id, booking]);
 
   const status = useMemo(() => {
     const raw = (full?.status || "pending").toString().toLowerCase();
-    if (raw === "confirmed" || raw === "approve" || raw === "approved" || raw === "accept") return "accepted";
+    if (raw === "confirmed" || raw === "approve" || raw === "approved" || raw === "accept")
+      return "accepted";
     if (raw === "reject") return "declined";
     return raw;
   }, [full?.status]);
@@ -947,7 +1032,12 @@ function BookingDetailsDock({ booking, bookingId, userId, onClose }) {
     declined: "bg-rose-600/20 text-rose-300",
     cancelled: "bg-rose-600/20 text-rose-300",
   }[status];
-  const statusLabel = { pending: "Σε αναμονή", accepted: "Αποδεκτή", declined: "Απορρίφθηκε", cancelled: "Ακυρώθηκε" }[status];
+  const statusLabel = {
+    pending: "Σε αναμονή",
+    accepted: "Αποδεκτή",
+    declined: "Απορρίφθηκε",
+    cancelled: "Ακυρώθηκε",
+  }[status];
 
   return (
     <Glass className="p-5 h-fit">
@@ -960,7 +1050,7 @@ function BookingDetailsDock({ booking, bookingId, userId, onClose }) {
         )}
       </div>
 
-      {!id ? null : loading ?  (
+      {!id ? null : loading ? (
         <div className="animate-pulse space-y-3">
           <div className="h-7 w-40 bg-white/[.08] rounded border border-white/10" />
           <div className="h-32 bg-white/[.06] rounded-xl border border-white/10" />
@@ -973,30 +1063,53 @@ function BookingDetailsDock({ booking, bookingId, userId, onClose }) {
         <>
           <div className="flex items-center gap-4 mb-6">
             {full?.trainer?.avatar_url ? (
-              <img src={full.trainer.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
+              <img
+                src={full.trainer.avatar_url}
+                alt=""
+                className="h-14 w-14 rounded-full object-cover"
+              />
             ) : (
               <div className="grid h-14 w-14 place-items-center rounded-full bg-gray-700">
                 <CalendarClock className="h-7 w-7 text-gray-500" />
               </div>
             )}
             <div>
-              <div className="text-xl font-medium text-white">{full?.trainer_name || full?.trainer?.full_name || "Προπονητής"}</div>
-              <span className={`inline-flex mt-2 px-2.5 py-0.5 rounded-lg text-xs ${statusTone}`}>{statusLabel}</span>
+              <div className="text-xl font-medium text-white">
+                {full?.trainer_name || full?.trainer?.full_name || "Προπονητής"}
+              </div>
+              <span className={`inline-flex mt-2 px-2.5 py-0.5 rounded-lg text-xs ${statusTone}`}>
+                {statusLabel}
+              </span>
             </div>
           </div>
 
           <ul className="space-y-3 text-gray-300">
             <Li icon={CalendarClock} label="Ημερομηνία" value={fmtDate(full?.date)} />
-            <Li icon={Clock} label="Ώρες" value={`${hhmm(full?.start_time)} – ${hhmm(full?.end_time)}`} />
+            <Li
+              icon={Clock}
+              label="Ώρες"
+              value={`${hhmm(full?.start_time)} – ${hhmm(full?.end_time)}`}
+            />
             <Li icon={Clock} label="Διάρκεια" value={`${full?.duration_min ?? 0} λεπτά`} />
             <Li icon={Wifi} label="Τύπος" value={full?.is_online ? "Online συνεδρία" : "Δια ζώσης"} />
             {!!full?.note && <Li icon={MapPin} label="Σημείωση" value={full.note} />}
             <div className="h-px bg-white/10 my-2" />
             <Li icon={User} label="Προπονητής" value={full?.trainer_name || full?.trainer?.full_name || "—"} />
-            {!!full?.trainer?.email && <Li icon={Mail} label="Email προπονητή" value={full?.trainer?.email} /> }
+            {!!full?.trainer?.email && (
+              <Li icon={Mail} label="Email προπονητή" value={full?.trainer?.email} />
+            )}
             <div className="h-px bg-white/10 my-2" />
-            <Li icon={CalendarClock} label="Υποβλήθηκε" value={fmtTs(toLocalDate(full?.created_at) ?? combineDateTime(full?.date, full?.start_time))} />
-            {!!full?.updated_at && <Li icon={CheckCircle} label="Τελευταία ενημέρωση" value={fmtTs(toLocalDate(full.updated_at))} />}
+            <Li
+              icon={CalendarClock}
+              label="Υποβλήθηκε"
+              value={fmtTs(
+                toLocalDate(full?.created_at) ??
+                  combineDateTime(full?.date, full?.start_time)
+              )}
+            />
+            {!!full?.updated_at && (
+              <Li icon={CheckCircle} label="Τελευταία ενημέρωση" value={fmtTs(toLocalDate(full.updated_at))} />
+            )}
           </ul>
         </>
       )}
@@ -1037,7 +1150,7 @@ function CalendarStage({ view, childrenMap }) {
               x: isActive ? 0 : rel * 40,
               filter: isActive ? "blur(0px)" : "blur(1px)",
             }}
-            transition={{ duration: .22, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             className={isActive ? "relative" : "absolute inset-0 pointer-events-none"}
             style={{ willChange: "transform, opacity, filter" }}
           >
@@ -1068,7 +1181,9 @@ export default function UserBookingsPage() {
 
   useEffect(() => {
     const getAuthUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       setAuthUserId(user?.id ?? null);
     };
     getAuthUser();
@@ -1076,7 +1191,7 @@ export default function UserBookingsPage() {
 
   const userId = useMemo(() => profile?.id || authUserId || null, [profile?.id, authUserId]);
 
-  const openDetails  = (bookingOrId) => setSelected(bookingOrId);
+  const openDetails = (bookingOrId) => setSelected(bookingOrId);
   const closeDetails = () => setSelected(null);
 
   if (loading) return <Spinner full />;
@@ -1112,10 +1227,17 @@ export default function UserBookingsPage() {
         <AthleticBackground />
 
         <div className="min-h-screen overflow-x-hidden pt-0 md:pt-4 lg:pt-0 lg:pl-[var(--side-w)] relative z-10">
-          <Suspense fallback={<></>}><UserMenu /></Suspense>
+          <Suspense fallback={<></>}>
+            <UserMenu />
+          </Suspense>
 
           {/* Header */}
-          <motion.div className="mx-4 mt-2 md:mt-6" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .25, ease: easing }}>
+          <motion.div
+            className="mx-4 mt-2 md:mt-6"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: easing }}
+          >
             <div className="relative p-4 md:p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-2xl bg-white/8 border border-white/10">
@@ -1125,7 +1247,9 @@ export default function UserBookingsPage() {
                   <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight">
                     Οι Κρατήσεις μου
                   </h1>
-                  <p className="text-white/70 mt-1">Δες αν οι κρατήσεις σου έχουν γίνει αποδεκτές</p>
+                  <p className="text-white/70 mt-1">
+                    Δες αν οι κρατήσεις σου έχουν γίνει αποδεκτές
+                  </p>
                 </div>
               </div>
             </div>
@@ -1133,7 +1257,11 @@ export default function UserBookingsPage() {
 
           {/* Calendar + details dock */}
           <main className="mx-auto w-full max-w-none px-4 pb-28 md:pb-16">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: easing }}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: easing }}
+            >
               <div className="grid grid-cols-1 lg:grid-cols-[1fr,420px] gap-4 md:gap-6 items-stretch">
                 {/* LEFT: calendar with direction-aware slide */}
                 <ErrorBoundary>
@@ -1183,10 +1311,22 @@ export default function UserBookingsPage() {
                       {selected && (
                         <motion.div
                           key="details-panel"
-                          initial={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0% round 24px)" }}
-                          animate={{ opacity: 1, y: 0, clipPath: "inset(0% 0% 0% 0% round 24px)" }}
-                          exit={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0% round 24px)" }}
-                          transition={{ duration: .28, ease: [0.22, 1, 0.36, 1] }}
+                          initial={{
+                            opacity: 0,
+                            y: -8,
+                            clipPath: "inset(0% 0% 100% 0% round 24px)",
+                          }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                            clipPath: "inset(0% 0% 0% 0% round 24px)",
+                          }}
+                          exit={{
+                            opacity: 0,
+                            y: -8,
+                            clipPath: "inset(0% 0% 100% 0% round 24px)",
+                          }}
+                          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                           className="flex-1"
                         >
                           <BookingDetailsDock
