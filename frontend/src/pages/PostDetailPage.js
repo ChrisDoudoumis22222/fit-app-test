@@ -1,6 +1,10 @@
 // src/pages/PostDetailPage.jsx
 "use client"
+<<<<<<< HEAD
 import { useEffect, useState, memo, useCallback, useRef } from "react"
+=======
+import { useEffect, useState, memo } from "react"
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 import { useParams, useNavigate } from "react-router-dom"
 import {
   Calendar,
@@ -20,7 +24,10 @@ import {
   Zap,
   Activity,
   BadgeCheck,
+<<<<<<< HEAD
   RotateCcw,
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { supabase } from "../supabaseClient"
@@ -32,6 +39,7 @@ import CommentsSection from "../components/CommentsSection"
 const POST_PLACEHOLDER = "/placeholder.svg?height=400&width=600&text=Post+Image"
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=80&width=80&text=Avatar"
 
+<<<<<<< HEAD
 // helper: promise timeout
 function withTimeout(promise, ms = 12000, timeoutMsg = "Η αίτηση άργησε πολύ") {
   let timer
@@ -46,12 +54,33 @@ const CodeGridBackground = memo(() => (
   <>
     <style>{`
       @keyframes grid-pan { 0% { transform: translate(0,0); } 100% { transform: translate(60px, 60px); } }
+=======
+/* === Subtle “code grid” background; keeps menu badge white, removes right seam === */
+const CodeGridBackground = memo(() => (
+  <>
+    <style>{`
+      @keyframes grid-pan {
+        0% { transform: translate(0,0); }
+        100% { transform: translate(60px, 60px); }
+      }
+      /* Remove bright right-edge seam from the side menu ONLY on the container itself */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       .menu-fix { background-color: transparent !important; }
       .menu-fix [class*="border-r"], .menu-fix [style*="border-right"] { border-right: 0 !important; }
     `}</style>
 
+<<<<<<< HEAD
     <div className="fixed inset-0 -z-50 bg-black" />
     <div className="fixed inset-0 -z-50 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.08),transparent_55%)]" />
+=======
+    {/* Base */}
+    <div className="fixed inset-0 -z-50 bg-black" />
+
+    {/* Soft radial falloff */}
+    <div className="fixed inset-0 -z-50 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.08),transparent_55%)]" />
+
+    {/* Fine + coarse grid layers with slow pan */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     <div
       className="fixed inset-0 -z-50 will-change-transform pointer-events-none"
       style={{
@@ -63,20 +92,35 @@ const CodeGridBackground = memo(() => (
           linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px)
         `,
         backgroundSize: "24px 24px, 24px 24px, 120px 120px, 120px 120px",
+<<<<<<< HEAD
         maskImage: "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 82%)",
         WebkitMaskImage: "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 82%)",
+=======
+        maskImage:
+          "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 82%)",
+        WebkitMaskImage:
+          "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 82%)",
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       }}
     />
   </>
 ))
 
+<<<<<<< HEAD
 /* Animated Counter */
 const AnimatedCounter = memo(({ value, duration = 1000 }) => {
   const [count, setCount] = useState(0)
+=======
+/* Animated Counter Component */
+const AnimatedCounter = memo(({ value, duration = 1000 }) => {
+  const [count, setCount] = useState(0)
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
     let start = 0
     const end = Number.parseInt(value) || 0
     if (start === end) return
+<<<<<<< HEAD
     const timer = setInterval(() => {
       start += Math.ceil(end / (duration / 16))
       if (start >= end) { setCount(end); clearInterval(timer) } else { setCount(start) }
@@ -87,27 +131,67 @@ const AnimatedCounter = memo(({ value, duration = 1000 }) => {
 })
 
 /* Stat chip */
+=======
+
+    const timer = setInterval(() => {
+      start += Math.ceil(end / (duration / 16))
+      if (start >= end) {
+        setCount(end)
+        clearInterval(timer)
+      } else {
+        setCount(start)
+      }
+    }, 16)
+
+    return () => clearInterval(timer)
+  }, [value, duration])
+
+  return <span>{count}</span>
+})
+
+/* Small, consistent stat chip */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 const StatChip = ({ icon: Icon, count, tint = "neutral", size = "md" }) => {
   const pad = size === "sm" ? "px-2.5 py-1" : "px-3 py-1.5"
   const text = size === "sm" ? "text-xs" : "text-sm"
   const iconTint =
     tint === "like" ? "text-red-400" : tint === "comment" ? "text-blue-400" : "text-white/80"
   return (
+<<<<<<< HEAD
     <span className={`inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/35 text-white/90 backdrop-blur-md shadow-sm ${pad} ${text}`}>
+=======
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full
+                  border border-white/15 bg-black/35 text-white/90
+                  backdrop-blur-md shadow-sm ${pad} ${text}`}
+    >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       <Icon className={`h-4 w-4 ${iconTint}`} />
       <span>{count}</span>
     </span>
   )
 }
 
+<<<<<<< HEAD
 /* Star Rating */
+=======
+/* Star Rating (shows “Χωρίς κριτικές” if used; we’ll only render it when reviewCount>0) */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function StarRating({ rating = 0, reviewCount = 0, size = "sm" }) {
   const starSize = size === "lg" ? "h-5 w-5" : "h-4 w-4"
   const full = Math.floor(rating)
   const half = rating % 1 >= 0.5
   const empty = 5 - full - (half ? 1 : 0)
+<<<<<<< HEAD
   const stars = []
   for (let i = 0; i < full; i++) stars.push(<Star key={`full-${i}`} className={`${starSize} fill-yellow-400 text-yellow-400`} />)
+=======
+
+  const stars = []
+  for (let i = 0; i < full; i++) {
+    stars.push(<Star key={`full-${i}`} className={`${starSize} fill-yellow-400 text-yellow-400`} />)
+  }
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   if (half) {
     stars.push(
       <div key="half" className={`relative ${starSize}`}>
@@ -115,15 +199,35 @@ function StarRating({ rating = 0, reviewCount = 0, size = "sm" }) {
         <div className="overflow-hidden w-1/2">
           <Star className={`${starSize} fill-yellow-400 text-yellow-400`} />
         </div>
+<<<<<<< HEAD
       </div>
     )
   }
   for (let i = 0; i < empty; i++) stars.push(<Star key={`empty-${i}`} className={`${starSize} text-zinc-600`} />)
+=======
+      </div>,
+    )
+  }
+  for (let i = 0; i < empty; i++) {
+    stars.push(<Star key={`empty-${i}`} className={`${starSize} text-zinc-600`} />)
+  }
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center gap-1">{stars}</div>
       <span className={`${size === "lg" ? "text-base" : "text-sm"} text-zinc-400`}>
+<<<<<<< HEAD
         {rating > 0 ? (<>{rating.toFixed(1)} ({reviewCount} {reviewCount === 1 ? "κριτική" : "κριτικές"})</>) : ("Χωρίς κριτικές")}
+=======
+        {rating > 0 ? (
+          <>
+            {rating.toFixed(1)} ({reviewCount} {reviewCount === 1 ? "κριτική" : "κριτικές"})
+          </>
+        ) : (
+          "Χωρίς κριτικές"
+        )}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       </span>
     </div>
   )
@@ -134,7 +238,10 @@ export default function PostDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { profile, loading: authLoading } = useAuth()
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -147,6 +254,7 @@ export default function PostDetailPage() {
   const [touchStart, setTouchStart] = useState(null)
   const [touchEnd, setTouchEnd] = useState(null)
 
+<<<<<<< HEAD
   // stall watchdog
   const [stalled, setStalled] = useState(false)
   const stallTimerRef = useRef(null)
@@ -157,6 +265,77 @@ export default function PostDetailPage() {
   const fetchRelatedPosts = useCallback(async (trainerId, currentPostId) => {
     try {
       const q = supabase
+=======
+  const Menu = profile?.role === "trainer" ? TrainerMenu : UserMenu
+
+  useEffect(() => {
+    const fetchPost = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("posts")
+          .select(`
+            *,
+            trainer:profiles!trainer_id (
+              id,
+              full_name,
+              email,
+              avatar_url,
+              bio,
+              specialty,
+              location,
+              experience_years,
+              created_at
+            )
+          `)
+          .eq("id", id)
+          .single()
+
+        if (error) {
+          setError(error.message)
+        } else {
+          // compute rating + reviews from trainer_reviews
+          let trainerData = data.trainer ?? {}
+          if (trainerData?.id) {
+            const { data: revs } = await supabase
+              .from("trainer_reviews")
+              .select("rating")
+              .eq("trainer_id", trainerData.id)
+
+            const ratings = (revs ?? [])
+              .map((r) => Number(r.rating))
+              .filter((n) => !Number.isNaN(n))
+            const reviewCount = ratings.length
+            const avgRating = reviewCount ? ratings.reduce((a, b) => a + b, 0) / reviewCount : 0
+            trainerData = { ...trainerData, rating: avgRating, reviewCount }
+          }
+
+          const updated = { ...data, trainer: trainerData }
+          setPost(updated)
+          setLikeCount(updated.likes || 0)
+          setCommentsCount(updated.comments_count || 0)
+
+          if (profile?.id) {
+            const likedPosts = JSON.parse(localStorage.getItem(`liked_posts_${profile.id}`) || "[]")
+            setIsLiked(likedPosts.includes(updated.id))
+          }
+          if (updated.trainer_id) {
+            fetchRelatedPosts(updated.trainer_id, id)
+          }
+        }
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPost()
+  }, [id, profile?.id])
+
+  const fetchRelatedPosts = async (trainerId, currentPostId) => {
+    try {
+      const { data, error } = await supabase
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         .from("posts")
         .select("id, title, image_url, image_urls, created_at, likes, comments_count")
         .eq("trainer_id", trainerId)
@@ -164,6 +343,7 @@ export default function PostDetailPage() {
         .order("created_at", { ascending: false })
         .limit(6)
 
+<<<<<<< HEAD
       const { data, error } = await withTimeout(q, 10000)
       if (!error && data) setRelatedPosts(data)
     } catch (err) {
@@ -250,6 +430,23 @@ export default function PostDetailPage() {
   const handleLike = async () => {
     if (!profile?.id) { alert("Παρακαλώ συνδεθείτε για να κάνετε like"); return }
     if (isLiking) return
+=======
+      if (!error && data) {
+        setRelatedPosts(data)
+      }
+    } catch (err) {
+      console.error("Error fetching related posts:", err)
+    }
+  }
+
+  const handleLike = async () => {
+    if (!profile?.id) {
+      alert("Παρακαλώ συνδεθείτε για να κάνετε like")
+      return
+    }
+    if (isLiking) return
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     setIsLiking(true)
     try {
       const likedPosts = JSON.parse(localStorage.getItem(`liked_posts_${profile.id}`) || "[]")
@@ -285,7 +482,16 @@ export default function PostDetailPage() {
   }
 
   const handleShare = async () => {
+<<<<<<< HEAD
     const shareData = { title: post?.title, text: post?.description, url: window.location.href }
+=======
+    const shareData = {
+      title: post.title,
+      text: post.description,
+      url: window.location.href,
+    }
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     try {
       if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData)
@@ -298,12 +504,30 @@ export default function PostDetailPage() {
       try {
         await navigator.clipboard.writeText(window.location.href)
         alert("Ο σύνδεσμος αντιγράφηκε στο clipboard!")
+<<<<<<< HEAD
       } catch { alert("Δεν ήταν δυνατή η κοινοποίηση") }
     }
   }
 
   const formatDate = (dateString) =>
     new Date(dateString).toLocaleDateString("el-GR", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })
+=======
+      } catch {
+        alert("Δεν ήταν δυνατή η κοινοποίηση")
+      }
+    }
+  }
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("el-GR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 
   const formatRelativeTime = (dateString) => {
     const now = new Date()
@@ -319,7 +543,11 @@ export default function PostDetailPage() {
 
   const handleCommentCountUpdate = (newCount) => setCommentsCount(newCount)
 
+<<<<<<< HEAD
   /* ===== Loading (with stall fallback) ===== */
+=======
+  /* Loading */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   if (authLoading || loading) {
     return (
       <div className="relative min-h-screen text-gray-100">
@@ -327,6 +555,7 @@ export default function PostDetailPage() {
         <div className="menu-fix">
           <Menu />
         </div>
+<<<<<<< HEAD
 
         <div className="flex items-center justify-center h-[75vh]">
           {stalled ? (
@@ -370,12 +599,32 @@ export default function PostDetailPage() {
               </div>
             </motion.div>
           )}
+=======
+        <div className="flex items-center justify-center h-[75vh]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center gap-6 p-8 rounded-3xl border border-zinc-700/50 bg-black/40 backdrop-blur-xl"
+          >
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin text-zinc-400" />
+              <div className="absolute inset-0 h-12 w-12 animate-ping rounded-full bg-zinc-400/20" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-semibold text-zinc-100">Φόρτωση ανάρτησης</h3>
+              <p className="text-zinc-400">Προετοιμασία του περιεχομένου...</p>
+            </div>
+          </motion.div>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
       </div>
     )
   }
 
+<<<<<<< HEAD
   /* ===== Error ===== */
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   if (error) {
     return (
       <div className="relative min-h-screen text-gray-100">
@@ -392,6 +641,7 @@ export default function PostDetailPage() {
             <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-red-400 mb-2">Σφάλμα φόρτωσης</h3>
             <p className="text-red-300 mb-4">{error}</p>
+<<<<<<< HEAD
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleRetry}
@@ -407,13 +657,24 @@ export default function PostDetailPage() {
                 Reload σελίδας
               </button>
             </div>
+=======
+            <button
+              onClick={() => navigate(-1)}
+              className="px-6 py-3 bg-red-600/20 text-red-200 rounded-xl hover:bg-red-600/30 transition-all duration-300 font-medium border border-red-500/30"
+            >
+              Επιστροφή
+            </button>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           </motion.div>
         </div>
       </div>
     )
   }
 
+<<<<<<< HEAD
   /* ===== Not found ===== */
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   if (!post) {
     return (
       <div className="relative min-h-screen text-gray-100">
@@ -445,7 +706,14 @@ export default function PostDetailPage() {
   const images = post.image_urls?.length ? post.image_urls : [post.image_url].filter(Boolean)
   const hasMultipleImages = images.length > 1
 
+<<<<<<< HEAD
   const handleTouchStart = (e) => { setTouchEnd(null); setTouchStart(e.targetTouches[0].clientX) }
+=======
+  const handleTouchStart = (e) => {
+    setTouchEnd(null)
+    setTouchStart(e.targetTouches[0].clientX)
+  }
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const handleTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX)
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return
@@ -470,7 +738,16 @@ export default function PostDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
           className="relative overflow-hidden rounded-3xl shadow-2xl border border-zinc-700/50 mb-8 hover:border-zinc-600/70 transition-all duration-500"
+<<<<<<< HEAD
           style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)" }}
+=======
+          style={{
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+          }}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         >
           {/* Hero with images */}
           {images.length > 0 && (
@@ -523,7 +800,13 @@ export default function PostDetailPage() {
                         <button
                           key={idx}
                           onClick={() => setCurrentImageIndex(idx)}
+<<<<<<< HEAD
                           className={`w-2 h-2 rounded-full transition-all duration-300 ${idx === currentImageIndex ? "bg-white scale-125" : "bg-white/50 hover:bg-white/70"}`}
+=======
+                          className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                            idx === currentImageIndex ? "bg-white scale-125" : "bg-white/50 hover:bg-white/70"
+                          }`}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                         />
                       ))}
                     </div>
@@ -545,7 +828,16 @@ export default function PostDetailPage() {
 
               {/* Title overlay */}
               <div className="absolute bottom-6 sm:bottom-8 left-4 sm:left-8 right-4 sm:right-8 z-20">
+<<<<<<< HEAD
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="space-y-3 sm:space-y-4">
+=======
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="space-y-3 sm:space-y-4"
+                >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                   <div className="flex items-center gap-3">
                     <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 backdrop-blur-xl border border-blue-500/30 text-blue-200 text-xs sm:text-sm font-medium">
                       <Calendar className="h-4 w-4" />
@@ -562,12 +854,30 @@ export default function PostDetailPage() {
 
           {/* Content */}
           <div className="p-6 sm:p-8 md:p-12">
+<<<<<<< HEAD
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="max-w-none mb-6 sm:mb-8">
+=======
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="max-w-none mb-6 sm:mb-8"
+            >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               <p className="text-zinc-300 leading-relaxed text-base sm:text-lg whitespace-pre-wrap">{post.description}</p>
             </motion.div>
 
             {/* Actions */}
+<<<<<<< HEAD
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="flex flex-wrap items-center gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-black/20 backdrop-blur-xl border border-zinc-700/50 mb-6 sm:mb-8">
+=======
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="flex flex-wrap items-center gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-black/20 backdrop-blur-xl border border-zinc-700/50 mb-6 sm:mb-8"
+            >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               <motion.button
                 onClick={handleLike}
                 disabled={isLiking || !profile?.id}
@@ -604,10 +914,27 @@ export default function PostDetailPage() {
               </motion.button>
             </motion.div>
 
+<<<<<<< HEAD
             {/* Trainer Card */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="relative overflow-hidden rounded-2xl border border-zinc-700/50 p-6 sm:p-8 hover:border-zinc-600/70 transition-all duration-300" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)" }}>
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
                 {/* Avatar + tick */}
+=======
+            {/* Trainer Card — tidied, blue tick, category chip */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="relative overflow-hidden rounded-2xl border border-zinc-700/50 p-6 sm:p-8 hover:border-zinc-600/70 transition-all duration-300"
+              style={{
+                background: "rgba(0,0,0,0.4)",
+                backdropFilter: "blur(20px) saturate(160%)",
+                WebkitBackdropFilter: "blur(20px) saturate(160%)",
+              }}
+            >
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
+                {/* Avatar + blue tick */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                 <div className="relative shrink-0">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden ring-4 ring-zinc-700/50 shadow-2xl border border-zinc-700/50">
                     {trainer.avatar_url ? (
@@ -615,7 +942,14 @@ export default function PostDetailPage() {
                         src={trainer.avatar_url || "/placeholder.svg"}
                         alt={trainer.full_name}
                         className="w-full h-full object-cover"
+<<<<<<< HEAD
                         onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = AVATAR_PLACEHOLDER }}
+=======
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src = AVATAR_PLACEHOLDER
+                        }}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                       />
                     ) : (
                       <User className="h-10 w-10 text-zinc-400" />
@@ -627,29 +961,63 @@ export default function PostDetailPage() {
                 </div>
 
                 <div className="flex-1 w-full">
+<<<<<<< HEAD
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 mb-3 text-center sm:text-left">
                     <button onClick={() => navigate(`/trainer/${trainer.id}`)} className="text-xl sm:text-2xl font-bold text-zinc-100 hover:text-white hover:underline underline-offset-4 decoration-zinc-500">
                       {trainer.full_name || trainer.email || "Unknown Trainer"}
                     </button>
+=======
+                  {/* Name + category chip + rating (only if > 0) */}
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 mb-3 text-center sm:text-left">
+                    <button
+                      onClick={() => navigate(`/trainer/${trainer.id}`)}
+                      className="text-xl sm:text-2xl font-bold text-zinc-100 hover:text-white hover:underline underline-offset-4 decoration-zinc-500"
+                    >
+                      {trainer.full_name || trainer.email || "Unknown Trainer"}
+                    </button>
+
+                    {/* Category chip (replaces “Pro”) */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                     {trainer.specialty && (
                       <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-200 text-xs sm:text-sm font-medium">
                         {trainer.specialty}
                       </span>
                     )}
+<<<<<<< HEAD
                     {Number(trainer.reviewCount) > 0 && (
                       <div className="flex justify-center sm:justify-start">
                         <StarRating rating={Number(trainer.rating) || 0} reviewCount={Number(trainer.reviewCount) || 0} />
+=======
+
+                    {/* Rating only if there are reviews */}
+                    {Number(trainer.reviewCount) > 0 && (
+                      <div className="flex justify-center sm:justify-start">
+                        <StarRating
+                          rating={Number(trainer.rating) || 0}
+                          reviewCount={Number(trainer.reviewCount) || 0}
+                        />
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                       </div>
                     )}
                   </div>
 
+<<<<<<< HEAD
+=======
+                  {/* Info rows: experience + location */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-5 sm:mb-6">
                     {trainer.experience_years && (
                       <div className="flex items-center gap-3 text-zinc-300">
                         <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
                           <Clock className="h-4 w-4 text-emerald-400" />
                         </div>
+<<<<<<< HEAD
                         <span className="text-sm sm:text-base">{trainer.experience_years} χρόνια εμπειρίας</span>
+=======
+                        <span className="text-sm sm:text-base">
+                          {trainer.experience_years} χρόνια εμπειρίας
+                        </span>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                       </div>
                     )}
                     {trainer.location && (
@@ -657,7 +1025,13 @@ export default function PostDetailPage() {
                         <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center">
                           <MapPin className="h-4 w-4 text-rose-400" />
                         </div>
+<<<<<<< HEAD
                         <span className="text-sm sm:text-base">{trainer.location}</span>
+=======
+                        <span className="text-sm sm:text-base">
+                          {trainer.location}
+                        </span>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                       </div>
                     )}
                   </div>
@@ -686,19 +1060,49 @@ export default function PostDetailPage() {
         </motion.article>
 
         {/* Comments */}
+<<<<<<< HEAD
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} id="comments">
           <CommentsSection postId={id} initialCommentsCount={commentsCount} onCommentCountUpdate={handleCommentCountUpdate} />
+=======
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          id="comments"
+        >
+          <CommentsSection
+            postId={id}
+            initialCommentsCount={commentsCount}
+            onCommentCountUpdate={handleCommentCountUpdate}
+          />
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </motion.div>
 
         {/* Related Posts */}
         {relatedPosts.length > 0 && (
+<<<<<<< HEAD
           <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.0 }} className="mt-12">
+=======
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.0 }}
+            className="mt-12"
+          >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-6 sm:mb-8">
               <div className="flex items-center gap-3">
                 <Sparkles className="h-6 w-6 text-blue-400" />
                 <h2 className="text-xl sm:text-2xl font-bold text-zinc-100">Περισσότερα από αυτόν τον προπονητή</h2>
               </div>
+<<<<<<< HEAD
               <button onClick={() => navigate(`/trainer/${trainer.id}/posts`)} className="flex items-center gap-2 text-zinc-300 hover:text-zinc-100 transition-colors self-start sm:self-auto">
+=======
+              <button
+                onClick={() => navigate(`/trainer/${trainer.id}/posts`)}
+                className="flex items-center gap-2 text-zinc-300 hover:text-zinc-100 transition-colors self-start sm:self-auto"
+              >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                 <span className="text-sm font-medium">Προβολή όλων</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -713,13 +1117,37 @@ export default function PostDetailPage() {
         )}
 
         {/* Bottom Actions */}
+<<<<<<< HEAD
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1 }} className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-10 sm:mt-12 justify-center">
           <motion.button onClick={() => navigate("/posts")} whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-2xl font-medium transition-all duration-300 shadow-lg">
+=======
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1 }}
+          className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-10 sm:mt-12 justify-center"
+        >
+          <motion.button
+            onClick={() => navigate("/posts")}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-zinc-800/50 text-zinc-100 border border-zinc-700/50 hover:bg-zinc-700/50 rounded-2xl font-medium transition-all duration-300 shadow-lg"
+          >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
             <Activity className="h-5 w-5" />
             Προβολή όλων των αναρτήσεων
           </motion.button>
           {profile?.role === "user" && (
+<<<<<<< HEAD
             <motion.button onClick={() => navigate("/services")} whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-2xl font-medium transition-all duration-300 shadow-lg">
+=======
+            <motion.button
+              onClick={() => navigate("/services")}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 rounded-2xl font-medium transition-all duration-300 shadow-lg"
+            >
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               <Zap className="h-5 w-5" />
               Περιήγηση προπονητών
             </motion.button>
@@ -755,10 +1183,26 @@ function RelatedPostCard({ post, onNavigate, index }) {
       onClick={() => onNavigate(`/post/${post.id}`)}
       whileHover={{ y: -4, scale: 1.02 }}
       className="group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 hover:shadow-2xl border border-zinc-700/50 hover:border-zinc-600/70"
+<<<<<<< HEAD
       style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", boxShadow: "0 8px 25px -5px rgba(0,0,0,.3)" }}
     >
       <div className="relative h-48 overflow-hidden">
         <img src={postImage || "/placeholder.svg"} alt={post.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+=======
+      style={{
+        background: "rgba(0,0,0,0.4)",
+        backdropFilter: "blur(20px) saturate(160%)",
+        WebkitBackdropFilter: "blur(20px) saturate(160%)",
+        boxShadow: "0 8px 25px -5px rgba(0,0,0,.3)",
+      }}
+    >
+      <div className="relative h-48 overflow-hidden">
+        <img
+          src={postImage || "/placeholder.svg"}
+          alt={post.title}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        />
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
         {hasMultipleImages && (
@@ -771,11 +1215,23 @@ function RelatedPostCard({ post, onNavigate, index }) {
 
         <div className="absolute top-3 left-3 flex gap-2">
           {post.likes > 0 && <StatChip icon={Heart} count={post.likes} tint="like" size="sm" />}
+<<<<<<< HEAD
           {post.comments_count > 0 && <StatChip icon={MessageCircle} count={post.comments_count} tint="comment" size="sm" />}
         </div>
 
         <div className="absolute bottom-4 left-4 right-4">
           <h3 className="text-zinc-100 font-semibold text-lg line-clamp-2 leading-tight drop-shadow-lg">{post.title}</h3>
+=======
+          {post.comments_count > 0 && (
+            <StatChip icon={MessageCircle} count={post.comments_count} tint="comment" size="sm" />
+          )}
+        </div>
+
+        <div className="absolute bottom-4 left-4 right-4">
+          <h3 className="text-zinc-100 font-semibold text-lg line-clamp-2 leading-tight drop-shadow-lg">
+            {post.title}
+          </h3>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
       </div>
 

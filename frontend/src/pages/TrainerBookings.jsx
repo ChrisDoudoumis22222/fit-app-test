@@ -12,7 +12,11 @@ import React, {
 import {
   Loader2, Calendar, Users, Clock, AlertCircle, X,
   CalendarClock, CheckCircle, Ban, Wifi, User, Mail, MapPin,
+<<<<<<< HEAD
   ChevronLeft, ChevronRight, Euro, PencilLine, RotateCcw
+=======
+  ChevronLeft, ChevronRight, Euro, PencilLine
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 } from "lucide-react"
 import { useAuth } from "../AuthProvider"
 import { motion, AnimatePresence } from "framer-motion"
@@ -57,6 +61,7 @@ const isNewBooking = (b) => {
   return Date.now() - created <= 24 * 60 * 60 * 1000
 }
 
+<<<<<<< HEAD
 /* ---------- Timeout helper (prevents indefinite hangs) ---------- */
 function withTimeout(promise, ms = 12000, msg = "Timeout") {
   let t
@@ -64,6 +69,8 @@ function withTimeout(promise, ms = 12000, msg = "Timeout") {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(t))
 }
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 /* ---------- Background ---------- */
 const BaseBackground = memo(() => (
   <div className="fixed inset-0 -z-50">
@@ -111,6 +118,7 @@ const GlassTile = ({ className = "", children }) => (
   </div>
 )
 
+<<<<<<< HEAD
 /* ---------- Spinner with 15s stall fallback ---------- */
 function Spinner({ full = false, onRetry }) {
   const [stalled, setStalled] = useState(false)
@@ -122,12 +130,33 @@ function Spinner({ full = false, onRetry }) {
 
   const reload = () => window.location.reload()
 
+=======
+/* ---------- ColorCard ---------- */
+const ColorCard = memo(({ color = "red", className = "", children }) => {
+  const gradientMap = {
+    red: "from-red-600 to-red-700",
+    emerald: "from-emerald-600 to-emerald-700",
+    zinc: "from-zinc-700 to-zinc-800",
+  }
+  const gradient = gradientMap[color] || gradientMap.zinc
+  return (
+    <div className={`relative overflow-hidden rounded-3xl p-6 shadow-xl text-white bg-gradient-to-br ${gradient} ${className}`}>
+      <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 30% -10%, white, transparent 40%)" }} />
+      <div className="relative">{children}</div>
+    </div>
+  )
+})
+
+/* ---------- Spinner ---------- */
+function Spinner({ full = false }) {
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   if (full) {
     return (
       <div className="relative min-h-screen text-gray-100">
         <BaseBackground />
         <AthleticBackground />
         <div className="relative z-10 flex items-center justify-center h-screen">
+<<<<<<< HEAD
           {stalled ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
@@ -168,6 +197,15 @@ function Spinner({ full = false, onRetry }) {
               </div>
             </motion.div>
           )}
+=======
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .25, ease: [0.22,1,0.36,1] }} className="flex flex-col items-center gap-6 p-8 rounded-3xl bg-[rgba(17,18,21,.65)] backdrop-blur-xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_10px_30px_rgba(0,0,0,.45)]">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-200" />
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-semibold text-white">Φόρτωση κρατήσεων</h3>
+              <p className="text-white/70">Προετοιμασία των δεδομένων...</p>
+            </div>
+          </motion.div>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
       </div>
     )
@@ -197,7 +235,11 @@ class ErrorBoundary extends React.Component {
               <p className="font-semibold">Κάτι πήγε στραβά στη λίστα κρατήσεων.</p>
               <button
                 onClick={() => this.setState({ hasError:false, error:null })}
+<<<<<<< HEAD
                 className="mt-4 px-4 py-2 rounded-lg bg-white/20 hover:bg白/30 transition"
+=======
+                className="mt-4 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition"
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               >
                 Προσπάθησε ξανά
               </button>
@@ -358,31 +400,52 @@ function BookingPill({ b, onOpen, compact = false }) {
   )
 }
 
+<<<<<<< HEAD
 /* ======================= NEW: POPUP BAR ======================= */
+=======
+/* ======================= NEW: POPUP BAR (now minimizable, no 'Καθαρισμός') ======================= */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
   const [items, setItems] = useState([])
   const [minimized, setMinimized] = useState(false)
   const [loading, setLoading] = useState(true)
 
+<<<<<<< HEAD
   // initial load with timeout
+=======
+  // initial load: ALL pending (no 48h limit), ordered by date & start_time
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
     let alive = true
     if (!trainerId) return
     ;(async () => {
       try {
         setLoading(true)
+<<<<<<< HEAD
         const query = supabase
           .from("trainer_bookings")
           .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
+=======
+        const { data, error } = await supabase
+          .from("trainer_bookings")
+          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at") // no price_eur
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           .eq("trainer_id", trainerId)
           .eq("status", "pending")
           .order("date", { ascending: true })
           .order("start_time", { ascending: true })
           .limit(50)
+<<<<<<< HEAD
         const { data, error } = await withTimeout(query, 10000, "Timeout νέων κρατήσεων")
         if (error) throw error
         if (!alive) return
         setItems(data ?? [])
+=======
+        if (error) throw error
+        if (!alive) return
+        setItems(data ?? [])
+        // auto-show if there are items
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         setMinimized((data?.length ?? 0) === 0)
       } catch {
         if (!alive) return
@@ -395,7 +458,11 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
     return () => { alive = false }
   }, [trainerId, refreshKey])
 
+<<<<<<< HEAD
   // realtime
+=======
+  // realtime: push new INSERTs (pending only) for this trainer
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
     if (!trainerId) return
     const channel = supabase.channel(`realtime-trainer-bookings-${trainerId}`)
@@ -411,8 +478,15 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
             .slice(0, 50)
           return next
         })
+<<<<<<< HEAD
       }
     )
+=======
+        // keep minimized state; don't force open
+      }
+    )
+    // keep popup in sync on status updates (remove if no longer pending)
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     channel.on(
       "postgres_changes",
       { event: "UPDATE", schema: "public", table: "trainer_bookings", filter: `trainer_id=eq.${trainerId}` },
@@ -428,8 +502,15 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
     return () => { supabase.removeChannel(channel) }
   }, [trainerId])
 
+<<<<<<< HEAD
   if ((items?.length ?? 0) === 0) return null
 
+=======
+  // nothing to render when no items
+  if ((items?.length ?? 0) === 0) return null
+
+  // MINIMIZED: show a small sticky reopen button
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   if (minimized) {
     return (
       <AnimatePresence>
@@ -461,6 +542,10 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
     )
   }
 
+<<<<<<< HEAD
+=======
+  // EXPANDED: full popup bar (no 'Καθαρισμός' button)
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   return (
     <AnimatePresence>
       <motion.div
@@ -477,6 +562,10 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
               Νέα αιτήματα κράτησης <span className="text-white/55">({items.length})</span>
             </div>
             <div className="flex items-center gap-2">
+<<<<<<< HEAD
+=======
+              {/* Close now minimizes instead of hiding permanently */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               <Button size="sm" variant="ghost" onClick={() => setMinimized(true)} aria-label="Μίνιμαϊζ">
                 <X className="h-4 w-4 text-white/85" />
               </Button>
@@ -515,12 +604,19 @@ function DaySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey,
       if (!trainerId) return
       setLoading(true); setError(null)
       try {
+<<<<<<< HEAD
         const query = supabase
+=======
+        const { data, error } = await supabase
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           .from("trainer_bookings")
           .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
           .eq("trainer_id", trainerId)
           .eq("date", dayStr)
+<<<<<<< HEAD
         const { data, error } = await withTimeout(query, 10000, "Timeout day view")
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         if (error) throw error
         const sorted = (data ?? []).sort((a,b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
         if (!alive) return
@@ -597,14 +693,21 @@ function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refr
         const endDate = new Date(weekStart); endDate.setDate(endDate.getDate() + 6)
         const end = dateStr(endDate)
 
+<<<<<<< HEAD
         const query = supabase
+=======
+        const { data, error } = await supabase
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           .from("trainer_bookings")
           .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
           .eq("trainer_id", trainerId)
           .gte("date", start)
           .lte("date", end)
 
+<<<<<<< HEAD
         const { data, error } = await withTimeout(query, 10000, "Timeout week view")
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         if (error) throw error
         const sorted = (data ?? []).sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
         if (!alive) return
@@ -688,12 +791,17 @@ function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refr
   )
 }
 
+<<<<<<< HEAD
 /* ======================= MONTH VIEW (mobile-tuned + empty-day hint) ======================= */
+=======
+/* ======================= MONTH VIEW ======================= */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
   const [anchor, setAnchor] = useState(startOfMonth(new Date()))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [rows, setRows] = useState([])
+<<<<<<< HEAD
 
   // Mobile breakpoints
   const isMobile = useIsMobile(640)
@@ -701,6 +809,10 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
 
   // show fewer pills on small screens
   const maxPills = isTiny ? 1 : isMobile ? 2 : 3
+=======
+  const isMobile = useIsMobile(640)
+  const maxPills = isMobile ? 2 : 3
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 
   const gridStart = useMemo(() => startOfWeek(startOfMonth(anchor), 1), [anchor])
   const gridDays = useMemo(() => {
@@ -717,13 +829,20 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
       if (!trainerId) return
       setLoading(true); setError(null)
       try {
+<<<<<<< HEAD
         const query = supabase
+=======
+        const { data, error } = await supabase
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           .from("trainer_bookings")
           .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
           .eq("trainer_id", trainerId)
           .gte("date", startStr)
           .lte("date", endStr)
+<<<<<<< HEAD
         const { data, error } = await withTimeout(query, 12000, "Timeout month view")
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         if (error) throw error
         if (!alive) return
         setRows(data ?? []); setLoading(false)
@@ -747,6 +866,7 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
   const weekdays = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"]
 
   return (
+<<<<<<< HEAD
     <Glass className="p-3 sm:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -754,11 +874,20 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
           <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
           <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
           <p className="ml-1 sm:ml-2 text-white/90 text-sm sm:text-base">{fmtMonthYear(anchor)}</p>
+=======
+    <Glass className="p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
+          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
+          <p className="ml-1 sm:ml-2 text-white/90">{fmtMonthYear(anchor)}</p>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
         <div className="hidden md:block">
           <ViewSwitch value={view} onChange={onChangeView} />
         </div>
       </div>
+<<<<<<< HEAD
       <div className="md:hidden mb-2 flex justify-center">
         <ViewSwitch value={view} onChange={onChangeView} />
       </div>
@@ -826,12 +955,63 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
             )
           })}
         </div>
+=======
+      <div className="md:hidden mb-3 flex justify-center">
+        <ViewSwitch value={view} onChange={onChangeView} />
+      </div>
+
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2">
+        {weekdays.map((w) => (
+          <div key={w} className="text-center text-[10px] sm:text-xs text-white/60">{w}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+        {gridDays.map((d, idx) => {
+          const inMonth = d.getMonth() === anchor.getMonth()
+          const key = toYMDLocal(d)
+          const dayRows = byDate.get(key) || []
+          return (
+            <div
+              key={idx}
+              onClick={() => onSelectDate?.(key)}
+              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h=[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)] cursor-pointer hover:ring-1 hover:ring-white/15 transition`}
+              title="Κάνε κλικ για γρήγορη κράτηση"
+            >
+              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                <span className={`text-[10px] sm:text-[11px] ${inMonth ? "text-white/80" : "text-white/40"}`}>{fmtDayNum(d)}</span>
+                {loading && idx < 7 ? <span className="text-[9px] sm:text-[10px] text-white/30">…</span> : null}
+              </div>
+
+              {loading ? (
+                <div className="h-12 sm:h-16 rounded-lg sm:rounded-xl bg-white/[.06] animate-pulse border border-white/10" />
+              ) : error ? (
+                <div className="text-[10px] sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5">Σφάλμα</div>
+              ) : dayRows.length === 0 ? (
+                <div className="text-[9px] sm:text-[10px] text-white/60">καμια κρατηση • πάτα για κράτηση</div>
+              ) : (
+                <div className="space-y-1">
+                  {dayRows.slice(0, maxPills).map((b)=>(
+                    <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact />
+                  ))}
+                  {dayRows.length > maxPills && (
+                    <div className="text-[9px] sm:text-[10px] text-white/50">+{dayRows.length - maxPills} ακόμα</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       </div>
     </Glass>
   )
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 /* ======================= DETAILS DOCK ======================= */
 function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) {
   const id = useMemo(() => (bookingId ? bookingId : safeId(booking)), [booking, bookingId])
@@ -851,7 +1031,11 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
 
     ;(async () => {
       setLoading(true); setErr(null)
+<<<<<<< HEAD
       const query = supabase
+=======
+      const { data, error } = await supabase
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         .from("trainer_bookings")
         .select(`
           id, trainer_id, user_id, date, start_time, end_time, duration_min,
@@ -863,6 +1047,7 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
         .eq("id", id)
         .single()
 
+<<<<<<< HEAD
       try {
         const { data, error } = await withTimeout(query, 10000, "Timeout details")
         if (!alive) return
@@ -886,6 +1071,25 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
         if (!alive) return
         setErr(e.message || "Σφάλμα ανάγνωσης κράτησης"); setLoading(false)
       }
+=======
+      if (!alive) return
+      if (error) { setErr(error.message || "Σφάλμα ανάγνωσης κράτησης"); setLoading(false); return }
+
+      const normalized = {
+        ...data,
+        client: {
+          full_name: data.user_name || data.user?.full_name || "Χρήστης",
+          email: data.user_email || data.user?.email || null,
+          avatar_url: data.user?.avatar_url || null,
+        },
+        trainer_info: {
+          full_name: data.trainer_name || data.trainer?.full_name || null,
+          email: data.trainer?.email || null,
+          avatar_url: data.trainer?.avatar_url || null,
+        },
+      }
+      setFull(normalized); setLoading(false)
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     })()
 
     return () => { alive = false }
@@ -1006,7 +1210,11 @@ const Li = ({ icon: Icon, label, value }) => (
   </li>
 )
 
+<<<<<<< HEAD
 /* ======================= STABLE VIEW SLIDE ======================= */
+=======
+/* ======================= STABLE VIEW SLIDE (desktop + mobile) ======================= */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function CalendarStage({ view, childrenMap }) {
   const order = { day: 0, week: 1, month: 2 }
   const [mounted, setMounted] = useState(() => new Set([view]))
@@ -1068,19 +1276,29 @@ export default function TrainerBookingsPage() {
   const quickRef = useRef(null)
   const detailsRef = useRef(null)
 
+<<<<<<< HEAD
   const [authRetryKey, setAuthRetryKey] = useState(0)
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
     const getAuthUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       setAuthUserId(user?.id ?? null)
     }
     getAuthUser()
+<<<<<<< HEAD
   }, [authRetryKey])
 
   const resolvedTrainerId = useMemo(() => profile?.id || authUserId || null, [profile?.id, authUserId])
 
   // settings (no timeout needed but fine as-is)
+=======
+  }, [])
+
+  const resolvedTrainerId = useMemo(() => profile?.id || authUserId || null, [profile?.id, authUserId])
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
     if (!resolvedTrainerId) return
     const pad = (n) => String(n).padStart(2, "0")
@@ -1148,6 +1366,7 @@ export default function TrainerBookingsPage() {
     setTimeout(() => scrollTo(quickRef), 70)
   }
 
+<<<<<<< HEAD
   // --- PAGE-LEVEL LOADING WATCHDOG ---
   if (loading || !profile || !resolvedTrainerId) {
     return (
@@ -1159,6 +1378,11 @@ export default function TrainerBookingsPage() {
   }
 
   if (profile.role !== "trainer") {
+=======
+  if (loading) return <Spinner full />
+
+  if (!profile || profile.role !== "trainer") {
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     return (
       <div className="relative min-h-screen text-gray-100">
         <BaseBackground />
@@ -1176,6 +1400,11 @@ export default function TrainerBookingsPage() {
     )
   }
 
+<<<<<<< HEAD
+=======
+  if (!resolvedTrainerId) return <Spinner full />
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const easing = [0.22, 1, 0.36, 1]
 
   return (
@@ -1206,7 +1435,11 @@ export default function TrainerBookingsPage() {
             </div>
           </motion.div>
 
+<<<<<<< HEAD
           {/* Popup bar */}
+=======
+          {/* Popup bar with NEW bookings (minimizable) */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           <div className="mx-4">
             <NewBookingsPopup
               trainerId={resolvedTrainerId}
@@ -1215,7 +1448,11 @@ export default function TrainerBookingsPage() {
             />
           </div>
 
+<<<<<<< HEAD
           {/* Calendar + details dock + QuickBook */}
+=======
+          {/* Calendar + details dock + conditional QuickBook */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           <main className="mx-auto w-full max-w-none px-4 pb-28 md:pb-16">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: easing }}>
               <div className="grid grid-cols-1 lg:grid-cols-[1fr,420px] gap-4 md:gap-6 items-stretch">
@@ -1348,6 +1585,7 @@ export default function TrainerBookingsPage() {
     </>
   )
 }
+<<<<<<< HEAD
 
 /* ---------- Simple color card ---------- */
 const ColorCard = memo(({ color = "red", className = "", children }) => {
@@ -1364,3 +1602,5 @@ const ColorCard = memo(({ color = "red", className = "", children }) => {
     </div>
   )
 })
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9

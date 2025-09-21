@@ -310,16 +310,23 @@ function BookingPill({ b, onOpen, compact = false }) {
   );
 }
 
+<<<<<<< HEAD
 /* ======================= DAY VIEW (USER) – mobile friendly ======================= */
+=======
+/* ======================= DAY VIEW (USER) ======================= */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
   const [day, setDay] = useState(startOfDay(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
+<<<<<<< HEAD
   const [showAll, setShowAll] = useState(false);
 
   const isMobile = useIsMobile(640);
   const maxItems = isMobile ? 6 : 12; // πόσα pills να φανούν πριν το “+N ακόμα”
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const dayStr = useMemo(() => toYMDLocal(day), [day]);
 
   useEffect(() => {
@@ -348,6 +355,7 @@ function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) 
 
   const goPrev = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return startOfDay(n) });
   const goNext = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return startOfDay(n) });
+<<<<<<< HEAD
   const isToday = toYMDLocal(new Date()) === dayStr;
 
   // items προς εμφάνιση (με “εμφάνιση περισσότερων” σε mobile)
@@ -422,30 +430,70 @@ function DaySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) 
               </div>
             )}
           </>
+=======
+
+  return (
+    <Glass className="p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
+          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
+          <p className="ml-1 sm:ml-2 text-white/90">{fmtLongDay(day)} {fmtDayNum(day)} {fmtMonth(day)}</p>
+        </div>
+        <div className="hidden md:block">
+          <ViewSwitch value={view} onChange={onChangeView} />
+        </div>
+      </div>
+      <div className="md:hidden mb-3 flex justify-center">
+        <ViewSwitch value={view} onChange={onChangeView} />
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {loading ? (
+          [...Array(6)].map((_,i)=><div key={i} className="h-20 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />)
+        ) : error ? (
+          <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
+        ) : rows.length === 0 ? (
+          <div className="text-xs text-white/60 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl col-span-full">
+            Καμία κράτηση για σήμερα
+          </div>
+        ) : (
+          rows.map((b)=> <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         )}
       </div>
     </Glass>
   );
 }
 
+<<<<<<< HEAD
 /* ======================= WEEK VIEW (USER) – mobile friendly ======================= */
+=======
+/* ======================= WEEK VIEW (USER) ======================= */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), 1));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
 
+<<<<<<< HEAD
   const isMobile = useIsMobile(640);
   const isTablet = useIsMobile(768);
   const maxPills = isMobile ? 2 : 3;
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const days = useMemo(() => {
     const arr = []; for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(d.getDate() + i); arr.push(d) }
     return arr;
   }, [weekStart]);
 
   const dateStr = (d) => toYMDLocal(d);
+<<<<<<< HEAD
   const todayStr = toYMDLocal(startOfDay(new Date()));
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 
   useEffect(() => {
     let alive = true;
@@ -493,9 +541,12 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
     ? `${weekStart.getDate()}–${end.getDate()} ${fmtMonth(weekStart)}`
     : `${weekStart.getDate()} ${fmtMonth(weekStart)} – ${end.getDate()} ${fmtMonth(end)}`;
 
+<<<<<<< HEAD
   // κρατάμε 7 στήλες με οριζόντιο scroll σε μικρές οθόνες
   const gridMinWidth = isTablet ? "min-w-[770px]" : "min-w-[770px]";
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   return (
     <Glass className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -512,6 +563,7 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
         <ViewSwitch value={view} onChange={onChangeView} />
       </div>
 
+<<<<<<< HEAD
       {/* Scroll container so 7 columns remain readable on mobile */}
       <div className="-mx-2 sm:mx-0 overflow-x-auto">
         <div className={`px-2 sm:px-0 ${gridMinWidth}`}>
@@ -573,19 +625,56 @@ function WeeklyScheduleGrid({ userId, onOpenDetails, view, onChangeView, refresh
               );
             })}
           </div>
+=======
+      <div className="overflow-x-auto">
+        <div className="min-w-[1000px] grid grid-cols-7 gap-3 sm:gap-4">
+          {days.map((d) => {
+            const key = dateStr(d);
+            const dayRows = grouped.get(key) || [];
+            return (
+              <div
+                key={key}
+                className="rounded-3xl p-3 border border-white/10 bg-[rgba(17,18,21,.55)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]"
+              >
+                <GlassTile className="px-3 py-2 mb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-white/85">{fmtShortDay(d)}</div>
+                    <div className="text-sm font-semibold text-white">{fmtDayNum(d)}</div>
+                  </div>
+                </GlassTile>
+
+                <div className="space-y-3">
+                  {loading ? (
+                    [...Array(4)].map((_, i) => <div key={i} className="h-16 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />)
+                  ) : error ? (
+                    <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
+                  ) : dayRows.length === 0 ? (
+                    <div className="text-xs text-white/40 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl">Καμία κράτηση</div>
+                  ) : (
+                    dayRows.map((b) => <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
+                  )}
+                </div>
+              </div>
+            );
+          })}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
       </div>
     </Glass>
   );
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 /* ======================= MONTH VIEW (USER) ======================= */
 function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey }) {
   const [anchor, setAnchor] = useState(startOfMonth(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
+<<<<<<< HEAD
 
   // breakpoints
   const isMobile = useIsMobile(640);
@@ -593,6 +682,11 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
   const maxPills = isMobile ? 2 : 3;
 
   // grid dates
+=======
+  const isMobile = useIsMobile(640);
+  const maxPills = isMobile ? 2 : 3;
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const gridStart = useMemo(() => startOfWeek(startOfMonth(anchor), 1), [anchor]);
   const gridDays = useMemo(() => {
     const arr = [];
@@ -637,6 +731,7 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
   const goNext = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()+1, 1));
   const weekdays = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
 
+<<<<<<< HEAD
   // today helper
   const todayStr = toYMDLocal(startOfDay(new Date()));
 
@@ -644,16 +739,23 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
   // 7 columns × ~110px ανά κελί σε κινητό
   const gridMinWidth = isTablet ? "min-w-[770px]" : "min-w-[770px]";
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   return (
     <Glass className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-2 sm:mb-3">
         <div className="flex items-center gap-2 sm:gap-3">
+<<<<<<< HEAD
           <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10">
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10">
             <ChevronRight className="h-5 w-5" />
           </button>
+=======
+          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
+          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           <p className="ml-1 sm:ml-2 text-white/90">{fmtMonthYear(anchor)}</p>
         </div>
         <div className="hidden md:block">
@@ -664,6 +766,7 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
         <ViewSwitch value={view} onChange={onChangeView} />
       </div>
 
+<<<<<<< HEAD
       {/* Scroll container for mobile so 7-cols calendar remains readable */}
       <div className="-mx-2 sm:mx-0 overflow-x-auto">
         <div className={`px-2 sm:px-0 ${gridMinWidth}`}>
@@ -743,6 +846,48 @@ function MonthlySchedule({ userId, onOpenDetails, view, onChangeView, refreshKey
             })}
           </div>
         </div>
+=======
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2">
+        {weekdays.map((w) => (
+          <div key={w} className="text-center text-[10px] sm:text-xs text-white/60">{w}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+        {gridDays.map((d, idx) => {
+          const inMonth = d.getMonth() === anchor.getMonth();
+          const key = toYMDLocal(d);
+          const dayRows = byDate.get(key) || [];
+          return (
+            <div
+              key={idx}
+              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h-[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]`}
+            >
+              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                <span className={`text-[10px] sm:text-[11px] ${inMonth ? "text-white/80" : "text-white/40"}`}>{fmtDayNum(d)}</span>
+                {loading && idx < 7 ? <span className="text-[9px] sm:text-[10px] text-white/30">…</span> : null}
+              </div>
+
+              {loading ? (
+                <div className="h-12 sm:h-16 rounded-lg sm:rounded-xl bg-white/[.06] animate-pulse border border-white/10" />
+              ) : error ? (
+                <div className="text-[10px] sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5">Σφάλμα</div>
+              ) : dayRows.length === 0 ? (
+                <div className="text-[9px] sm:text-[10px] text-white/60">—</div>
+              ) : (
+                <div className="space-y-1">
+                  {dayRows.slice(0, maxPills).map((b)=>(
+                    <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact />
+                  ))}
+                  {dayRows.length > maxPills && (
+                    <div className="text-[9px] sm:text-[10px] text-white/50">+{dayRows.length - maxPills} ακόμα</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       </div>
     </Glass>
   );

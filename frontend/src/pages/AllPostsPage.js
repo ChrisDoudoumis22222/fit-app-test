@@ -143,6 +143,27 @@ export default function AllPostsPage() {
     [profile?.id]
   );
 
+<<<<<<< HEAD
+=======
+  /* -------------------------- infinite scroll IO ---------------------------- */
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMore && !loadingMore && !loading) {
+          handleLoadMore();
+        }
+      },
+      { rootMargin: "160px" }
+    );
+
+    io.observe(node);
+    return () => io.disconnect();
+  }, [hasMore, loadingMore, loading, /* stable */ handleLoadMore]);
+
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   /* ----------------------------- initial fetch ------------------------------ */
   useEffect(() => {
     fetchPosts();
@@ -189,7 +210,10 @@ export default function AllPostsPage() {
     setHasMore(filteredSortedList.length > initial.length);
   }, [filteredSortedList]);
 
+<<<<<<< HEAD
   /* -------------------------- load more (define first!) --------------------- */
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   const handleLoadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -205,6 +229,7 @@ export default function AllPostsPage() {
     });
   }, [page, hasMore, loadingMore, filteredSortedList, startTransition]);
 
+<<<<<<< HEAD
   /* -------------------------- infinite scroll IO ---------------------------- */
   useEffect(() => {
     const node = loadMoreRef.current;
@@ -223,6 +248,8 @@ export default function AllPostsPage() {
     return () => io.disconnect();
   }, [hasMore, loadingMore, loading, handleLoadMore]);
 
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   async function handleLike(postId, isLiked) {
     if (!profile?.id) {
       alert("Συνδεθείτε πρώτα");
@@ -682,6 +709,7 @@ const PostCard = memo(
             </div>
           </div>
 
+<<<<<<< HEAD
           <h3 className="text-xl font-bold text-zinc-50 line-clamp-2">{post.title}</h3>
           <p className="text-zinc-300 text-sm line-clamp-3">{post.description}</p>
 
@@ -693,6 +721,19 @@ const PostCard = memo(
             </div>
             <IconBtn icon={Eye} onClick={view} />
           </div>
+=======
+        <h3 className="text-xl font-bold text-zinc-50 line-clamp-2">{post.title}</h3>
+        <p className="text-zinc-300 text-sm line-clamp-3">{post.description}</p>
+
+        <div className="flex items-center justify-between pt-4 border-t border-white/10">
+          <div className="flex items-center gap-4">
+            <LikeBtn count={post.like_count} isLiked={isLiked} onClick={like} disabled={isLiking} />
+            <IconBtn icon={MessageCircle} label={post.comment_count} onClick={comment} />
+            <IconBtn icon={Share2} onClick={share} />
+          </div>
+          <IconBtn icon={Eye} onClick={view} />
+        </div>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
       </motion.article>
     );

@@ -30,9 +30,17 @@ html, body, #root {
 
 /* ─────────────────────────────────────────
    2) MOBILE top-gap tuning (≤640px)
+<<<<<<< HEAD
    ───────────────────────────────────────── */
 @media (max-width: 640px) {
   :root { --mobile-top-gap: 8px; }
+=======
+   Reduces the big empty space at the top while keeping
+   a small, safe-area-aware offset for notched devices.
+   ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root { --mobile-top-gap: 8px; } /* adjust if you want tighter/looser */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 
   html, body, #root, main {
     margin-top: 0 !important;
@@ -40,9 +48,15 @@ html, body, #root {
     scroll-padding-top: var(--mobile-top-gap) !important;
   }
 
+<<<<<<< HEAD
   /* Tighten inner page container */
   main > .max-w-7xl {
     padding-top: .5rem !important;
+=======
+  /* Tighten the inner page container used by pages (your layout adds py-4) */
+  main > .max-w-7xl {
+    padding-top: .5rem !important; /* was ~1rem; lowers header area a bit */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   }
 
   /* Keep anchored sections nicely aligned on mobile */
@@ -59,6 +73,7 @@ html, body, #root {
 
 /* ─────────────────────────────────────────
    3) Component layer helpers
+<<<<<<< HEAD
    (all @apply lives here)
    ───────────────────────────────────────── */
 @layer components {
@@ -82,16 +97,35 @@ html, body, #root {
     @apply inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white
            px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition
            hover:bg-gray-50 active:scale-95;
+=======
+   (unified, de-duplicated)
+   ───────────────────────────────────────── */
+@layer components {
+  .input {
+    @apply w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm shadow
+           placeholder-stone-400 focus:border-stone-600 focus:outline-none
+           focus:ring-2 focus:ring-stone-600/30;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-1 rounded border border-stone-300 bg-white
+           px-3 py-1 text-xs font-medium text-stone-700 hover:bg-stone-100;
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   }
 
   .icon-btn {
     @apply inline-flex items-center justify-center rounded p-1
+<<<<<<< HEAD
            text-gray-500 hover:bg-black/10 hover:text-gray-700;
+=======
+           text-stone-500 hover:bg-stone-100 hover:text-stone-700;
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   }
 
   .hover-rise {
     @apply transform transition duration-200 hover:-translate-y-1 hover:shadow-lg;
   }
+<<<<<<< HEAD
 
   /* floating label helper */
   .floating-label {
@@ -108,3 +142,42 @@ html, body, #root {
    (no @apply here to avoid order issues)
    ───────────────────────────────────────── */
 /* Add pure CSS utilities below if needed, but avoid @apply outside layers */
+=======
+}
+
+/* ─────────────────────────────────────────
+   4) Extra utilities (non-layer so they’re always available)
+   ───────────────────────────────────────── */
+
+/* input baseline (matches Tailwind's forms-like style) */
+.input {
+  @apply w-full rounded-md border border-gray-300 bg-white/90 px-3 py-2 text-sm shadow-inner
+         placeholder:opacity-0 focus:border-primary focus:ring-primary/40 focus:ring focus:ring-offset-0;
+}
+
+/* pill buttons */
+.btn-primary {
+  @apply inline-flex items-center gap-1 rounded-full bg-gradient-to-tr from-primary to-violet-500
+         px-4 py-2 text-sm font-medium text-white shadow-lg transition
+         hover:brightness-110 active:scale-95;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white
+         px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition
+         hover:bg-gray-50 active:scale-95;
+}
+
+.icon-btn {
+  @apply inline-flex items-center justify-center rounded hover:bg-black/10 p-1;
+}
+
+/* floating label helper */
+.floating-label {
+  @apply pointer-events-none absolute left-3 top-2.5 origin-left -translate-y-4 scale-90 transform
+         text-xs text-gray-500 transition-all
+         peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100
+         peer-placeholder-shown:text-gray-400
+         peer-focus:-translate-y-4 peer-focus:scale-90 peer-focus:text-primary;
+}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9

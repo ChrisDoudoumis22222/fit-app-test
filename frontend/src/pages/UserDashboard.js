@@ -18,11 +18,20 @@ import {
   ImagePlus,
   ChevronRight,
   Activity,
+<<<<<<< HEAD
+=======
+  Award,
+  Star,
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   BarChart3,
   Clock,
   Trophy,
   MapPin,
   Play,
+<<<<<<< HEAD
+=======
+  User,
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   Plus,
   ArrowRight,
   Target,
@@ -138,23 +147,36 @@ const AthleticBackground = () => (
   </>
 );
 
+<<<<<<< HEAD
 /* ---------- Premium nav (fixed) ---------- */
 const SECTIONS = ["dashboard", "profile", "avatar", "security"];
+=======
+/* ---------- Premium nav ---------- */
+const SECTIONS = ["dashboard", "profile", "avatar", "security"]; // bookings tab removed
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 const fromHash = (h = "") =>
   SECTIONS.includes(h.replace("#", "")) ? h.replace("#", "") : "dashboard";
 
 const PremiumNavigation = ({ currentSection, onSectionChange }) => {
   const sections = useMemo(
     () => [
+<<<<<<< HEAD
       { id: "dashboard", label: "Πίνακας", icon: BarChart3, color: "from-blue-600 to-blue-700" },
       { id: "profile",   label: "Προφίλ",  icon: Settings,  color: "from-zinc-600 to-zinc-700" },
       { id: "avatar",    label: "Avatar",  icon: ImagePlus, color: "from-gray-600 to-gray-700" },
       { id: "security",  label: "Ασφάλεια",icon: Shield,    color: "from-zinc-700 to-zinc-800" },
+=======
+      { id: "dashboard", label: "Dashboard", icon: BarChart3, color: "from-blue-600 to-blue-700" },
+      { id: "profile",   label: "Προφίλ",    icon: Settings,  color: "from-zinc-600 to-zinc-700" },
+      { id: "avatar",    label: "Avatar",    icon: ImagePlus, color: "from-gray-600 to-gray-700" },
+      { id: "security",  label: "Ασφάλεια",  icon: Shield,    color: "from-zinc-700 to-zinc-800" },
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     ],
     []
   );
 
   return (
+<<<<<<< HEAD
     <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-3 mb-8 sm:mb-10">
       {sections.map(({ id, label, icon: Icon, color }, index) => {
         const active = currentSection === id;
@@ -191,12 +213,46 @@ const PremiumNavigation = ({ currentSection, onSectionChange }) => {
           </motion.button>
         );
       })}
+=======
+    <div className="flex flex-wrap gap-3 mb-10">
+      {sections.map(({ id, label, icon: Icon, color }, index) => (
+        <motion.button
+          key={id}
+          onClick={() => onSectionChange(id)}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.1, duration: 0.5 }}
+          className={`group relative flex items-center gap-3 px-4 py-3 sm:px-6 rounded-2xl text-sm font-semibold transition-all duration-500 overflow-hidden ${
+            currentSection === id
+              ? "bg-gradient-to-r from-zinc-700 to-zinc-800 text-white shadow-2xl scale-105"
+              : "bg-black/30 text-zinc-400 hover:bg-black/50 hover:text-zinc-300 hover:scale-102"
+          }`}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className={`absolute inset-0 bg-gradient-to-r ${color} opacity-0 group-hover:opacity-20 transition-opacity duration-500`} />
+          <Icon className="w-5 h-5 relative z-10" />
+          <span className="relative z-10 hidden sm:inline">{label}</span>
+          {currentSection === id && (
+            <motion.div
+              layoutId="activeTab"
+              className="absolute inset-0 bg-gradient-to-r from-zinc-600/20 to-zinc-700/20 rounded-2xl"
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            />
+          )}
+        </motion.button>
+      ))}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     </div>
   );
 };
 
+<<<<<<< HEAD
 
 /* ---------- STATS ---------- */
+=======
+/* ---------- STATS (styled like trainer dashboard) ---------- */
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 const UserPerformanceStats = ({ performanceData, loading = false }) => {
   const stats = useMemo(
     () => [
@@ -249,9 +305,15 @@ const UserPerformanceStats = ({ performanceData, loading = false }) => {
       {stats.map((stat, index) => (
         <motion.div
           key={stat.label}
+<<<<<<< HEAD
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.08, duration: 0.5 }}
+=======
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.1, duration: 0.6 }}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           className={`relative overflow-hidden rounded-xl sm:rounded-2xl bg-black/40 backdrop-blur-xl border ${stat.borderColor} p-4 sm:p-6`}
           whileHover={{ y: -4, scale: 1.02 }}
         >
@@ -294,6 +356,10 @@ export default function EnhancedDashboard() {
   });
 
   const [goals, setGoals] = useState([]);
+<<<<<<< HEAD
+=======
+  const [achievements, setAchievements] = useState([]);
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 
   const hasFetchedRef = useRef(false);
 
@@ -323,7 +389,11 @@ export default function EnhancedDashboard() {
     try {
       if (!opts.silent) setInitialLoading(true);
 
+<<<<<<< HEAD
       const [bookingsRes, goalsRes] = await Promise.allSettled([
+=======
+      const [bookingsRes, goalsRes, achievementsRes] = await Promise.allSettled([
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         supabase
           .from("trainer_bookings")
           .select("*")
@@ -335,6 +405,14 @@ export default function EnhancedDashboard() {
           .select("*")
           .eq("user_id", profile.id)
           .order("created_at", { ascending: false }),
+<<<<<<< HEAD
+=======
+        supabase
+          .from("user_achievements")
+          .select("*")
+          .eq("user_id", profile.id)
+          .order("created_at", { ascending: false }),
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       ]);
 
       // BOOKINGS
@@ -354,6 +432,10 @@ export default function EnhancedDashboard() {
       const isPast = (d) => d && d < now;
       const isToday = (d) => d && d >= todayStart && d < todayEnd;
 
+<<<<<<< HEAD
+=======
+      // normalize date for comparisons
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       const withDateObj = bookingsData.map((b) => ({
         ...b,
         _dateObj: toDateObj(b.date),
@@ -364,15 +446,24 @@ export default function EnhancedDashboard() {
         (b) => b._dateObj && b._dateObj > now && b.status !== "cancelled"
       );
       const completedBookings = withDateObj.filter(
+<<<<<<< HEAD
         (b) =>
           isPast(b._dateObj) &&
           ["completed", "confirmed", "accepted"].includes((b.status || "").toLowerCase())
+=======
+        (b) => isPast(b._dateObj) && ["completed", "confirmed", "accepted"].includes((b.status || "").toLowerCase())
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       );
 
       setPerformanceData({
         todayStats: {
+<<<<<<< HEAD
           workoutsCompleted: todayBookings.filter((b) =>
             ["completed", "confirmed", "accepted"].includes((b.status || "").toLowerCase())
+=======
+          workoutsCompleted: todayBookings.filter(
+            (b) => ["completed", "confirmed", "accepted"].includes((b.status || "").toLowerCase())
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           ).length,
           totalBookings: bookingsData.length,
           upcomingBookings: upcomingBookings.length,
@@ -380,9 +471,13 @@ export default function EnhancedDashboard() {
         },
         recentBookings: bookingsData.slice(0, 5).map((b) => ({
           name: "Συνεδρία",
+<<<<<<< HEAD
           trainer:
             b.trainer_name ||
             (b.trainer_id ? `Προπονητής #${String(b.trainer_id).slice(0, 6)}` : "Προπονητής"),
+=======
+          trainer: b.trainer_name || (b.trainer_id ? `Προπονητής #${String(b.trainer_id).slice(0, 6)}` : "Προπονητής"),
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           date: b.date
             ? new Date(`${b.date}T00:00:00`).toLocaleDateString("el-GR")
             : "—",
@@ -419,6 +514,25 @@ export default function EnhancedDashboard() {
       } else {
         setGoals([]);
       }
+<<<<<<< HEAD
+=======
+
+      // ACHIEVEMENTS
+      if (achievementsRes.status === "fulfilled" && !achievementsRes.value.error) {
+        const raw = achievementsRes.value.data || [];
+        const normalized = raw.map((a) => ({
+          id: a.id,
+          title: a.title,
+          description: a.description,
+          icon: a.icon || Award,
+          earned: a.earned,
+          created_at: a.created_at,
+        }));
+        setAchievements(normalized);
+      } else {
+        setAchievements([]);
+      }
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     } catch (err) {
       console.error("Error fetching user data:", err);
     } finally {
@@ -517,19 +631,29 @@ export default function EnhancedDashboard() {
                 </p>
               )}
             </div>
+<<<<<<< HEAD
             <div className="w-full sm:w-auto grid grid-cols-2 gap-2 sm:flex sm:gap-4">
+=======
+            <div className="flex gap-4">
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               <QuickActionButton
                 icon={Play}
                 label="Νέα Κράτηση"
                 primary
                 onClick={handleBookTraining}
+<<<<<<< HEAD
                 fluid
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               />
               <QuickActionButton
                 icon={Settings}
                 label="Ρυθμίσεις"
                 onClick={() => handleSectionChange("profile")}
+<<<<<<< HEAD
                 fluid
+=======
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               />
             </div>
           </motion.div>
@@ -545,15 +669,46 @@ export default function EnhancedDashboard() {
             {/* Dashboard */}
             <DashSection id="dashboard" show={section === "dashboard"}>
               <div className="space-y-8">
+<<<<<<< HEAD
                 {/* Compact stat cards */}
                 <UserPerformanceStats performanceData={performanceData} />
 
                 {/* Recent + Goals */}
+=======
+                {/* NEW compact stat cards */}
+                <UserPerformanceStats performanceData={performanceData} />
+
+                {/* Goals & Profile */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="xl:col-span-2"
+                  >
+                    <GoalsCard goals={goals} />
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <ProfileSummaryCard profile={profile} />
+                  </motion.div>
+                </div>
+
+                {/* Recent & Achievements */}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
+<<<<<<< HEAD
                     transition={{ duration: 0.25 }}
+=======
+                    transition={{ delay: 0.4 }}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                   >
                     <RecentBookingsCard
                       bookings={performanceData.recentBookings}
@@ -564,9 +719,15 @@ export default function EnhancedDashboard() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
+<<<<<<< HEAD
                     transition={{ duration: 0.25, delay: 0.05 }}
                   >
                     <GoalsCard goals={goals} />
+=======
+                    transition={{ delay: 0.5 }}
+                  >
+                    <AchievementsCard achievements={achievements} />
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                   </motion.div>
                 </div>
               </div>
@@ -656,8 +817,79 @@ const DashSection = ({ id, show, children }) => {
   );
 };
 
+<<<<<<< HEAD
 /**
  * Goals card
+=======
+const ProfileSummaryCard = ({ profile }) => {
+  const memberSince = useMemo(
+    () =>
+      profile.created_at
+        ? new Date(profile.created_at).toLocaleDateString("el-GR", {
+            month: "long",
+            year: "numeric",
+          })
+        : "Άγνωστο",
+    [profile.created_at]
+  );
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-black/40 backdrop-blur-xl border border-zinc-700/50 p-6 lg:p-8">
+      <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-6 lg:mb-8">
+          <div>
+            <h3 className="text-xl lg:text-2xl font-bold text-white mb-2">
+              Το Προφίλ μου
+            </h3>
+            <p className="text-zinc-400">Τα στοιχεία σου</p>
+          </div>
+          <User className="w-8 h-8 text-blue-400" />
+        </div>
+
+        <div className="space-y-4 lg:space-y-6">
+          <div className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-800/30 border border-zinc-700/30">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-600/20 to-blue-700/20 flex items-center justify-center">
+              <User className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <h4 className="text-white font-semibold">
+                {profile.full_name || "Χρήστης"}
+              </h4>
+              <p className="text-sm text-zinc-400 capitalize">{profile.role}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-800/30 border border-zinc-700/30">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-600/20 to-green-700/20 flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-green-400" />
+            </div>
+            <div>
+              <h4 className="text-white font-semibold">Μέλος από</h4>
+              <p className="text-sm text-zinc-400">{memberSince}</p>
+            </div>
+          </div>
+
+          {profile.location && (
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-800/30 border border-zinc-700/30">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-600/20 to-purple-700/20 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-purple-400" />
+              </div>
+              <div>
+                <h4 className="text-white font-semibold">Τοποθεσία</h4>
+                <p className="text-sm text-zinc-400">{profile.location}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Goals card – included here so it's always defined.
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
  */
 const GoalsCard = ({ goals }) => {
   const navigate = useNavigate();
@@ -676,10 +908,17 @@ const GoalsCard = ({ goals }) => {
       <div className="relative">
         <div className="flex items-center justify-between mb-6 lg:mb-8">
           <div>
+<<<<<<< HEAD
             <h3 className="text-xl lg:text-2xl font-bold text-white mb-1">
               Οι Στόχοι μου
             </h3>
             <p className="text-zinc-500 text-sm">Όρισε στόχους. Πέτυχε τους.</p>
+=======
+            <h3 className="text-xl lg:text-2xl font-bold text-white mb-2">
+              Οι Στόχοι μου
+            </h3>
+            <p className="text-zinc-400">(Από τον πίνακα `goals`)</p>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           </div>
           <Target className="w-8 h-8 text-blue-400" />
         </div>
@@ -689,9 +928,15 @@ const GoalsCard = ({ goals }) => {
             goals.map((goal) => (
               <motion.div
                 key={goal.id}
+<<<<<<< HEAD
                 initial={{ opacity: 0, x: 16 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.18 }}
+=======
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2 }}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                 className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-800/30 border border-zinc-700/30 hover:bg-zinc-800/50 transition-all cursor-pointer"
                 onClick={goToGoals}
                 role="button"
@@ -767,7 +1012,11 @@ const GoalStatusBadge = ({ status }) => {
 };
 
 /**
+<<<<<<< HEAD
  * Dashboard preview list — CTA goes to /services.
+=======
+ * Dashboard preview list — CTA now goes to /services (since bookings subpage was removed).
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
  */
 const RecentBookingsCard = ({ bookings, totalBookings }) => {
   const navigate = useNavigate();
@@ -795,10 +1044,17 @@ const RecentBookingsCard = ({ bookings, totalBookings }) => {
       <div className="relative">
         <div className="flex items-center justify-between mb-6 lg:mb-8">
           <div>
+<<<<<<< HEAD
             <h3 className="text-xl lg:text-2xl font-bold text-white mb-1">
               Πρόσφατες Κρατήσεις
             </h3>
             <p className="text-zinc-500 text-sm">Δες τις τελευταίες σου συνεδρίες με μια ματιά</p>
+=======
+            <h3 className="text-xl lg:text-2xl font-bold text-white mb-2">
+              Πρόσφατες Κρατήσεις
+            </h3>
+            <p className="text-zinc-400">(από τον πίνακα `trainer_bookings`)</p>
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           </div>
           <Activity className="w-8 h-8 text-purple-400" />
         </div>
@@ -809,7 +1065,11 @@ const RecentBookingsCard = ({ bookings, totalBookings }) => {
               {bookings.map((booking, index) => (
                 <motion.div
                   key={index}
+<<<<<<< HEAD
                   initial={{ opacity: 0, y: 16 }}
+=======
+                  initial={{ opacity: 0, y: 20 }}
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-800/30 border border-zinc-700/30 hover:bg-zinc-800/50 transition-all cursor-pointer"
@@ -896,6 +1156,7 @@ const RecentBookingsCard = ({ bookings, totalBookings }) => {
   );
 };
 
+<<<<<<< HEAD
 const QuickActionButton = ({ icon: Icon, label, primary = false, onClick, fluid = false }) => {
   return (
     <motion.button
@@ -923,6 +1184,106 @@ const QuickActionButton = ({ icon: Icon, label, primary = false, onClick, fluid 
   );
 };
 
+=======
+const AchievementsCard = ({ achievements }) => {
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-black/40 backdrop-blur-xl border border-zinc-700/50 p-6 lg:p-8">
+      <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-6 lg:mb-8">
+          <div>
+            <h3 className="text-xl lg:text-2xl font-bold text-white mb-2">
+              Επιτεύγματα
+            </h3>
+            <p className="text-zinc-400">
+              {(achievements?.length ?? 0) > 0
+                ? "Από τον πίνακα `user_achievements`"
+                : "Δεν έχεις αποθηκευμένα επιτεύγματα στον DB πίνακα"}
+            </p>
+          </div>
+          <Award className="w-8 h-8 text-yellow-400" />
+        </div>
+
+        <div className="space-y-4">
+          {achievements.length > 0 ? (
+            achievements.map((achievement) => (
+              <motion.div
+                key={achievement.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2 }}
+                className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                  achievement.earned
+                    ? "bg-yellow-400/10 border-yellow-400/30"
+                    : "bg-zinc-800/30 border-zinc-700/30 opacity-60"
+                }`}
+              >
+                <div
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    achievement.earned
+                      ? "bg-gradient-to-r from-yellow-600/20 to-yellow-700/20"
+                      : "bg-zinc-700/30"
+                  }`}
+                >
+                  <Star
+                    className={`w-6 h-6 ${
+                      achievement.earned ? "text-yellow-400" : "text-zinc-500"
+                    }`}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4
+                    className={`font-semibold truncate ${
+                      achievement.earned ? "text-white" : "text-zinc-400"
+                    }`}
+                  >
+                    {achievement.title}
+                  </h4>
+                  <p className="text-sm text-zinc-500 mt-1 truncate">
+                    {achievement.description}
+                  </p>
+                </div>
+                {achievement.earned && (
+                  <Star className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+                )}
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <Award className="w-16 h-16 text-zinc-600 mx-auto mb-6" />
+              <h4 className="text-xl font-bold text-white mb-3">
+                Δεν βρέθηκαν επιτεύγματα
+              </h4>
+              <p className="text-zinc-400 mb-6">
+                Αν θέλεις achievements, δημιούργησε πίνακα `user_achievements`
+                και κάνε insert πραγματικά δεδομένα.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QuickActionButton = ({ icon: Icon, label, primary = false, onClick }) => {
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={{ scale: 1.05, y: -2 }}
+      whileTap={{ scale: 0.95 }}
+      className={`flex items-center gap-3 px-4 sm:px-6 py-3 rounded-2xl font-semibold transition-all duration-300 ${
+        primary
+          ? "bg-gradient-to-r from-zinc-600 to-zinc-700 text-white shadow-lg hover:from-zinc-500 hover:to-zinc-600"
+          : "bg-zinc-800/50 text-zinc-300 hover:bg-zinc-700/50 hover:text-white border border-zinc-700/50"
+      }`}
+    >
+      <Icon className="w-5 h-5" />
+      <span className="hidden sm:inline">{label}</span>
+    </motion.button>
+  );
+};
+>>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 
 /* PremiumCard container */
 const PremiumCard = ({ title, icon: Icon, description, children }) => {
