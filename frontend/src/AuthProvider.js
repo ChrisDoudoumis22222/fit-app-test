@@ -1,4 +1,6 @@
+// src/AuthProvider.js
 "use client";
+
 import {
   createContext,
   useContext,
@@ -12,21 +14,12 @@ import { supabase } from "./supabaseClient";
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
 
-export default function AuthProvider({ children }) {
-  /* Supabase session */
+export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
 
-  /* Profile row + flags */
   const [profile, setProfile] = useState(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  /* Popup + email state */
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const [sending, setSending] = useState(false);
-
-  /* ---------- helpers ---------- */
 
   const fetchProfile = useCallback(async (uid) => {
     const { data, error } = await supabase
@@ -34,6 +27,7 @@ export default function AuthProvider({ children }) {
       .select("*")
       .eq("id", uid)
       .single();
+
     if (error) {
       setProfile(null);
       return null;
@@ -46,11 +40,9 @@ export default function AuthProvider({ children }) {
     async (user) => {
       if (!user) return null;
 
-      // 1) Try to read
       const existing = await fetchProfile(user.id);
       if (existing) return existing;
 
-      // 2) Create minimal row
       const full_name =
         user.user_metadata?.full_name ||
         user.user_metadata?.name ||
@@ -58,9 +50,7 @@ export default function AuthProvider({ children }) {
         "User";
 
       const role =
-        user.app_metadata?.role ||
-        user.user_metadata?.role ||
-        "user"; // default
+        user.app_metadata?.role || user.user_metadata?.role || "user";
 
       const { data: inserted, error } = await supabase
         .from("profiles")
@@ -74,7 +64,6 @@ export default function AuthProvider({ children }) {
         .single();
 
       if (error) {
-        // Failed to create — leave modal on to let the user retry or re-auth
         setProfile(null);
         return null;
       }
@@ -90,75 +79,64 @@ export default function AuthProvider({ children }) {
     [session, fetchProfile]
   );
 
-  const getAccessToken = useCallback(async () => {
+  // ✅ This is the big fix: when you come back to the tab, re-hydrate / refresh tokens
+  const recoverSession = useCallback(async () => {
+    // 1) normal session read
     const {
-      data: { session: s },
+      data: { session: s1 },
     } = await supabase.auth.getSession();
-    return s?.access_token || null;
-  }, []);
 
-  /* ---------- auth flows exposed to UI ---------- */
-  const signInWithGoogle = useCallback(async () => {
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/`
-        : undefined;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-    return { error };
-  }, []);
+    if (s1) {
+      setSession(s1);
+      await createProfileIfMissing(s1.user);
+      setProfileLoaded(true);
+      return s1;
+    }
 
-  const signInWithOtp = useCallback(async (email) => {
-    if (!email) return { error: new Error("Email is required") };
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/`
-        : undefined;
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectTo },
-    });
-    return { error };
-  }, []);
+    // 2) force refresh from refresh_token if needed
+    const { data, error } = await supabase.auth.refreshSession();
+    const s2 = data?.session || null;
+
+    if (!error && s2) {
+      setSession(s2);
+      await createProfileIfMissing(s2.user);
+      setProfileLoaded(true);
+      return s2;
+    }
+
+    // signed out
+    setSession(null);
+    setProfile(null);
+    setProfileLoaded(true);
+    return null;
+  }, [createProfileIfMissing]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
     setProfileLoaded(true);
-    setShowAuthPrompt(false);
   }, []);
 
-  /* ---------- initial load + auth listener ---------- */
   useEffect(() => {
     let unsub = () => {};
 
     (async () => {
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
-
-      setSession(currentSession);
-
-      if (currentSession?.user) {
-        const ensured = await createProfileIfMissing(currentSession.user);
-        // If we still don't have a profile, show the prompt
-        setShowAuthPrompt(!ensured);
-        setProfileLoaded(true);
-      } else {
-        setProfile(null);
-        setProfileLoaded(true);
-      }
+      await recoverSession();
       setLoading(false);
 
       const { data } = supabase.auth.onAuthStateChange(
-        async (_event, newSession) => {
-          setSession(newSession);
+        async (event, newSession) => {
+          // ✅ don’t “perma die” on refresh hiccup
+          if (event === "TOKEN_REFRESH_FAILED") {
+            await recoverSession();
+            return;
+          }
+
+          setSession(newSession || null);
+
           if (newSession?.user) {
-            const ensured = await createProfileIfMissing(newSession.user);
-            setShowAuthPrompt(!ensured);
+            await createProfileIfMissing(newSession.user);
             setProfileLoaded(true);
           } else {
             setProfile(null);
@@ -171,33 +149,24 @@ export default function AuthProvider({ children }) {
     })();
 
     return () => unsub();
-  }, [createProfileIfMissing]);
+  }, [recoverSession, createProfileIfMissing]);
 
-  /* ---------- modal actions ---------- */
-  const proceedFixProfile = useCallback(async () => {
-    if (!session?.user || sending) return;
-    // Try creating the profile row again
-    const created = await createProfileIfMissing(session.user);
-    if (created) {
-      setShowAuthPrompt(false);
-      setEmailSent(false);
-      return;
-    }
+  // ✅ tab focus / visibility restore
+  useEffect(() => {
+    const onFocus = () => recoverSession();
+    const onVis = () => {
+      if (!document.hidden) recoverSession();
+    };
 
-    // If we couldn't create, fall back to resending OTP
-    try {
-      setSending(true);
-      setEmailSent(false);
-      const { error } = await supabase.auth.signInWithOtp({
-        email: session.user.email,
-      });
-      if (!error) setEmailSent(true);
-    } finally {
-      setSending(false);
-    }
-  }, [session, sending, createProfileIfMissing]);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
 
-  /* ---------- derived values ---------- */
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [recoverSession]);
+
   const role =
     profile?.role ||
     session?.user?.app_metadata?.role ||
@@ -206,19 +175,14 @@ export default function AuthProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      // state
       loading,
       session,
       user: session?.user || null,
       profile,
       role,
       profileLoaded,
-
-      // helpers
       refreshProfile,
-      getAccessToken,
-      signInWithGoogle,
-      signInWithOtp,
+      recoverSession, // ✅ expose this so pages can refetch on focus if needed
       signOut,
     }),
     [
@@ -228,51 +192,12 @@ export default function AuthProvider({ children }) {
       role,
       profileLoaded,
       refreshProfile,
-      getAccessToken,
-      signInWithGoogle,
-      signInWithOtp,
+      recoverSession,
       signOut,
     ]
   );
 
-  return (
-    <AuthCtx.Provider value={value}>
-      {children}
-
-      {/* Show only if: session exists AND profile not created yet */}
-      {showAuthPrompt && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white text-black p-6 rounded shadow-xl max-w-sm w-[92%] text-center space-y-4">
-            <p className="font-semibold text-lg">
-              Hey dude 👋
-              <br />
-              We found your session but no profile in our DB.
-            </p>
-
-            {!emailSent ? (
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  onClick={() => setShowAuthPrompt(false)}
-                  className="bg-gray-300 text-black px-4 py-2 rounded"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={proceedFixProfile}
-                  disabled={sending}
-                  className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
-                >
-                  {sending ? "Working…" : "Proceed (Fix Profile / Resend Email)"}
-                </button>
-              </div>
-            ) : (
-              <p className="text-green-600">
-                ✅ Auth email re-sent to {session?.user?.email}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-    </AuthCtx.Provider>
-  );
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
+
+export default AuthProvider;

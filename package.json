@@ -3,36 +3,25 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-<<<<<<< HEAD
-    "start": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
-    "start:prod": "npm --prefix backend run start",
-    "dev": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
-    "build": "npm --prefix frontend run build && npm --prefix backend run build --if-present"
-=======
-    "// dev servers": "",
     "start": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend start\"",
     "start:dev": "npm run start",
     "start:prod": "npm --prefix backend run start",
-
-    "// builds": "",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build --if-present",
-
-    "// repo helpers": "",
     "install:all": "npm ci --prefix frontend && npm ci --prefix backend",
-
-    "// vercel/ci helper (frontend-only build from monorepo root)": "",
     "vercel-build": "npm ci --prefix frontend && npm run build --prefix frontend"
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   },
   "devDependencies": {
-    "concurrently": "^9.2.0",
     "@babel/preset-typescript": "^7.27.1",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
+    "concurrently": "^9.2.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "react-router-dom": "^7.13.0"
   }
 }

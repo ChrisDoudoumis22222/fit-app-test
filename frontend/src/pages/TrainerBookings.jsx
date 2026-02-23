@@ -1,5 +1,5 @@
 // src/pages/TrainerBookingsPage.js
-"use client"
+"use client";
 import React, {
   lazy,
   Suspense,
@@ -8,76 +8,130 @@ import React, {
   useState,
   useMemo,
   useRef,
-} from "react"
+} from "react";
 import {
-  Loader2, Calendar, Users, Clock, AlertCircle, X,
-  CalendarClock, CheckCircle, Ban, Wifi, User, Mail, MapPin,
-<<<<<<< HEAD
-  ChevronLeft, ChevronRight, Euro, PencilLine, RotateCcw
-=======
-  ChevronLeft, ChevronRight, Euro, PencilLine
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-} from "lucide-react"
-import { useAuth } from "../AuthProvider"
-import { motion, AnimatePresence } from "framer-motion"
-import { supabase } from "../supabaseClient"
+  Loader2,
+  Calendar,
+  Users,
+  Clock,
+  AlertCircle,
+  X,
+  CalendarClock,
+  CheckCircle,
+  Ban,
+  Wifi,
+  User,
+  Mail,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  Euro,
+  PencilLine,
+  RotateCcw,
+} from "lucide-react";
+import { useAuth } from "../AuthProvider";
+import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../supabaseClient";
 
 /* external components */
-import TrainerQuickBook from "../components/TrainerQuickBook"
+import TrainerQuickBook from "../components/TrainerQuickBook";
 
 /* lazy components */
-const TrainerMenu  = lazy(() => import("../components/TrainerMenu"))
-const AcceptModal  = lazy(() => import("../components/AcceptBookingModal"))
-const DeclineModal = lazy(() => import("../components/DeclineBookingModal"))
+const TrainerMenu = lazy(() => import("../components/TrainerMenu"));
+const AcceptModal = lazy(() => import("../components/AcceptBookingModal"));
+const DeclineModal = lazy(() => import("../components/DeclineBookingModal"));
 
 /* ---------------- helpers: dates (LOCAL) ---------------- */
-const pad2 = (n) => String(n).padStart(2, "0")
+const pad2 = (n) => String(n).padStart(2, "0");
 const toYMDLocal = (d) => {
-  const x = d instanceof Date ? d : new Date(d)
-  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`
+  const x = d instanceof Date ? d : new Date(d);
+  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+};
+const hhmm = (t) =>
+  typeof t === "string" ? t.match(/^(\d{1,2}:\d{2})/)?.[1] ?? t : t;
+const timeToMinutes = (t) => {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+  return (h || 0) * 60 + (m || 0);
+};
+const fmtShortDay = (d) =>
+  d.toLocaleDateString("el-GR", { weekday: "short" });
+const fmtLongDay = (d) => d.toLocaleDateString("el-GR", { weekday: "long" });
+const fmtDayNum = (d) => d.toLocaleDateString("el-GR", { day: "2-digit" });
+const fmtMonth = (d) => d.toLocaleDateString("el-GR", { month: "long" });
+const fmtMonthYear = (d) =>
+  d.toLocaleDateString("el-GR", { month: "long", year: "numeric" });
+function startOfWeek(date, weekStartsOn = 1) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  if (day !== weekStartsOn) d.setDate(d.getDate() - (day - weekStartsOn));
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
-const hhmm = (t) => (typeof t === "string" ? (t.match(/^(\d{1,2}:\d{2})/)?.[1] ?? t) : t)
-const timeToMinutes = (t) => { if (!t) return 0; const [h,m] = t.split(":").map((x) => parseInt(x,10)); return (h||0)*60 + (m||0) }
-const fmtShortDay = (d) => d.toLocaleDateString("el-GR", { weekday: "short" })
-const fmtLongDay  = (d) => d.toLocaleDateString("el-GR", { weekday: "long" })
-const fmtDayNum   = (d) => d.toLocaleDateString("el-GR", { day: "2-digit" })
-const fmtMonth    = (d) => d.toLocaleDateString("el-GR", { month: "long" })
-const fmtMonthYear= (d) => d.toLocaleDateString("el-GR", { month: "long", year: "numeric" })
-function startOfWeek(date, weekStartsOn = 1) { const d = new Date(date); const day = d.getDay() || 7; if (day !== weekStartsOn) d.setDate(d.getDate() - (day - weekStartsOn)); d.setHours(0,0,0,0); return d }
-function startOfDay(date){ const d=new Date(date); d.setHours(0,0,0,0); return d }
-function startOfMonth(date){ const d=new Date(date.getFullYear(), date.getMonth(), 1); d.setHours(0,0,0,0); return d }
-const safeId = (b) => (b && (b.id ?? b.booking_id ?? b.uid ?? b.pk ?? null)) || null
-function toLocalDate(input) { if (!input) return null; const d = new Date(input); return isNaN(d.getTime()) ? null : d }
-function combineDateTime(date, time) { if (!date) return null; const d = new Date(`${date}T${time ?? "00:00:00"}`); return isNaN(d.getTime()) ? null : d }
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function startOfMonth(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+const safeId = (b) =>
+  (b && (b.id ?? b.booking_id ?? b.uid ?? b.pk ?? null)) || null;
+function toLocalDate(input) {
+  if (!input) return null;
+  const d = new Date(input);
+  return isNaN(d.getTime()) ? null : d;
+}
+function combineDateTime(date, time) {
+  if (!date) return null;
+  const d = new Date(`${date}T${time ?? "00:00:00"}`);
+  return isNaN(d.getTime()) ? null : d;
+}
 const fmtDate = (d) => {
-  if (!d) return "—"
-  const obj = typeof d === "string" ? new Date(`${d}T00:00:00`) : d
-  return obj.toLocaleDateString("el-GR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
-}
-const fmtTs   = (ts) => ts ? ts.toLocaleString("el-GR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"
+  if (!d) return "—";
+  const obj = typeof d === "string" ? new Date(`${d}T00:00:00`) : d;
+  return obj.toLocaleDateString("el-GR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+};
+const fmtTs = (ts) =>
+  ts
+    ? ts.toLocaleString("el-GR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
 const isNewBooking = (b) => {
-  if (!b?.created_at) return false
-  const created = new Date(b.created_at).getTime()
-  return Date.now() - created <= 24 * 60 * 60 * 1000
-}
+  if (!b?.created_at) return false;
+  const created = new Date(b.created_at).getTime();
+  return Date.now() - created <= 24 * 60 * 60 * 1000;
+};
 
-<<<<<<< HEAD
 /* ---------- Timeout helper (prevents indefinite hangs) ---------- */
 function withTimeout(promise, ms = 12000, msg = "Timeout") {
-  let t
-  const timeout = new Promise((_, rej) => { t = setTimeout(() => rej(new Error(msg)), ms) })
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(t))
+  let t;
+  const timeout = new Promise((_, rej) =>
+    (t = setTimeout(() => rej(new Error(msg)), ms))
+  );
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
 }
 
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 /* ---------- Background ---------- */
 const BaseBackground = memo(() => (
   <div className="fixed inset-0 -z-50">
     <div className="absolute inset-0 bg-black" />
     <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-950 to-black" />
   </div>
-))
+));
 const AthleticBackground = memo(() => (
   <>
     <style>{`
@@ -85,7 +139,7 @@ const AthleticBackground = memo(() => (
       @keyframes athletic-grid { 0%{transform:translate(0,0) rotate(0)} 100%{transform:translate(60px,60px) rotate(.5deg)} }
     `}</style>
   </>
-))
+));
 
 /* ---------- Glass primitives ---------- */
 const Glass = memo(({ className = "", children }) => (
@@ -103,7 +157,7 @@ const Glass = memo(({ className = "", children }) => (
     </div>
     <div className="relative">{children}</div>
   </div>
-))
+));
 const GlassTile = ({ className = "", children }) => (
   <div
     className={[
@@ -116,57 +170,63 @@ const GlassTile = ({ className = "", children }) => (
     <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[.08] to-transparent opacity-30" />
     <div className="relative">{children}</div>
   </div>
-)
+);
 
-<<<<<<< HEAD
-/* ---------- Spinner with 15s stall fallback ---------- */
-function Spinner({ full = false, onRetry }) {
-  const [stalled, setStalled] = useState(false)
-  useEffect(() => {
-    if (!full) return
-    const t = setTimeout(() => setStalled(true), 15000)
-    return () => clearTimeout(t)
-  }, [full])
-
-  const reload = () => window.location.reload()
-
-=======
-/* ---------- ColorCard ---------- */
+/* ---------- Simple color card ---------- */
 const ColorCard = memo(({ color = "red", className = "", children }) => {
   const gradientMap = {
     red: "from-red-600 to-red-700",
     emerald: "from-emerald-600 to-emerald-700",
     zinc: "from-zinc-700 to-zinc-800",
-  }
-  const gradient = gradientMap[color] || gradientMap.zinc
+  };
+  const gradient = gradientMap[color] || gradientMap.zinc;
   return (
-    <div className={`relative overflow-hidden rounded-3xl p-6 shadow-xl text-white bg-gradient-to-br ${gradient} ${className}`}>
-      <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 30% -10%, white, transparent 40%)" }} />
+    <div
+      className={`relative overflow-hidden rounded-3xl p-6 shadow-xl text-white bg-gradient-to-br ${gradient} ${className}`}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 opacity-20"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 30% -10%, white, transparent 40%)",
+        }}
+      />
       <div className="relative">{children}</div>
     </div>
-  )
-})
+  );
+});
 
-/* ---------- Spinner ---------- */
-function Spinner({ full = false }) {
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
+/* ---------- Spinner with 15s stall fallback ---------- */
+function Spinner({ full = false, onRetry }) {
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    if (!full) return;
+    const t = setTimeout(() => setStalled(true), 15000);
+    return () => clearTimeout(t);
+  }, [full]);
+
+  const reload = () => window.location.reload();
+
   if (full) {
     return (
       <div className="relative min-h-screen text-gray-100">
         <BaseBackground />
         <AthleticBackground />
         <div className="relative z-10 flex items-center justify-center h-screen">
-<<<<<<< HEAD
           {stalled ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: .25, ease: [0.22,1,0.36,1] }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
               className="text-center p-8 rounded-3xl bg-[rgba(17,18,21,.65)] backdrop-blur-xl border border-amber-500/30 shadow-[0_10px_30px_rgba(245,158,11,.25)] max-w-md"
             >
               <AlertCircle className="h-12 w-12 text-amber-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-amber-300 mb-2">Άργησε πολύ να φορτώσει</h3>
-              <p className="text-amber-200/90 mb-6">Δοκίμασε ξανά ή επαναφόρτωσε τη σελίδα.</p>
+              <h3 className="text-lg font-semibold text-amber-300 mb-2">
+                Άργησε πολύ να φορτώσει
+              </h3>
+              <p className="text-amber-200/90 mb-6">
+                Δοκίμασε ξανά ή επαναφόρτωσε τη σελίδα.
+              </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={onRetry || reload}
@@ -187,28 +247,21 @@ function Spinner({ full = false }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: .25, ease: [0.22,1,0.36,1] }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
               className="flex flex-col items-center gap-6 p-8 rounded-3xl bg-[rgba(17,18,21,.65)] backdrop-blur-xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_10px_30px_rgba(0,0,0,.45)]"
             >
               <Loader2 className="h-12 w-12 animate-spin text-blue-200" />
               <div className="text-center space-y-2">
-                <h3 className="text-xl font-semibold text-white">Φόρτωση κρατήσεων</h3>
+                <h3 className="text-xl font-semibold text-white">
+                  Φόρτωση κρατήσεων
+                </h3>
                 <p className="text-white/70">Προετοιμασία των δεδομένων...</p>
               </div>
             </motion.div>
           )}
-=======
-          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .25, ease: [0.22,1,0.36,1] }} className="flex flex-col items-center gap-6 p-8 rounded-3xl bg-[rgba(17,18,21,.65)] backdrop-blur-xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_10px_30px_rgba(0,0,0,.45)]">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-200" />
-            <div className="text-center space-y-2">
-              <h3 className="text-xl font-semibold text-white">Φόρτωση κρατήσεων</h3>
-              <p className="text-white/70">Προετοιμασία των δεδομένων...</p>
-            </div>
-          </motion.div>
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         </div>
       </div>
-    )
+    );
   }
   return (
     <div className="flex justify-center py-16">
@@ -217,62 +270,69 @@ function Spinner({ full = false }) {
         <p className="text-white/70">Φόρτωση...</p>
       </div>
     </div>
-  )
+  );
 }
 
 /* ---------- Error Boundary ---------- */
 class ErrorBoundary extends React.Component {
-  constructor(props){ super(props); this.state = { hasError:false, error:null } }
-  static getDerivedStateFromError(error){ return { hasError:true, error } }
-  componentDidCatch(error, info){ console.error("Calendar crashed:", error, info) }
-  render(){
-    if(this.state.hasError){
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("Calendar crashed:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
       return (
         <ColorCard color="red" className="p-6">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-6 w-6 mt-0.5" />
             <div>
-              <p className="font-semibold">Κάτι πήγε στραβά στη λίστα κρατήσεων.</p>
+              <p className="font-semibold">
+                Κάτι πήγε στραβά στη λίστα κρατήσεων.
+              </p>
               <button
-                onClick={() => this.setState({ hasError:false, error:null })}
-<<<<<<< HEAD
-                className="mt-4 px-4 py-2 rounded-lg bg-white/20 hover:bg白/30 transition"
-=======
+                onClick={() =>
+                  this.setState({ hasError: false, error: null })
+                }
                 className="mt-4 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition"
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
               >
                 Προσπάθησε ξανά
               </button>
             </div>
           </div>
         </ColorCard>
-      )
+      );
     }
-    return this.props.children
+    return this.props.children;
   }
 }
 
 /* ======================= SMALL UTIL: media ======================= */
 function useIsMobile(bp = 640) {
-  const [is, setIs] = useState(false)
+  const [is, setIs] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const mq = window.matchMedia(`(max-width:${bp - 0.02}px)`)
-    const on = (e) => setIs(e.matches)
-    setIs(mq.matches)
-    mq.addEventListener("change", on)
-    return () => mq.removeEventListener("change", on)
-  }, [bp])
-  return is
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(`(max-width:${bp - 0.02}px)`);
+    const on = (e) => setIs(e.matches);
+    setIs(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [bp]);
+  return is;
 }
 
 /* ======================= SWITCHER (with slide) ======================= */
 function ViewSwitch({ value, onChange }) {
   const options = [
-    { k: "day",   label: "Ημερήσιο" },
-    { k: "week",  label: "Εβδομαδιαίο" },
+    { k: "day", label: "Ημερήσιο" },
+    { k: "week", label: "Εβδομαδιαίο" },
     { k: "month", label: "Μηνιαίο" },
-  ]
+  ];
 
   return (
     <motion.div
@@ -286,7 +346,7 @@ function ViewSwitch({ value, onChange }) {
       "
     >
       {options.map((o) => {
-        const active = value === o.k
+        const active = value === o.k;
         return (
           <motion.button
             key={o.k}
@@ -316,63 +376,91 @@ function ViewSwitch({ value, onChange }) {
               className="relative z-10 block"
               initial={false}
               animate={{ y: active ? 0 : 1, opacity: active ? 1 : 0.75 }}
-              transition={{ duration: .18 }}
+              transition={{ duration: 0.18 }}
             >
               {o.label}
             </motion.span>
           </motion.button>
-        )
+        );
       })}
     </motion.div>
-  )
+  );
 }
 
 /* ---------- Shared Button ---------- */
-function Button({ children, variant="secondary", size="md", className="", ...props }) {
-  const base = "inline-flex items-center justify-center rounded-xl font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed"
-  const sizes = { sm: "h-9 px-3 text-sm", md: "h-10 px-4 text-sm" }
+function Button({
+  children,
+  variant = "secondary",
+  size = "md",
+  className = "",
+  ...props
+}) {
+  const base =
+    "inline-flex items-center justify-center rounded-xl font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
+  const sizes = { sm: "h-9 px-3 text-sm", md: "h-10 px-4 text-sm" };
   const variants = {
-    primary: "bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/20 shadow-[0_6px_18px_rgba(16,185,129,.25)]",
+    primary:
+      "bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-400/20 shadow-[0_6px_18px_rgba(16,185,129,.25)]",
     secondary: "bg-white/6 hover:bg-white/10 text-white border border-white/10",
-    danger: "bg-rose-600/90 hover:bg-rose-600 text-white border border-rose-400/20 shadow-[0_6px_18px_rgba(244,63,94,.25)]",
+    danger:
+      "bg-rose-600/90 hover:bg-rose-600 text-white border border-rose-400/20 shadow-[0_6px_18px_rgba(244,63,94,.25)]",
     ghost: "bg-transparent hover:bg-white/5 text-white border border-white/10",
-  }
+  };
   return (
-    <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props}>
+    <button
+      className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
+      {...props}
+    >
       {children}
     </button>
-  )
+  );
 }
 
 /* ---------- Booking pill ---------- */
 function BookingPill({ b, onOpen, compact = false }) {
-  const status = (b.status || "pending").toLowerCase()
+  const status = (b.status || "pending").toLowerCase();
   const ring =
-    status === "accepted" ? "ring-emerald-400/35" :
-    status === "declined" || status === "cancelled" ? "ring-rose-400/35" :
-    "ring-amber-400/35"
+    status === "accepted"
+      ? "ring-emerald-400/35"
+      : status === "declined" || status === "cancelled"
+      ? "ring-rose-400/35"
+      : "ring-amber-400/35";
   const tint =
-    status === "accepted" ? "bg-emerald-500/10" :
-    status === "declined" || status === "cancelled" ? "bg-rose-500/10" :
-    "bg-amber-500/10"
+    status === "accepted"
+      ? "bg-emerald-500/10"
+      : status === "declined" || status === "cancelled"
+      ? "bg-rose-500/10"
+      : "bg-amber-500/10";
 
   const minutes =
-    (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)) || b.duration_min
-  const durationStr = minutes ? `${minutes}’` : null
-  const price = b.price_eur ?? b.total_price ?? b.price
-  const isNew = isNewBooking(b)
+    timeToMinutes(b.end_time) - timeToMinutes(b.start_time) || b.duration_min;
+  const durationStr = minutes ? `${minutes}’` : null;
+  const price = b.price_eur ?? b.total_price ?? b.price;
+  const isNew = isNewBooking(b);
 
-  const pad = compact ? "px-2 py-1.5" : "px-3 py-2.5"
-  const timeCls = compact ? "text-[12px] text-white/70" : "text-xs text-white/70"
-  const nameCls = compact ? "text-[12px]" : "text-sm"
-  const endCls  = "text-[11px] text-white/60"
-  const onlineCls = compact ? "text-[9px] px-1" : "text-[10px] px-1.5"
+  const pad = compact ? "px-2 py-1.5" : "px-3 py-2.5";
+  const timeCls = compact ? "text-[12px] text-white/70" : "text-xs text-white/70";
+  const nameCls = compact ? "text-[12px]" : "text-sm";
+  const endCls = "text-[11px] text-white/60";
+  const onlineCls = compact ? "text-[9px] px-1" : "text-[10px] px-1.5";
 
   return (
-    <button onClick={(e) => { e.stopPropagation(); onOpen?.(b) }} className="w-full text-left">
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen?.(b);
+      }}
+      className="w-full text-left"
+    >
       <GlassTile className={`${pad} ring-1 ${ring} ${tint}`}>
         {isNew && (
-          <span className={`absolute top-2 right-2 ${compact ? "text-[8px] px-1" : "text-[9px] px-1.5"} tracking-wide py-0.5 rounded bg-white/20 text-white/90`}>NEW</span>
+          <span
+            className={`absolute top-2 right-2 ${
+              compact ? "text-[8px] px-1" : "text-[9px] px-1.5"
+            } tracking-wide py-0.5 rounded bg-white/20 text-white/90`}
+          >
+            NEW
+          </span>
         )}
         <div className="flex items-center justify-between">
           <span className={timeCls}>{hhmm(b.start_time)}</span>
@@ -388,7 +476,11 @@ function BookingPill({ b, onOpen, compact = false }) {
             {b.user_name || b.client_name || "Κράτηση"}
           </span>
           {b.is_online && (
-            <span className={`${onlineCls} py-0.5 rounded bg-blue-400/15 text-blue-200`}>Online</span>
+            <span
+              className={`${onlineCls} py-0.5 rounded bg-blue-400/15 text-blue-200`}
+            >
+              Online
+            </span>
           )}
         </div>
         <div className="mt-1 flex items-center justify-between">
@@ -397,120 +489,105 @@ function BookingPill({ b, onOpen, compact = false }) {
         </div>
       </GlassTile>
     </button>
-  )
+  );
 }
 
-<<<<<<< HEAD
 /* ======================= NEW: POPUP BAR ======================= */
-=======
-/* ======================= NEW: POPUP BAR (now minimizable, no 'Καθαρισμός') ======================= */
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
-  const [items, setItems] = useState([])
-  const [minimized, setMinimized] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState([]);
+  const [minimized, setMinimized] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-<<<<<<< HEAD
   // initial load with timeout
-=======
-  // initial load: ALL pending (no 48h limit), ordered by date & start_time
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
-    let alive = true
-    if (!trainerId) return
-    ;(async () => {
+    let alive = true;
+    if (!trainerId) return;
+    (async () => {
       try {
-        setLoading(true)
-<<<<<<< HEAD
+        setLoading(true);
         const query = supabase
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
-=======
-        const { data, error } = await supabase
-          .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at") // no price_eur
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
+          .select(
+            "id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at"
+          )
           .eq("trainer_id", trainerId)
           .eq("status", "pending")
           .order("date", { ascending: true })
           .order("start_time", { ascending: true })
-          .limit(50)
-<<<<<<< HEAD
-        const { data, error } = await withTimeout(query, 10000, "Timeout νέων κρατήσεων")
-        if (error) throw error
-        if (!alive) return
-        setItems(data ?? [])
-=======
-        if (error) throw error
-        if (!alive) return
-        setItems(data ?? [])
-        // auto-show if there are items
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-        setMinimized((data?.length ?? 0) === 0)
+          .limit(50);
+        const { data, error } = await withTimeout(
+          query,
+          10000,
+          "Timeout νέων κρατήσεων"
+        );
+        if (error) throw error;
+        if (!alive) return;
+        setItems(data ?? []);
+        setMinimized((data?.length ?? 0) === 0);
       } catch {
-        if (!alive) return
-        setItems([])
-        setMinimized(true)
+        if (!alive) return;
+        setItems([]);
+        setMinimized(true);
       } finally {
-        if (alive) setLoading(false)
+        if (alive) setLoading(false);
       }
-    })()
-    return () => { alive = false }
-  }, [trainerId, refreshKey])
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [trainerId, refreshKey]);
 
-<<<<<<< HEAD
   // realtime
-=======
-  // realtime: push new INSERTs (pending only) for this trainer
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
-    if (!trainerId) return
-    const channel = supabase.channel(`realtime-trainer-bookings-${trainerId}`)
+    if (!trainerId) return;
+    const channel = supabase.channel(`realtime-trainer-bookings-${trainerId}`);
     channel.on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "trainer_bookings", filter: `trainer_id=eq.${trainerId}` },
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "trainer_bookings",
+        filter: `trainer_id=eq.${trainerId}`,
+      },
       (payload) => {
-        const b = payload.new
-        if ((b.status || "pending") !== "pending") return
+        const b = payload.new;
+        if ((b.status || "pending") !== "pending") return;
         setItems((prev) => {
           const next = [b, ...prev]
-            .sort((a, c) => (a.date === c.date ? a.start_time.localeCompare(c.start_time) : a.date.localeCompare(c.date)))
-            .slice(0, 50)
-          return next
-        })
-<<<<<<< HEAD
+            .sort((a, c) =>
+              a.date === c.date
+                ? a.start_time.localeCompare(c.start_time)
+                : a.date.localeCompare(c.date)
+            )
+            .slice(0, 50);
+          return next;
+        });
       }
-    )
-=======
-        // keep minimized state; don't force open
-      }
-    )
-    // keep popup in sync on status updates (remove if no longer pending)
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
+    );
     channel.on(
       "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "trainer_bookings", filter: `trainer_id=eq.${trainerId}` },
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "trainer_bookings",
+        filter: `trainer_id=eq.${trainerId}`,
+      },
       (payload) => {
-        const b = payload.new
+        const b = payload.new;
         setItems((prev) => {
-          const next = prev.map((x) => (x.id === b.id ? { ...x, ...b } : x))
-          return next.filter((x) => (x.status || "pending") === "pending")
-        })
+          const next = prev.map((x) => (x.id === b.id ? { ...x, ...b } : x));
+          return next.filter((x) => (x.status || "pending") === "pending");
+        });
       }
-    )
-    channel.subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [trainerId])
+    );
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [trainerId]);
 
-<<<<<<< HEAD
-  if ((items?.length ?? 0) === 0) return null
+  if ((items?.length ?? 0) === 0) return null;
 
-=======
-  // nothing to render when no items
-  if ((items?.length ?? 0) === 0) return null
-
-  // MINIMIZED: show a small sticky reopen button
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   if (minimized) {
     return (
       <AnimatePresence>
@@ -519,7 +596,7 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: .22, ease: [0.22,1,0.36,1] }}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           className="sticky top-2 z-40"
         >
           <button
@@ -539,13 +616,9 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
           </button>
         </motion.div>
       </AnimatePresence>
-    )
+    );
   }
 
-<<<<<<< HEAD
-=======
-  // EXPANDED: full popup bar (no 'Καθαρισμός' button)
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   return (
     <AnimatePresence>
       <motion.div
@@ -553,92 +626,126 @@ function NewBookingsPopup({ trainerId, onOpenDetails, refreshKey }) {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: .22, ease: [0.22,1,0.36,1] }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
         className="mb-3 md:mb-4 sticky top-2 z-40"
       >
         <Glass className="p-3 sm:p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="text-white/90 font-medium">
-              Νέα αιτήματα κράτησης <span className="text-white/55">({items.length})</span>
+              Νέα αιτήματα κράτησης{" "}
+              <span className="text-white/55">({items.length})</span>
             </div>
             <div className="flex items-center gap-2">
-<<<<<<< HEAD
-=======
-              {/* Close now minimizes instead of hiding permanently */}
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-              <Button size="sm" variant="ghost" onClick={() => setMinimized(true)} aria-label="Μίνιμαϊζ">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setMinimized(true)}
+                aria-label="Μίνιμαϊζ"
+              >
                 <X className="h-4 w-4 text-white/85" />
               </Button>
             </div>
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {loading && <div className="text-xs text-white/60 px-2 py-2">Φόρτωση…</div>}
-            {!loading && items.map((b) => (
-              <div key={b.id} className="min-w-[220px] sm:min-w-[240px]">
-                <BookingPill
-                  b={b}
-                  onOpen={(bb) => onOpenDetails?.(bb)}
-                  compact
-                />
-              </div>
-            ))}
+            {loading && (
+              <div className="text-xs text-white/60 px-2 py-2">Φόρτωση…</div>
+            )}
+            {!loading &&
+              items.map((b) => (
+                <div key={b.id} className="min-w-[220px] sm:min-w-[240px]">
+                  <BookingPill
+                    b={b}
+                    onOpen={(bb) => onOpenDetails?.(bb)}
+                    compact
+                  />
+                </div>
+              ))}
           </div>
         </Glass>
       </motion.div>
     </AnimatePresence>
-  )
+  );
 }
 
 /* ======================= DAY VIEW ======================= */
-function DaySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
-  const [day, setDay] = useState(startOfDay(new Date()))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [rows, setRows] = useState([])
-  const dayStr = useMemo(() => toYMDLocal(day), [day])
+function DaySchedule({
+  trainerId,
+  onOpenDetails,
+  view,
+  onChangeView,
+  refreshKey,
+  onSelectDate,
+}) {
+  const [day, setDay] = useState(startOfDay(new Date()));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
+  const dayStr = useMemo(() => toYMDLocal(day), [day]);
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!trainerId) return
-      setLoading(true); setError(null)
+    let alive = true;
+    (async () => {
+      if (!trainerId) return;
+      setLoading(true);
+      setError(null);
       try {
-<<<<<<< HEAD
         const query = supabase
-=======
-        const { data, error } = await supabase
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
+          .select(
+            "id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at"
+          )
           .eq("trainer_id", trainerId)
-          .eq("date", dayStr)
-<<<<<<< HEAD
-        const { data, error } = await withTimeout(query, 10000, "Timeout day view")
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-        if (error) throw error
-        const sorted = (data ?? []).sort((a,b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
-        if (!alive) return
-        setRows(sorted); setLoading(false)
+          .eq("date", dayStr);
+        const { data, error } = await withTimeout(
+          query,
+          10000,
+          "Timeout day view"
+        );
+        if (error) throw error;
+        const sorted = (data ?? []).sort(
+          (a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+        );
+        if (!alive) return;
+        setRows(sorted);
+        setLoading(false);
       } catch (e) {
-        if (!alive) return
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false)
+        if (!alive) return;
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων");
+        setLoading(false);
       }
-    })()
-    return () => { alive = false }
-  }, [trainerId, dayStr, refreshKey])
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [trainerId, dayStr, refreshKey]);
 
-  const goPrev = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return startOfDay(n) })
-  const goNext = () => setDay((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return startOfDay(n) })
+  const goPrev = () =>
+    setDay((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() - 1);
+      return startOfDay(n);
+    });
+  const goNext = () =>
+    setDay((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() + 1);
+      return startOfDay(n);
+    });
 
   return (
     <Glass className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-2 sm:mb-3">
         <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
-          <p className="ml-1 sm:ml-2 text-white/90">{fmtLongDay(day)} {fmtDayNum(day)} {fmtMonth(day)}</p>
+          <button className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10" onClick={goPrev}>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10" onClick={goNext}>
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <p className="ml-1 sm:ml-2 text-white/90">
+            {fmtLongDay(day)} {fmtDayNum(day)} {fmtMonth(day)}
+          </p>
         </div>
         <div className="hidden md:block">
           <ViewSwitch value={view} onChange={onChangeView} />
@@ -654,94 +761,142 @@ function DaySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey,
         title="Κάνε κλικ για γρήγορη κράτηση για αυτή τη μέρα"
       >
         {loading ? (
-          [...Array(6)].map((_,i)=><div key={i} className="h-20 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />)
+          [...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="h-20 rounded-2xl bg-white/[.06] animate-pulse border border-white/10"
+            />
+          ))
         ) : error ? (
-          <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
+          <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">
+            {error}
+          </div>
         ) : rows.length === 0 ? (
           <div className="text-xs text-white/60 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl col-span-full">
             καμια κρατηση • πάτα για κράτηση
           </div>
         ) : (
-          rows.map((b)=> <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
+          rows.map((b) => (
+            <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />
+          ))
         )}
       </div>
     </Glass>
-  )
+  );
 }
 
 /* ======================= WEEK VIEW ======================= */
-function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), 1))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [rows, setRows] = useState([])
+function WeeklyScheduleGrid({
+  trainerId,
+  onOpenDetails,
+  view,
+  onChangeView,
+  refreshKey,
+  onSelectDate,
+}) {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), 1));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
 
   const days = useMemo(() => {
-    const arr = []; for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(d.getDate() + i); arr.push(d) }
-    return arr
-  }, [weekStart])
+    const arr = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      arr.push(d);
+    }
+    return arr;
+  }, [weekStart]);
 
-  const dateStr = (d) => toYMDLocal(d)
+  const dateStr = (d) => toYMDLocal(d);
 
   useEffect(() => {
-    let alive = true
+    let alive = true;
     const load = async () => {
-      if (!trainerId) return
-      setLoading(true); setError(null)
+      if (!trainerId) return;
+      setLoading(true);
+      setError(null);
       try {
-        const start = dateStr(weekStart)
-        const endDate = new Date(weekStart); endDate.setDate(endDate.getDate() + 6)
-        const end = dateStr(endDate)
+        const start = dateStr(weekStart);
+        const endDate = new Date(weekStart);
+        endDate.setDate(endDate.getDate() + 6);
+        const end = dateStr(endDate);
 
-<<<<<<< HEAD
         const query = supabase
-=======
-        const { data, error } = await supabase
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
+          .select(
+            "id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at"
+          )
           .eq("trainer_id", trainerId)
           .gte("date", start)
-          .lte("date", end)
+          .lte("date", end);
 
-<<<<<<< HEAD
-        const { data, error } = await withTimeout(query, 10000, "Timeout week view")
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-        if (error) throw error
-        const sorted = (data ?? []).sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
-        if (!alive) return
-        setRows(sorted); setLoading(false)
+        const { data, error } = await withTimeout(
+          query,
+          10000,
+          "Timeout week view"
+        );
+        if (error) throw error;
+        const sorted = (data ?? []).sort(
+          (a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+        );
+        if (!alive) return;
+        setRows(sorted);
+        setLoading(false);
       } catch (e) {
-        if (!alive) return
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false)
+        if (!alive) return;
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων");
+        setLoading(false);
       }
-    }
-    load()
-    return () => { alive = false }
-  }, [trainerId, weekStart, refreshKey])
+    };
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [trainerId, weekStart, refreshKey]);
 
   const grouped = useMemo(() => {
-    const map = new Map()
-    days.forEach((d) => map.set(dateStr(d), []))
-    rows.forEach((r) => { const key = r.date; if (!map.has(key)) map.set(key, []); map.get(key).push(r) })
-    return map
-  }, [rows, days])
+    const map = new Map();
+    days.forEach((d) => map.set(dateStr(d), []));
+    rows.forEach((r) => {
+      const key = r.date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(r);
+    });
+    return map;
+  }, [rows, days]);
 
-  const goPrev = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return startOfWeek(n, 1) })
-  const goNext = () => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return startOfWeek(n, 1) })
+  const goPrev = () =>
+    setWeekStart((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() - 7);
+      return startOfWeek(n, 1);
+    });
+  const goNext = () =>
+    setWeekStart((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() + 7);
+      return startOfWeek(n, 1);
+    });
 
-  const end = new Date(weekStart); end.setDate(end.getDate() + 6)
-  const label = weekStart.getMonth() === end.getMonth()
-    ? `${weekStart.getDate()}–${end.getDate()} ${fmtMonth(weekStart)}`
-    : `${weekStart.getDate()} ${fmtMonth(weekStart)} – ${end.getDate()} ${fmtMonth(end)}`
+  const end = new Date(weekStart);
+  end.setDate(end.getDate() + 6);
+  const label =
+    weekStart.getMonth() === end.getMonth()
+      ? `${weekStart.getDate()}–${end.getDate()} ${fmtMonth(weekStart)}`
+      : `${weekStart.getDate()} ${fmtMonth(weekStart)} – ${end.getDate()} ${fmtMonth(end)}`;
 
   return (
     <Glass className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-2 sm:mb-3">
         <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
+          <button className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10" onClick={goPrev}>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10" onClick={goNext}>
+            <ChevronRight className="h-5 w-5" />
+          </button>
           <p className="ml-1 sm:ml-2 text-white/90">{label}</p>
         </div>
         <div className="hidden md:block">
@@ -755,8 +910,8 @@ function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refr
       <div className="overflow-x-auto">
         <div className="min-w-[1000px] grid grid-cols-7 gap-3 sm:gap-4">
           {days.map((d) => {
-            const key = dateStr(d)
-            const dayRows = grouped.get(key) || []
+            const key = dateStr(d);
+            const dayRows = grouped.get(key) || [];
             return (
               <div
                 key={key}
@@ -767,127 +922,156 @@ function WeeklyScheduleGrid({ trainerId, onOpenDetails, view, onChangeView, refr
                 <GlassTile className="px-3 py-2 mb-3">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-white/85">{fmtShortDay(d)}</div>
-                    <div className="text-sm font-semibold text-white">{fmtDayNum(d)}</div>
+                    <div className="text-sm font-semibold text-white">
+                      {fmtDayNum(d)}
+                    </div>
                   </div>
                 </GlassTile>
 
                 <div className="space-y-3">
                   {loading ? (
-                    [...Array(4)].map((_, i) => <div key={i} className="h-16 rounded-2xl bg-white/[.06] animate-pulse border border-white/10" />)
+                    [...Array(4)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-16 rounded-2xl bg-white/[.06] animate-pulse border border-white/10"
+                      />
+                    ))
                   ) : error ? (
-                    <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">{error}</div>
+                    <div className="text-sm text-red-300 bg-red-900/20 rounded-xl p-3">
+                      {error}
+                    </div>
                   ) : dayRows.length === 0 ? (
-                    <div className="text-xs text-white/40 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl">καμια κρατηση • πάτα για κράτηση</div>
+                    <div className="text-xs text-white/40 px-2 py-6 text-center border border-dashed border-white/12 rounded-2xl">
+                      καμια κρατηση • πάτα για κράτηση
+                    </div>
                   ) : (
-                    dayRows.map((b) => <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />)
+                    dayRows.map((b) => (
+                      <BookingPill key={b.id} b={b} onOpen={onOpenDetails} />
+                    ))
                   )}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       </div>
     </Glass>
-  )
+  );
 }
 
-<<<<<<< HEAD
 /* ======================= MONTH VIEW (mobile-tuned + empty-day hint) ======================= */
-=======
-/* ======================= MONTH VIEW ======================= */
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refreshKey, onSelectDate }) {
-  const [anchor, setAnchor] = useState(startOfMonth(new Date()))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [rows, setRows] = useState([])
-<<<<<<< HEAD
+function MonthlySchedule({
+  trainerId,
+  onOpenDetails,
+  view,
+  onChangeView,
+  refreshKey,
+  onSelectDate,
+}) {
+  const [anchor, setAnchor] = useState(startOfMonth(new Date()));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
 
   // Mobile breakpoints
-  const isMobile = useIsMobile(640)
-  const isTiny   = useIsMobile(400) // very small phones
+  const isMobile = useIsMobile(640);
+  const isTiny = useIsMobile(400); // very small phones
+  const maxPills = isTiny ? 1 : isMobile ? 2 : 3;
 
-  // show fewer pills on small screens
-  const maxPills = isTiny ? 1 : isMobile ? 2 : 3
-=======
-  const isMobile = useIsMobile(640)
-  const maxPills = isMobile ? 2 : 3
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-
-  const gridStart = useMemo(() => startOfWeek(startOfMonth(anchor), 1), [anchor])
+  const gridStart = useMemo(
+    () => startOfWeek(startOfMonth(anchor), 1),
+    [anchor]
+  );
   const gridDays = useMemo(() => {
-    const arr = []
-    for (let i = 0; i < 42; i++) { const d = new Date(gridStart); d.setDate(d.getDate() + i); arr.push(d) }
-    return arr
-  }, [gridStart])
-  const startStr = toYMDLocal(gridStart)
-  const endStr = useMemo(() => { const e = new Date(gridStart); e.setDate(e.getDate()+41); return toYMDLocal(e) }, [gridStart])
+    const arr = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart);
+      d.setDate(d.getDate() + i);
+      arr.push(d);
+    }
+    return arr;
+  }, [gridStart]);
+  const startStr = toYMDLocal(gridStart);
+  const endStr = useMemo(() => {
+    const e = new Date(gridStart);
+    e.setDate(e.getDate() + 41);
+    return toYMDLocal(e);
+  }, [gridStart]);
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      if (!trainerId) return
-      setLoading(true); setError(null)
+    let alive = true;
+    (async () => {
+      if (!trainerId) return;
+      setLoading(true);
+      setError(null);
       try {
-<<<<<<< HEAD
         const query = supabase
-=======
-        const { data, error } = await supabase
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           .from("trainer_bookings")
-          .select("id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at")
+          .select(
+            "id,date,start_time,end_time,duration_min,status,is_online,user_name,created_at"
+          )
           .eq("trainer_id", trainerId)
           .gte("date", startStr)
-          .lte("date", endStr)
-<<<<<<< HEAD
-        const { data, error } = await withTimeout(query, 12000, "Timeout month view")
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-        if (error) throw error
-        if (!alive) return
-        setRows(data ?? []); setLoading(false)
+          .lte("date", endStr);
+        const { data, error } = await withTimeout(
+          query,
+          12000,
+          "Timeout month view"
+        );
+        if (error) throw error;
+        if (!alive) return;
+        setRows(data ?? []);
+        setLoading(false);
       } catch (e) {
-        if (!alive) return
-        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων"); setLoading(false)
+        if (!alive) return;
+        setError(e.message || "Σφάλμα φόρτωσης κρατήσεων");
+        setLoading(false);
       }
-    })()
-    return () => { alive = false }
-  }, [trainerId, startStr, endStr, refreshKey])
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [trainerId, startStr, endStr, refreshKey]);
 
   const byDate = useMemo(() => {
-    const m = new Map()
-    rows.forEach(r => { if (!m.has(r.date)) m.set(r.date, []); m.get(r.date).push(r) })
-    m.forEach(list => list.sort((a,b)=>timeToMinutes(a.start_time)-timeToMinutes(b.start_time)))
-    return m
-  }, [rows])
+    const m = new Map();
+    rows.forEach((r) => {
+      if (!m.has(r.date)) m.set(r.date, []);
+      m.get(r.date).push(r);
+    });
+    m.forEach((list) =>
+      list.sort(
+        (a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+      )
+    );
+    return m;
+  }, [rows]);
 
-  const goPrev = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()-1, 1))
-  const goNext = () => setAnchor((d)=> new Date(d.getFullYear(), d.getMonth()+1, 1))
-  const weekdays = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"]
+  const goPrev = () =>
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNext = () =>
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const weekdays = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
 
   return (
-<<<<<<< HEAD
     <Glass className="p-3 sm:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-2 sm:mb-3">
         <div className="flex items-center gap-1.5 sm:gap-3">
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
-          <p className="ml-1 sm:ml-2 text-white/90 text-sm sm:text-base">{fmtMonthYear(anchor)}</p>
-=======
-    <Glass className="p-4 sm:p-6">
-      <div className="flex items-center justify-between mb-2 sm:mb-3">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={goPrev} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={goNext} className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10"><ChevronRight className="h-5 w-5" /></button>
-          <p className="ml-1 sm:ml-2 text-white/90">{fmtMonthYear(anchor)}</p>
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
+          <button className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10" onClick={goPrev}>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button className="p-2 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10" onClick={goNext}>
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <p className="ml-1 sm:ml-2 text-white/90 text-sm sm:text-base">
+            {fmtMonthYear(anchor)}
+          </p>
         </div>
         <div className="hidden md:block">
           <ViewSwitch value={view} onChange={onChangeView} />
         </div>
       </div>
-<<<<<<< HEAD
       <div className="md:hidden mb-2 flex justify-center">
         <ViewSwitch value={view} onChange={onChangeView} />
       </div>
@@ -895,17 +1079,19 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
       {/* Weekday header */}
       <div className="grid grid-cols-7 gap-[3px] sm:gap-2 mb-1 sm:mb-2">
         {weekdays.map((w) => (
-          <div key={w} className="text-center text-[9px] sm:text-xs text-white/60">{w}</div>
+          <div key={w} className="text-center text-[9px] sm:text-xs text-white/60">
+            {w}
+          </div>
         ))}
       </div>
 
-      {/* Grid — on very small screens allow horizontal scroll so cells stay readable */}
+      {/* Grid — allow horizontal scroll on very small screens */}
       <div className="overflow-x-auto">
         <div className="grid grid-cols-7 gap-[3px] sm:gap-2 min-w-[560px] sm:min-w-0">
           {gridDays.map((d, idx) => {
-            const inMonth = d.getMonth() === anchor.getMonth()
-            const key = toYMDLocal(d)
-            const dayRows = byDate.get(key) || []
+            const inMonth = d.getMonth() === anchor.getMonth();
+            const key = toYMDLocal(d);
+            const dayRows = byDate.get(key) || [];
             return (
               <div
                 key={idx}
@@ -914,149 +1100,156 @@ function MonthlySchedule({ trainerId, onOpenDetails, view, onChangeView, refresh
                   "rounded-lg sm:rounded-2xl border border-white/10",
                   "p-1 sm:p-2",
                   isTiny ? "min-h-[64px]" : "min-h-[72px] sm:min-h-[110px]",
-                  inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70",
+                  inMonth
+                    ? "bg-[rgba(17,18,21,.55)]"
+                    : "bg-[rgba(17,18,21,.35)] opacity-70",
                   "backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)]",
-                  "cursor-pointer hover:ring-1 hover:ring-white/15 transition"
+                  "cursor-pointer hover:ring-1 hover:ring-white/15 transition",
                 ].join(" ")}
                 title="Κάνε κλικ για γρήγορη κράτηση"
               >
                 {/* Date header row */}
                 <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                  <span className={`font-medium ${inMonth ? "text-white/85" : "text-white/40"} ${isTiny ? "text-[10px]" : "text-[11px]"} sm:text-[12px]`}>
+                  <span
+                    className={`font-medium ${
+                      inMonth ? "text-white/85" : "text-white/40"
+                    } ${isTiny ? "text-[10px]" : "text-[11px]"} sm:text-[12px]`}
+                  >
                     {fmtDayNum(d)}
                   </span>
-                  {loading && idx < 7 ? <span className={`${isTiny ? "text-[8px]" : "text-[9px]"} sm:text-[10px] text-white/30`}>…</span> : null}
+                  {loading && idx < 7 ? (
+                    <span
+                      className={`${
+                        isTiny ? "text-[8px]" : "text-[9px]"
+                      } sm:text-[10px] text-white/30`}
+                    >
+                      …
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* Body */}
                 {loading ? (
-                  <div className={`${isTiny ? "h-10" : "h-12"} sm:h-16 rounded-md sm:rounded-xl bg-white/[.06] animate-pulse border border-white/10`} />
+                  <div
+                    className={`${
+                      isTiny ? "h-10" : "h-12"
+                    } sm:h-16 rounded-md sm:rounded-xl bg-white/[.06] animate-pulse border border-white/10`}
+                  />
                 ) : error ? (
-                  <div className={`${isTiny ? "text-[9px]" : "text-[10px]"} sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5`}>Σφάλμα</div>
+                  <div
+                    className={`${
+                      isTiny ? "text-[9px]" : "text-[10px]"
+                    } sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5`}
+                  >
+                    Σφάλμα
+                  </div>
                 ) : dayRows.length === 0 ? (
-                  // 👇 Empty day: show subtle hint
                   <div className="flex items-center gap-1 text-white/60">
-                    <PencilLine className={`${isTiny ? "h-3 w-3" : "h-3.5 w-3.5"} opacity-70`} />
-                    <span className={`${isTiny ? "text-[9px]" : "text-[10px]"} leading-none`}>
+                    <PencilLine
+                      className={`${
+                        isTiny ? "h-3 w-3" : "h-3.5 w-3.5"
+                      } opacity-70`}
+                    />
+                    <span
+                      className={`${isTiny ? "text-[9px]" : "text-[10px]"} leading-none`}
+                    >
                       Πρόσθεσε μια κράτηση
                     </span>
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {dayRows.slice(0, maxPills).map((b)=>(
+                    {dayRows.slice(0, maxPills).map((b) => (
                       <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact />
                     ))}
                     {dayRows.length > maxPills && (
-                      <div className={`${isTiny ? "text-[9px]" : "text-[10px]"} text-white/50`}>+{dayRows.length - maxPills} ακόμα</div>
+                      <div
+                        className={`${
+                          isTiny ? "text-[9px]" : "text-[10px]"
+                        } text-white/50`}
+                      >
+                        +{dayRows.length - maxPills} ακόμα
+                      </div>
                     )}
                   </div>
                 )}
               </div>
-            )
+            );
           })}
         </div>
-=======
-      <div className="md:hidden mb-3 flex justify-center">
-        <ViewSwitch value={view} onChange={onChangeView} />
-      </div>
-
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2">
-        {weekdays.map((w) => (
-          <div key={w} className="text-center text-[10px] sm:text-xs text-white/60">{w}</div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-        {gridDays.map((d, idx) => {
-          const inMonth = d.getMonth() === anchor.getMonth()
-          const key = toYMDLocal(d)
-          const dayRows = byDate.get(key) || []
-          return (
-            <div
-              key={idx}
-              onClick={() => onSelectDate?.(key)}
-              className={`rounded-xl sm:rounded-2xl border border-white/10 p-1.5 sm:p-2 min-h=[84px] sm:min-h-[110px] ${inMonth ? "bg-[rgba(17,18,21,.55)]" : "bg-[rgba(17,18,21,.35)] opacity-70"} backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_6px_24px_rgba(0,0,0,.4)] cursor-pointer hover:ring-1 hover:ring-white/15 transition`}
-              title="Κάνε κλικ για γρήγορη κράτηση"
-            >
-              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                <span className={`text-[10px] sm:text-[11px] ${inMonth ? "text-white/80" : "text-white/40"}`}>{fmtDayNum(d)}</span>
-                {loading && idx < 7 ? <span className="text-[9px] sm:text-[10px] text-white/30">…</span> : null}
-              </div>
-
-              {loading ? (
-                <div className="h-12 sm:h-16 rounded-lg sm:rounded-xl bg-white/[.06] animate-pulse border border-white/10" />
-              ) : error ? (
-                <div className="text-[10px] sm:text-[11px] text-red-300 bg-red-900/20 rounded p-1.5">Σφάλμα</div>
-              ) : dayRows.length === 0 ? (
-                <div className="text-[9px] sm:text-[10px] text-white/60">καμια κρατηση • πάτα για κράτηση</div>
-              ) : (
-                <div className="space-y-1">
-                  {dayRows.slice(0, maxPills).map((b)=>(
-                    <BookingPill key={b.id} b={b} onOpen={onOpenDetails} compact />
-                  ))}
-                  {dayRows.length > maxPills && (
-                    <div className="text-[9px] sm:text-[10px] text-white/50">+{dayRows.length - maxPills} ακόμα</div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
       </div>
     </Glass>
-  )
+  );
 }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 /* ======================= DETAILS DOCK ======================= */
-function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) {
-  const id = useMemo(() => (bookingId ? bookingId : safeId(booking)), [booking, bookingId])
-  const [full, setFull] = useState(() => (booking && id ? booking : null))
-  const [loading, setLoading] = useState(!booking)
-  const [err, setErr] = useState(null)
-  const [showAccept, setAccept] = useState(false)
-  const [showDecline, setDecline] = useState(false)
+function BookingDetailsDock({
+  booking,
+  bookingId,
+  trainerId,
+  onDone,
+  onClose,
+}) {
+  const id = useMemo(
+    () => (bookingId ? bookingId : safeId(booking)),
+    [booking, bookingId]
+  );
+  const [full, setFull] = useState(() => (booking && id ? booking : null));
+  const [loading, setLoading] = useState(!booking);
+  const [err, setErr] = useState(null);
+  const [showAccept, setAccept] = useState(false);
+  const [showDecline, setDecline] = useState(false);
 
   useEffect(() => {
-    let alive = true
-    if (!id) return
+    let alive = true;
+    if (!id) return;
 
     const hasEverything =
-      booking && booking.date && booking.start_time && (booking.user_name || booking.user?.full_name) && (booking.trainer_name || booking.trainer?.full_name)
-    if (hasEverything) { setFull(booking); setLoading(false); return }
+      booking &&
+      booking.date &&
+      booking.start_time &&
+      (booking.user_name || booking.user?.full_name) &&
+      (booking.trainer_name || booking.trainer?.full_name);
+    if (hasEverything) {
+      setFull(booking);
+      setLoading(false);
+      return;
+    }
 
-    ;(async () => {
-      setLoading(true); setErr(null)
-<<<<<<< HEAD
+    (async () => {
+      setLoading(true);
+      setErr(null);
       const query = supabase
-=======
-      const { data, error } = await supabase
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
         .from("trainer_bookings")
-        .select(`
+        .select(
+          `
           id, trainer_id, user_id, date, start_time, end_time, duration_min,
           note, status, created_at, updated_at, is_online,
           user_name, user_email, trainer_name,
           user:profiles!trainer_bookings_user_id_fkey ( id, full_name, email, avatar_url ),
           trainer:profiles!trainer_bookings_trainer_id_fkey ( id, full_name, email, avatar_url )
-        `)
+        `
+        )
         .eq("id", id)
-        .single()
+        .single();
 
-<<<<<<< HEAD
       try {
-        const { data, error } = await withTimeout(query, 10000, "Timeout details")
-        if (!alive) return
-        if (error) { setErr(error.message || "Σφάλμα ανάγνωσης κράτησης"); setLoading(false); return }
+        const { data, error } = await withTimeout(
+          query,
+          10000,
+          "Timeout details"
+        );
+        if (!alive) return;
+        if (error) {
+          setErr(error.message || "Σφάλμα ανάγνωσης κράτησης");
+          setLoading(false);
+          return;
+        }
 
         const normalized = {
           ...data,
           client: {
-            full_name: data.user_name || data.user?.full_name || "Χρήστης",
+            full_name:
+              data.user_name || data.user?.full_name || "Χρήστης",
             email: data.user_email || data.user?.email || null,
             avatar_url: data.user?.avatar_url || null,
           },
@@ -1065,52 +1258,54 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
             email: data.trainer?.email || null,
             avatar_url: data.trainer?.avatar_url || null,
           },
-        }
-        setFull(normalized); setLoading(false)
+        };
+        setFull(normalized);
+        setLoading(false);
       } catch (e) {
-        if (!alive) return
-        setErr(e.message || "Σφάλμα ανάγνωσης κράτησης"); setLoading(false)
+        if (!alive) return;
+        setErr(e.message || "Σφάλμα ανάγνωσης κράτησης");
+        setLoading(false);
       }
-=======
-      if (!alive) return
-      if (error) { setErr(error.message || "Σφάλμα ανάγνωσης κράτησης"); setLoading(false); return }
+    })();
 
-      const normalized = {
-        ...data,
-        client: {
-          full_name: data.user_name || data.user?.full_name || "Χρήστης",
-          email: data.user_email || data.user?.email || null,
-          avatar_url: data.user?.avatar_url || null,
-        },
-        trainer_info: {
-          full_name: data.trainer_name || data.trainer?.full_name || null,
-          email: data.trainer?.email || null,
-          avatar_url: data.trainer?.avatar_url || null,
-        },
-      }
-      setFull(normalized); setLoading(false)
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-    })()
-
-    return () => { alive = false }
-  }, [id, booking])
+    return () => {
+      alive = false;
+    };
+  }, [id, booking]);
 
   const status = useMemo(() => {
-    const raw = (full?.status || "pending").toString().toLowerCase()
-    if (raw === "confirmed" || raw === "approve" || raw === "approved" || raw === "accept") return "accepted"
-    if (raw === "reject") return "declined"
-    return raw
-  }, [full?.status])
+    const raw = (full?.status || "pending").toString().toLowerCase();
+    if (
+      raw === "confirmed" ||
+      raw === "approve" ||
+      raw === "approved" ||
+      raw === "accept"
+    )
+      return "accepted";
+    if (raw === "reject") return "declined";
+    return raw;
+  }, [full?.status]);
 
-  const statusTone = {
-    pending: "bg-amber-500/20 text-amber-300",
-    accepted: "bg-emerald-600/20 text-emerald-300",
-    declined: "bg-rose-600/20 text-rose-300",
-    cancelled: "bg-rose-600/20 text-rose-300",
-  }[status]
-  const statusLabel = { pending: "Σε αναμονή", accepted: "Αποδεκτή", declined: "Απορρίφθηκε", cancelled: "Ακυρώθηκε" }[status]
-  const secondLabel = { accepted: "Αποδοχή", declined: "Απόρριψη", cancelled: "Ακύρωση", pending: null }[status]
-  const SecondIcon = status === "accepted" ? CheckCircle : status === "pending" ? Clock : Ban
+  const statusTone =
+    {
+      pending: "bg-amber-500/20 text-amber-300",
+      accepted: "bg-emerald-600/20 text-emerald-300",
+      declined: "bg-rose-600/20 text-rose-300",
+      cancelled: "bg-rose-600/20 text-rose-300",
+    }[status];
+  const statusLabel =
+    {
+      pending: "Σε αναμονή",
+      accepted: "Αποδεκτή",
+      declined: "Απορρίφθηκε",
+      cancelled: "Ακυρώθηκε",
+    }[status];
+  const secondLabel =
+    { accepted: "Αποδοχή", declined: "Απόρριψη", cancelled: "Ακύρωση", pending: null }[
+      status
+    ];
+  const SecondIcon =
+    status === "accepted" ? CheckCircle : status === "pending" ? Clock : Ban;
 
   return (
     <Glass className="p-5 h-fit">
@@ -1123,7 +1318,7 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
         )}
       </div>
 
-      {!id ? null : loading ?  (
+      {!id ? null : loading ? (
         <div className="animate-pulse space-y-3">
           <div className="h-7 w-40 bg-white/[.08] rounded border border-white/10" />
           <div className="h-32 bg-white/[.06] rounded-xl border border-white/10" />
@@ -1131,44 +1326,81 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
           <div className="h-6 bg-white/[.06] rounded border border-white/10" />
         </div>
       ) : err ? (
-        <div className="text-sm text-red-300 bg-red-900/30 rounded-xl p-3">{err}</div>
+        <div className="text-sm text-red-300 bg-red-900/30 rounded-xl p-3">
+          {err}
+        </div>
       ) : (
         <>
           <div className="flex items-center gap-4 mb-6">
             {full?.client?.avatar_url ? (
-              <img src={full.client.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
+              <img
+                src={full.client.avatar_url}
+                alt=""
+                className="h-14 w-14 rounded-full object-cover"
+              />
             ) : (
               <div className="grid h-14 w-14 place-items-center rounded-full bg-gray-700">
                 <CalendarClock className="h-7 w-7 text-gray-500" />
               </div>
             )}
             <div>
-              <div className="text-xl font-medium text-white">{full?.client?.full_name || full?.user_name || "Χρήστης"}</div>
-              <span className={`inline-flex mt-2 px-2.5 py-0.5 rounded-lg text-xs ${statusTone}`}>{statusLabel}</span>
+              <div className="text-xl font-medium text-white">
+                {full?.client?.full_name || full?.user_name || "Χρήστης"}
+              </div>
+              <span
+                className={`inline-flex mt-2 px-2.5 py-0.5 rounded-lg text-xs ${statusTone}`}
+              >
+                {statusLabel}
+              </span>
             </div>
           </div>
 
           <ul className="space-y-3 text-gray-300">
             <Li icon={CalendarClock} label="Ημερομηνία" value={fmtDate(full?.date)} />
-            <Li icon={Clock} label="Ώρες" value={`${hhmm(full?.start_time)} – ${hhmm(full?.end_time)}`} />
-            <Li icon={Clock} label="Διάρκεια" value={`${full?.duration_min ?? 0} λεπτά`} />
+            <Li
+              icon={Clock}
+              label="Ώρες"
+              value={`${hhmm(full?.start_time)} – ${hhmm(full?.end_time)}`}
+            />
+            <Li
+              icon={Clock}
+              label="Διάρκεια"
+              value={`${full?.duration_min ?? 0} λεπτά`}
+            />
             <Li icon={Wifi} label="Τύπος" value={full?.is_online ? "Online συνεδρία" : "Δια ζώσης"} />
             {!!full?.note && <Li icon={MapPin} label="Σημείωση" value={full.note} />}
             <div className="h-px bg-white/10 my-2" />
             <Li icon={User} label="Πελάτης" value={full?.client?.full_name || full?.user_name || "—"} />
-            {!!(full?.client?.email || full?.user_email) && <Li icon={Mail} label="Email πελάτη" value={full?.client?.email || full?.user_email} /> }
-            {!!full?.trainer_name && <Li icon={User} label="Προπονητής" value={full.trainer_name} /> }
+            {!!(full?.client?.email || full?.user_email) && (
+              <Li icon={Mail} label="Email πελάτη" value={full?.client?.email || full?.user_email} />
+            )}
+            {!!full?.trainer_name && <Li icon={User} label="Προπονητής" value={full.trainer_name} />}
             <div className="h-px bg-white/10 my-2" />
-            <Li icon={CalendarClock} label="Υποβλήθηκε" value={fmtTs(toLocalDate(full?.created_at) ?? combineDateTime(full?.date, full?.start_time))} />
+            <Li
+              icon={CalendarClock}
+              label="Υποβλήθηκε"
+              value={fmtTs(
+                toLocalDate(full?.created_at) ??
+                  combineDateTime(full?.date, full?.start_time)
+              )}
+            />
             {secondLabel && full?.updated_at && (
-              <Li icon={SecondIcon} label={secondLabel} value={fmtTs(toLocalDate(full.updated_at))} />
+              <Li
+                icon={SecondIcon}
+                label={secondLabel}
+                value={fmtTs(toLocalDate(full.updated_at))}
+              />
             )}
           </ul>
 
           {status === "pending" && (
             <div className="mt-6 flex items-center gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setDecline(true)}>Απόρριψη</Button>
-              <Button variant="primary" onClick={() => setAccept(true)}>Αποδοχή</Button>
+              <Button variant="secondary" onClick={() => setDecline(true)}>
+                Απόρριψη
+              </Button>
+              <Button variant="primary" onClick={() => setAccept(true)}>
+                Αποδοχή
+              </Button>
             </div>
           )}
         </>
@@ -1197,7 +1429,7 @@ function BookingDetailsDock({ booking, bookingId, trainerId, onDone, onClose }) 
         )}
       </AnimatePresence>
     </Glass>
-  )
+  );
 }
 
 const Li = ({ icon: Icon, label, value }) => (
@@ -1208,28 +1440,24 @@ const Li = ({ icon: Icon, label, value }) => (
       <p className="text-base text-gray-200 break-words">{value || "—"}</p>
     </div>
   </li>
-)
+);
 
-<<<<<<< HEAD
 /* ======================= STABLE VIEW SLIDE ======================= */
-=======
-/* ======================= STABLE VIEW SLIDE (desktop + mobile) ======================= */
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
 function CalendarStage({ view, childrenMap }) {
-  const order = { day: 0, week: 1, month: 2 }
-  const [mounted, setMounted] = useState(() => new Set([view]))
-  const prev = useRef(view)
+  const order = { day: 0, week: 1, month: 2 };
+  const [mounted, setMounted] = useState(() => new Set([view]));
+  const prev = useRef(view);
 
   useEffect(() => {
-    setMounted((s) => new Set(s).add(view))
-    prev.current = view
-  }, [view])
+    setMounted((s) => new Set(s).add(view));
+    prev.current = view;
+  }, [view]);
 
   return (
     <div className="relative min-h-[520px] sm:min-h-[560px]">
       {[...mounted].map((k) => {
-        const rel = order[k] - order[view]
-        const isActive = k === view
+        const rel = order[k] - order[view];
+        const isActive = k === view;
         return (
           <motion.div
             key={k}
@@ -1239,150 +1467,156 @@ function CalendarStage({ view, childrenMap }) {
               x: isActive ? 0 : rel * 40,
               filter: isActive ? "blur(0px)" : "blur(1px)",
             }}
-            transition={{ duration: .22, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             className={isActive ? "relative" : "absolute inset-0 pointer-events-none"}
             style={{ willChange: "transform, opacity, filter" }}
           >
             {childrenMap[k]}
           </motion.div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 /* ================================ PAGE ================================ */
 export default function TrainerBookingsPage() {
   useEffect(() => {
-    document.documentElement.classList.add("bg-black")
-    document.body.classList.add("bg-black")
+    document.documentElement.classList.add("bg-black");
+    document.body.classList.add("bg-black");
     return () => {
-      document.documentElement.classList.remove("bg-black")
-      document.body.classList.remove("bg-black")
-    }
-  }, [])
+      document.documentElement.classList.remove("bg-black");
+      document.body.classList.remove("bg-black");
+    };
+  }, []);
 
-  const { profile, loading } = useAuth()
-  const [authUserId, setAuthUserId] = useState(null)
-  const [selected, setSelected] = useState(null)
-  const [view, setView] = useState("week")
-  const [refreshKey, setRefreshKey] = useState(0)
+  const { profile, loading } = useAuth();
+  const [authUserId, setAuthUserId] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [view, setView] = useState("week");
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const [workStart, setWorkStart] = useState("08:00")
-  const [workEnd, setWorkEnd] = useState("22:00")
-  const [sessionMinutes, setSessionMinutes] = useState(60)
+  const [workStart, setWorkStart] = useState("08:00");
+  const [workEnd, setWorkEnd] = useState("22:00");
+  const [sessionMinutes, setSessionMinutes] = useState(60);
 
-  const [quickDate, setQuickDate] = useState(null)
-  const quickRef = useRef(null)
-  const detailsRef = useRef(null)
+  const [quickDate, setQuickDate] = useState(null);
+  const quickRef = useRef(null);
+  const detailsRef = useRef(null);
 
-<<<<<<< HEAD
-  const [authRetryKey, setAuthRetryKey] = useState(0)
+  const [authRetryKey, setAuthRetryKey] = useState(0);
 
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   useEffect(() => {
     const getAuthUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setAuthUserId(user?.id ?? null)
-    }
-    getAuthUser()
-<<<<<<< HEAD
-  }, [authRetryKey])
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setAuthUserId(user?.id ?? null);
+    };
+    getAuthUser();
+  }, [authRetryKey]);
 
-  const resolvedTrainerId = useMemo(() => profile?.id || authUserId || null, [profile?.id, authUserId])
+  const resolvedTrainerId = useMemo(
+    () => profile?.id || authUserId || null,
+    [profile?.id, authUserId]
+  );
 
-  // settings (no timeout needed but fine as-is)
-=======
-  }, [])
-
-  const resolvedTrainerId = useMemo(() => profile?.id || authUserId || null, [profile?.id, authUserId])
-
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
+  // settings
   useEffect(() => {
-    if (!resolvedTrainerId) return
-    const pad = (n) => String(n).padStart(2, "0")
+    if (!resolvedTrainerId) return;
+    const pad = (n) => String(n).padStart(2, "0");
     const toHHMM = (v) => {
-      if (v == null) return null
-      if (typeof v === "number") return `${pad(Math.floor(v/60))}:${pad(v%60)}`
-      const m = String(v).match(/(\d{1,2}):?(\d{2})/)
-      if (m) return `${pad(Math.min(23, parseInt(m[1],10)||0))}:${pad(parseInt(m[2],10)||0)}`
-      return null
-    }
-    const first = (...vals) => vals.find(v => v !== null && v !== undefined && v !== "")
+      if (v == null) return null;
+      if (typeof v === "number") return `${pad(Math.floor(v / 60))}:${pad(v % 60)}`;
+      const m = String(v).match(/(\d{1,2}):?(\d{2})/);
+      if (m)
+        return `${pad(Math.min(23, parseInt(m[1], 10) || 0))}:${pad(
+          parseInt(m[2], 10) || 0
+        )}`;
+      return null;
+    };
+    const first = (...vals) => vals.find((v) => v !== null && v !== undefined && v !== "");
 
-    ;(async () => {
+    (async () => {
       try {
         let { data: ts } = await supabase
           .from("trainer_settings")
-          .select("work_start,work_end,session_minutes,start_time,end_time,session_min,session_length_min")
+          .select(
+            "work_start,work_end,session_minutes,start_time,end_time,session_min,session_length_min"
+          )
           .eq("trainer_id", resolvedTrainerId)
-          .maybeSingle()
+          .maybeSingle();
 
-        let pf = null
+        let pf = null;
         if (!ts) {
           const { data: pData } = await supabase
             .from("profiles")
-            .select("work_start,work_end,session_minutes,start_time,end_time,session_min,session_length_min,slot_minutes")
+            .select(
+              "work_start,work_end,session_minutes,start_time,end_time,session_min,session_length_min,slot_minutes"
+            )
             .eq("id", resolvedTrainerId)
-            .maybeSingle()
-          pf = pData || null
+            .maybeSingle();
+          pf = pData || null;
         }
 
-        const src = ts || pf || {}
-        const start = toHHMM(first(src.work_start, src.start_time))
-        const end   = toHHMM(first(src.work_end, src.end_time))
-        const sess  = Number(first(src.session_minutes, src.session_min, src.session_length_min, src.slot_minutes))
+        const src = ts || pf || {};
+        const start = toHHMM(first(src.work_start, src.start_time));
+        const end = toHHMM(first(src.work_end, src.end_time));
+        const sess = Number(
+          first(
+            src.session_minutes,
+            src.session_min,
+            src.session_length_min,
+            src.slot_minutes
+          )
+        );
 
-        if (start) setWorkStart(start)
-        if (end) setWorkEnd(end)
-        if (!Number.isNaN(sess) && sess > 0) setSessionMinutes(sess)
-      } catch {/* keep defaults */}
-    })()
-  }, [resolvedTrainerId])
+        if (start) setWorkStart(start);
+        if (end) setWorkEnd(end);
+        if (!Number.isNaN(sess) && sess > 0) setSessionMinutes(sess);
+      } catch {
+        /* keep defaults */
+      }
+    })();
+  }, [resolvedTrainerId]);
 
   const scrollTo = (ref) => {
-    const el = ref?.current
-    if (!el) return
-    const isMobile = window.matchMedia("(max-width: 1023px)").matches
-    const top = el.getBoundingClientRect().top + window.scrollY - (isMobile ? 88 : 100)
-    window.scrollTo({ top, behavior: "smooth" })
-  }
+    const el = ref?.current;
+    if (!el) return;
+    const isMobile = window.matchMedia("(max-width: 1023px)").matches;
+    const top =
+      el.getBoundingClientRect().top +
+      window.scrollY -
+      (isMobile ? 88 : 100);
+    window.scrollTo({ top, behavior: "smooth" });
+  };
 
-  const openDetails  = (bookingOrId) => {
-    setSelected(bookingOrId)
-    setTimeout(() => scrollTo(detailsRef), 60)
-  }
-  const closeDetails = () => setSelected(null)
+  const openDetails = (bookingOrId) => {
+    setSelected(bookingOrId);
+    setTimeout(() => scrollTo(detailsRef), 60);
+  };
+  const closeDetails = () => setSelected(null);
 
   const handleSelectDate = (dateStr) => {
-    setQuickDate(dateStr)
-    setTimeout(() => scrollTo(quickRef), 60)
-  }
-  const handleCreated = () => { setRefreshKey(k => k + 1); setQuickDate(null) }
+    setQuickDate(dateStr);
+    setTimeout(() => scrollTo(quickRef), 60);
+  };
+  const handleCreated = () => {
+    setRefreshKey((k) => k + 1);
+    setQuickDate(null);
+  };
 
   const handleFab = () => {
-    if (!quickDate) setQuickDate(toYMDLocal(new Date()))
-    setTimeout(() => scrollTo(quickRef), 70)
-  }
+    if (!quickDate) setQuickDate(toYMDLocal(new Date()));
+    setTimeout(() => scrollTo(quickRef), 70);
+  };
 
-<<<<<<< HEAD
   // --- PAGE-LEVEL LOADING WATCHDOG ---
   if (loading || !profile || !resolvedTrainerId) {
-    return (
-      <Spinner
-        full
-        onRetry={() => setAuthRetryKey((k) => k + 1)}
-      />
-    )
+    return <Spinner full onRetry={() => setAuthRetryKey((k) => k + 1)} />;
   }
 
   if (profile.role !== "trainer") {
-=======
-  if (loading) return <Spinner full />
-
-  if (!profile || profile.role !== "trainer") {
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
     return (
       <div className="relative min-h-screen text-gray-100">
         <BaseBackground />
@@ -1392,20 +1626,19 @@ export default function TrainerBookingsPage() {
             <div className="p-4 rounded-full bg-white/15 w-fit mx-auto mb-4">
               <Users className="h-8 w-8" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">Μη εξουσιοδοτημένη πρόσβαση</h2>
-            <p className="text-white/80">Δεν έχετε δικαίωμα πρόσβασης σε αυτή τη σελίδα.</p>
+            <h2 className="text-xl font-semibold mb-2">
+              Μη εξουσιοδοτημένη πρόσβαση
+            </h2>
+            <p className="text-white/80">
+              Δεν έχετε δικαίωμα πρόσβασης σε αυτή τη σελίδα.
+            </p>
           </ColorCard>
         </div>
       </div>
-    )
+    );
   }
 
-<<<<<<< HEAD
-=======
-  if (!resolvedTrainerId) return <Spinner full />
-
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
-  const easing = [0.22, 1, 0.36, 1]
+  const easing = [0.22, 1, 0.36, 1];
 
   return (
     <>
@@ -1416,10 +1649,17 @@ export default function TrainerBookingsPage() {
         <AthleticBackground />
 
         <div className="min-h-screen overflow-x-hidden pt-0 md:pt-4 lg:pt-0 lg:pl-[var(--side-w)] relative z-10">
-          <Suspense fallback={<></>}><TrainerMenu /></Suspense>
+          <Suspense fallback={<></>}>
+            <TrainerMenu />
+          </Suspense>
 
           {/* Header */}
-          <motion.div className="mx-4 mt-2 md:mt-6" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .25, ease: easing }}>
+          <motion.div
+            className="mx-4 mt-2 md:mt-6"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: easing }}
+          >
             <div className="relative p-4 md:p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-2xl bg-white/8 border border-white/10">
@@ -1429,17 +1669,15 @@ export default function TrainerBookingsPage() {
                   <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight">
                     Κρατήσεις <br className="md:hidden" /> Πελατών
                   </h1>
-                  <p className="text-white/70 mt-1">Διαχειριστείτε τις κρατήσεις και τα ραντεβού σας</p>
+                  <p className="text-white/70 mt-1">
+                    Διαχειριστείτε τις κρατήσεις και τα ραντεβού σας
+                  </p>
                 </div>
               </div>
             </div>
           </motion.div>
 
-<<<<<<< HEAD
           {/* Popup bar */}
-=======
-          {/* Popup bar with NEW bookings (minimizable) */}
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           <div className="mx-4">
             <NewBookingsPopup
               trainerId={resolvedTrainerId}
@@ -1448,13 +1686,13 @@ export default function TrainerBookingsPage() {
             />
           </div>
 
-<<<<<<< HEAD
           {/* Calendar + details dock + QuickBook */}
-=======
-          {/* Calendar + details dock + conditional QuickBook */}
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
           <main className="mx-auto w-full max-w-none px-4 pb-28 md:pb-16">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: easing }}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: easing }}
+            >
               <div className="grid grid-cols-1 lg:grid-cols-[1fr,420px] gap-4 md:gap-6 items-stretch">
                 {/* LEFT: calendar */}
                 <ErrorBoundary>
@@ -1508,17 +1746,33 @@ export default function TrainerBookingsPage() {
                       {selected && (
                         <motion.div
                           key="details-panel"
-                          initial={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0% round 24px)" }}
-                          animate={{ opacity: 1, y: 0, clipPath: "inset(0% 0% 0% 0% round 24px)" }}
-                          exit={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0% round 24px)" }}
-                          transition={{ duration: .28, ease: [0.22, 1, 0.36, 1] }}
+                          initial={{
+                            opacity: 0,
+                            y: -8,
+                            clipPath: "inset(0% 0% 100% 0% round 24px)",
+                          }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                            clipPath: "inset(0% 0% 0% 0% round 24px)",
+                          }}
+                          exit={{
+                            opacity: 0,
+                            y: -8,
+                            clipPath: "inset(0% 0% 100% 0% round 24px)",
+                          }}
+                          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                           className="flex-1"
                         >
                           <BookingDetailsDock
-                            booking={typeof selected === "object" ? selected : null}
-                            bookingId={typeof selected === "string" ? selected : null}
+                            booking={
+                              typeof selected === "object" ? selected : null
+                            }
+                            bookingId={
+                              typeof selected === "string" ? selected : null
+                            }
                             trainerId={resolvedTrainerId}
-                            onDone={() => setRefreshKey(k => k + 1)}
+                            onDone={() => setRefreshKey((k) => k + 1)}
                             onClose={closeDetails}
                           />
                         </motion.div>
@@ -1530,10 +1784,22 @@ export default function TrainerBookingsPage() {
                       {quickDate && (
                         <motion.div
                           key="quickbook"
-                          initial={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0% round 24px)" }}
-                          animate={{ opacity: 1, y: 0, clipPath: "inset(0% 0% 0% 0% round 24px)" }}
-                          exit={{ opacity: 0, y: -8, clipPath: "inset(0% 0% 100% 0%  round 24px)" }}
-                          transition={{ duration: .26, ease: [0.22, 1, 0.36, 1] }}
+                          initial={{
+                            opacity: 0,
+                            y: -8,
+                            clipPath: "inset(0% 0% 100% 0% round 24px)",
+                          }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                            clipPath: "inset(0% 0% 0% 0% round 24px)",
+                          }}
+                          exit={{
+                            opacity: 0,
+                            y: -8,
+                            clipPath: "inset(0% 0% 100% 0%  round 24px)",
+                          }}
+                          transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                           className="mt-4 md:mt-6"
                         >
                           <Glass className="p-4 md:p-5">
@@ -1541,7 +1807,12 @@ export default function TrainerBookingsPage() {
                               <div className="text-white/90 font-medium">
                                 Γρήγορη Κράτηση – {fmtDate(quickDate)}
                               </div>
-                              <Button variant="ghost" size="sm" onClick={() => setQuickDate(null)} aria-label="Κλείσιμο">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setQuickDate(null)}
+                                aria-label="Κλείσιμο"
+                              >
                                 <X className="h-4 w-4 text-white/85" />
                               </Button>
                             </div>
@@ -1583,24 +1854,5 @@ export default function TrainerBookingsPage() {
         </div>
       </div>
     </>
-  )
+  );
 }
-<<<<<<< HEAD
-
-/* ---------- Simple color card ---------- */
-const ColorCard = memo(({ color = "red", className = "", children }) => {
-  const gradientMap = {
-    red: "from-red-600 to-red-700",
-    emerald: "from-emerald-600 to-emerald-700",
-    zinc: "from-zinc-700 to-zinc-800",
-  }
-  const gradient = gradientMap[color] || gradientMap.zinc
-  return (
-    <div className={`relative overflow-hidden rounded-3xl p-6 shadow-xl text-white bg-gradient-to-br ${gradient} ${className}`}>
-      <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 30% -10%, white, transparent 40%)" }} />
-      <div className="relative">{children}</div>
-    </div>
-  )
-})
-=======
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9

@@ -195,13 +195,17 @@ export default function QuickBookModal({ open, trainer, onClose, onBooked }: Pro
       if (!m.has(key)) m.set(key, []);
       m.get(key)!.push(r);
     }
-    for (const [, arr] of m) {
-      arr.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
-    }
+          m.forEach((arr) => {
+        arr.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+      });
+
     return m;
   }, [openRows]);
 
-  const availableDateSet = useMemo(() => new Set([...byDate.keys()]), [byDate]);
+  const availableDateSet = useMemo(
+      () => new Set(Array.from(byDate.keys())),
+      [byDate]
+    );
 
   const daySlots = useMemo(() => {
     if (!selectedDateISO) return [];

@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState, useRef } from "react"
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,8 +14,63 @@ import {
   CalendarIcon,
   Clock,
   AlertTriangle,
-} from "lucide-react"
-import { supabase } from "../supabaseClient"
+} from "lucide-react";
+import { supabase } from "../supabaseClient";
+
+/* ----------------------------- types ----------------------------- */
+type WeekdayKey =
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
+
+interface Holiday {
+  starts_on: string; // YYYY-MM-DD
+  ends_on: string;   // YYYY-MM-DD
+  reason?: string | null;
+}
+
+interface WeeklyAvailability {
+  weekday: WeekdayKey;
+  start_time: string; // HH:mm
+  end_time: string;   // HH:mm
+  is_online?: boolean | null;
+}
+
+type BookingStatus = "pending" | "accepted" | "declined" | "cancelled";
+
+interface BookingRow {
+  date: string;        // YYYY-MM-DD
+  start_time: string;  // HH:mm
+  end_time: string;    // HH:mm
+  status?: BookingStatus;
+}
+
+interface OpenSlotRow {
+  date: string;        // YYYY-MM-DD
+  start_time: string;  // HH:mm
+  end_time: string;    // HH:mm
+  is_online?: boolean | null;
+  status?: string | null;
+}
+
+type PeriodFilter = "all" | "morning" | "afternoon" | "night";
+
+interface BannerState {
+  type: "success" | "error";
+  title: string;
+  message: string;
+}
+
+interface AllInOneBookingProps {
+  trainerId: string;
+  trainerName?: string;
+  weeklyAvailability?: WeeklyAvailability[];
+  holidays?: Holiday[];
+}
 
 /* ----------------------------- helpers ----------------------------- */
 const months = [
@@ -31,122 +86,119 @@ const months = [
   "Οκτώβριος",
   "Νοέμβριος",
   "Δεκέμβριος",
-]
-const weekDays = ["ΔΕΥ", "ΤΡΙ", "ΤΕΤ", "ΠΕΜ", "ΠΑΡ", "ΣΑΒ", "ΚΥΡ"]
+] as const;
 
-const localDateISO = (offsetDays = 0) => {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + offsetDays)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-const toISODate = (d) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-const hhmm = (t) => (typeof t === "string" ? t.match(/^(\d{1,2}:\d{2})/)?.[1] || t : t)
-const timeToMinutes = (t) => {
-  const m = (t || "").match(/^(\d{1,2}):(\d{2})/)
-  if (!m) return Number.NaN
-  return Number.parseInt(m[1], 10) * 60 + Number.parseInt(m[2], 10)
-}
-const overlaps = (aStart, aEnd, bStart, bEnd) => {
-  const as = timeToMinutes(hhmm(aStart))
-  const ae = timeToMinutes(hhmm(aEnd))
-  const bs = timeToMinutes(hhmm(bStart))
-  const be = timeToMinutes(hhmm(bEnd))
-  return as < be && ae > bs
-}
-const within = (d, f, t) => {
-  const D = new Date(`${d}T00:00:00`)
-  const F = new Date(`${f}T00:00:00`)
-  const T = new Date(`${t}T00:00:00`)
-  return D >= F && D <= new Date(T.getTime() + 86399999)
-}
-const fmtDate = (d) => {
+const weekDays = ["ΔΕΥ", "ΤΡΙ", "ΤΕΤ", "ΠΕΜ", "ΠΑΡ", "ΣΑΒ", "ΚΥΡ"] as const;
+
+const localDateISO = (offsetDays = 0): string => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const toISODate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const hhmm = (t: string): string =>
+  t.match(/^(\d{1,2}:\d{2})/)?.[1] ?? t;
+
+const timeToMinutes = (t: string): number => {
+  const m = (t || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return Number.NaN;
+  return Number.parseInt(m[1], 10) * 60 + Number.parseInt(m[2], 10);
+};
+
+const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string): boolean => {
+  const as = timeToMinutes(hhmm(aStart));
+  const ae = timeToMinutes(hhmm(aEnd));
+  const bs = timeToMinutes(hhmm(bStart));
+  const be = timeToMinutes(hhmm(bEnd));
+  return as < be && ae > bs;
+};
+
+const within = (d: string, f: string, t: string): boolean => {
+  const D = new Date(`${d}T00:00:00`);
+  const F = new Date(`${f}T00:00:00`);
+  const T = new Date(`${t}T00:00:00`);
+  return D >= F && D <= new Date(T.getTime() + 86399999);
+};
+
+const fmtDate = (d?: string | null): string => {
+  if (!d) return "";
   try {
     return new Date(`${d}T00:00:00`).toLocaleDateString("el-GR", {
       weekday: "long",
       day: "2-digit",
       month: "long",
-    })
+    });
   } catch {
-    return d
+    return d;
   }
-}
-const getPeriodFromTime = (start) => {
-  const m = timeToMinutes(hhmm(start))
-  if (!Number.isFinite(m)) return "morning"
-  if (m < 12 * 60) return "morning"
-  if (m < 18 * 60) return "afternoon"
-  return "night"
-}
+};
 
-/* --------------------------- UI primitives -------------------------- */
-const CustomButton = ({
-  children,
-  onClick,
-  disabled = false,
-  variant = "default",
-  size = "default",
-  className = "",
-  ...props
-}) => {
+const getPeriodFromTime = (start: string): PeriodFilter => {
+  const m = timeToMinutes(hhmm(start));
+  if (!Number.isFinite(m)) return "morning";
+  if (m < 12 * 60) return "morning";
+  if (m < 18 * 60) return "afternoon";
+  return "night";
+};
+
+/* --------------------------- small UI primitives -------------------------- */
+type ButtonVariant = "default" | "outline" | "ghost";
+type ButtonSize = "default" | "sm";
+
+const CustomButton: React.FC<
+  React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+  }
+> = ({ children, variant = "default", size = "default", className = "", ...props }) => {
   const base =
-    "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-  const variants = {
+    "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+  const variants: Record<ButtonVariant, string> = {
     default: "bg-white text-black hover:bg-gray-200",
     outline: "border border-zinc-700 bg-zinc-800 text-white hover:bg-zinc-700",
     ghost: "hover:bg-zinc-800 text-white",
-  }
-  const sizes = {
+  };
+  const sizes: Record<ButtonSize, string> = {
     default: "h-10 px-4 py-2",
     sm: "h-8 px-3 text-sm",
-  }
+  };
   return (
-    <button
-      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
-      onClick={onClick}
-      disabled={disabled}
-      {...props}
-    >
+    <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
       {children}
     </button>
-  )
-}
+  );
+};
 
-const CustomCard = ({ children, className = "" }) => (
-  <div className={`rounded-lg border bg-zinc-900 border-zinc-800 text-white shadow-sm ${className}`}>{children}</div>
-)
-const CustomCardHeader = ({ children }) => <div className="flex flex-col space-y-1.5 p-6 pb-4">{children}</div>
-const CustomCardTitle = ({ children, className = "" }) => (
-  <h3 className={`text-sm font-medium leading-none tracking-tight ${className}`}>{children}</h3>
-)
-const CustomCardContent = ({ children }) => <div className="p-6 pt-0">{children}</div>
-const CustomTextarea = ({ placeholder, value, onChange, rows = 3, className = "", ...props }) => (
+const CustomTextarea: React.FC<
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+> = ({ className = "", ...props }) => (
   <textarea
     className={`flex min-h-[80px] w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none ${className}`}
-    placeholder={placeholder}
-    value={value}
-    onChange={onChange}
-    rows={rows}
     {...props}
   />
-)
+);
 
-/* --------------------- Success modal & banner (lite) --------------------- */
-function BookingSuccessModal({ isOpen, onClose, bookingDetails, trainerName }) {
-  if (!isOpen) return null
+/* --------------------- Success modal & banner --------------------- */
+const BookingSuccessModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  bookingDetails?: { date: string; start_time: string; end_time: string; is_online?: boolean | null } | null;
+  trainerName: string;
+}> = ({ isOpen, onClose, bookingDetails, trainerName }) => {
+  if (!isOpen) return null;
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
       <div
         className="relative max-w-md w-full bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-3xl border border-zinc-700/50 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -192,8 +244,7 @@ function BookingSuccessModal({ isOpen, onClose, bookingDetails, trainerName }) {
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-6 flex items-center gap-3">
             <Mail className="h-5 w-5 text-amber-400" />
             <div className="text-amber-100 text-sm">
-              <span className="font-semibold">Θα σας ειδοποιήσουμε:</span> Η απάντηση θα σταλεί στο email σας εντός 24
-              ωρών
+              <span className="font-semibold">Θα σας ειδοποιήσουμε:</span> Η απάντηση θα σταλεί στο email σας εντός 24 ωρών
             </div>
           </div>
 
@@ -213,27 +264,29 @@ function BookingSuccessModal({ isOpen, onClose, bookingDetails, trainerName }) {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-function NotificationBanner({ type, title, message, onClose }) {
-  if (!type) return null
-  const cfg = {
-    success: {
-      box: "from-emerald-500/20 via-green-500/20 to-emerald-600/20 border-emerald-400/30 text-emerald-100",
-      Icon: CheckCircle2,
-    },
-    error: {
-      box: "from-red-500/20 via-rose-500/20 to-red-600/20 border-red-400/30 text-red-100",
-      Icon: AlertTriangle,
-    },
-  }[type]
-  const Icon = cfg.Icon
+const NotificationBanner: React.FC<BannerState & { onClose: () => void }> = ({
+  type,
+  title,
+  message,
+  onClose,
+}) => {
+  const cfg =
+    type === "success"
+      ? {
+          box: "from-emerald-500/20 via-green-500/20 to-emerald-600/20 border-emerald-400/30 text-emerald-100",
+          Icon: CheckCircle2,
+        }
+      : {
+          box: "from-red-500/20 via-rose-500/20 to-red-600/20 border-red-400/30 text-red-100",
+          Icon: AlertTriangle,
+        };
+  const Icon = cfg.Icon;
   return (
     <div className="fixed top-4 left-4 right-4 z-[100] mx-auto max-w-xl">
-      <div
-        className={`relative overflow-hidden rounded-2xl border backdrop-blur-xl shadow-2xl bg-gradient-to-r ${cfg.box}`}
-      >
+      <div className={`relative overflow-hidden rounded-2xl border backdrop-blur-xl shadow-2xl bg-gradient-to-r ${cfg.box}`}>
         <div className="relative p-4 sm:p-5 flex items-start gap-3">
           <div className="flex-shrink-0 w-9 h-9 rounded-full bg-black/20 flex items-center justify-center">
             <Icon className="h-4 w-4" />
@@ -252,86 +305,86 @@ function NotificationBanner({ type, title, message, onClose }) {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 /* --------------------------- main component --------------------------- */
-/**
- * Props:
- * - trainerId (required)
- * - trainerName (optional, for modal)
- * - weeklyAvailability (optional: [{weekday:'monday'|'tuesday'|..., start_time, end_time, is_online}])
- * - holidays (optional: [{starts_on, ends_on, reason}])
- */
-export function AllInOneBooking({
+export const AllInOneBooking: React.FC<AllInOneBookingProps> = ({
   trainerId,
   trainerName = "Προπονητής",
   weeklyAvailability: weeklyAvailProp,
   holidays: holidaysProp,
-}) {
+}) => {
   // calendar range: today -> +29 days
-  const rangeStartISO = useMemo(() => localDateISO(0), [])
-  const rangeEndISO = useMemo(() => localDateISO(29), [])
-  const minDateObj = useMemo(() => new Date(`${rangeStartISO}T00:00:00`), [rangeStartISO])
-  const maxDateObj = useMemo(() => new Date(`${rangeEndISO}T00:00:00`), [rangeEndISO])
+  const rangeStartISO = useMemo(() => localDateISO(0), []);
+  const rangeEndISO = useMemo(() => localDateISO(29), []);
+  const minDateObj = useMemo(() => new Date(`${rangeStartISO}T00:00:00`), [rangeStartISO]);
+  const maxDateObj = useMemo(() => new Date(`${rangeEndISO}T00:00:00`), [rangeEndISO]);
 
   // month index (year*12 + month), clamped to range
-  const initialIndex = minDateObj.getFullYear() * 12 + minDateObj.getMonth()
-  const maxIndex = maxDateObj.getFullYear() * 12 + maxDateObj.getMonth()
-  const [monthIndex, setMonthIndex] = useState(initialIndex) // display month
-  const displayYear = Math.floor(monthIndex / 12)
-  const displayMonth = monthIndex % 12
-  const canPrevMonth = monthIndex > initialIndex
-  const canNextMonth = monthIndex < maxIndex
+  const initialIndex = minDateObj.getFullYear() * 12 + minDateObj.getMonth();
+  const maxIndex = maxDateObj.getFullYear() * 12 + maxDateObj.getMonth();
+  const [monthIndex, setMonthIndex] = useState<number>(initialIndex);
+  const displayYear = Math.floor(monthIndex / 12);
+  const displayMonth = monthIndex % 12;
+  const canPrevMonth = monthIndex > initialIndex;
+  const canNextMonth = monthIndex < maxIndex;
 
-  const [notes, setNotes] = useState("")
-  const [selectedDateISO, setSelectedDateISO] = useState(null) // "YYYY-MM-DD"
-  const [selectedPeriod, setSelectedPeriod] = useState("all") // 'all' | 'morning' | 'afternoon' | 'night'
-  const [selectedKey, setSelectedKey] = useState(null) // `${date}|${start}|${end}`
+  const [notes, setNotes] = useState<string>("");
+  const [selectedDateISO, setSelectedDateISO] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("all");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   // data
-  const [holidays, setHolidays] = useState([])
-  const [weeklyAvailability, setWeeklyAvailability] = useState([])
-  const [booked, setBooked] = useState([])
-  const [openRows, setOpenRows] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailability[]>([]);
+  const [booked, setBooked] = useState<BookingRow[]>([]);
+  const [openRows, setOpenRows] = useState<OpenSlotRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
   // feedback
-  const [banner, setBanner] = useState(null) // {type,title,message}
-  const [showSuccess, setShowSuccess] = useState(false)
-  const [lastBooking, setLastBooking] = useState(null)
+  const [banner, setBanner] = useState<BannerState | null>(null);
+  const [showSuccess, setShowSuccess] = useState<boolean>(false);
+  const [lastBooking, setLastBooking] = useState<{
+    date: string;
+    start_time: string;
+    end_time: string;
+    is_online?: boolean | null;
+    booking_id?: string;
+  } | null>(null);
 
-  const timeSlotsRef = useRef(null)
-  const notesRef = useRef(null)
-  const continueRef = useRef(null)
+  const timeSlotsRef = useRef<HTMLDivElement | null>(null);
+  const notesRef = useRef<HTMLDivElement | null>(null);
+  const continueRef = useRef<HTMLDivElement | null>(null);
 
   // fetch base data
   useEffect(() => {
-    let alive = true
-    if (!trainerId) return
-    ;(async () => {
+    let alive = true;
+    if (!trainerId) return;
+
+    (async () => {
       try {
-        setLoading(true)
+        setLoading(true);
 
         // holidays
-        let hol = holidaysProp
+        let hol = holidaysProp;
         if (!hol) {
           const { data: holData } = await supabase
             .from("trainer_holidays")
             .select("starts_on, ends_on, reason")
-            .eq("trainer_id", trainerId)
-          hol = holData || []
+            .eq("trainer_id", trainerId);
+          hol = (holData ?? []) as Holiday[];
         }
 
         // weekly availability
-        let wav = weeklyAvailProp
+        let wav = weeklyAvailProp;
         if (!wav) {
           const { data: avData } = await supabase
             .from("trainer_availability")
             .select("weekday, start_time, end_time, is_online")
-            .eq("trainer_id", trainerId)
-          wav = avData || []
+            .eq("trainer_id", trainerId);
+          wav = (avData ?? []) as WeeklyAvailability[];
         }
 
         // existing bookings
@@ -341,7 +394,8 @@ export function AllInOneBooking({
           .eq("trainer_id", trainerId)
           .gte("date", rangeStartISO)
           .lte("date", rangeEndISO)
-          .in("status", ["pending", "accepted"])
+          .in("status", ["pending", "accepted"]);
+        const bookedRows = (bookedData ?? []) as BookingRow[];
 
         // open slots
         const { data: openData, error: openErr } = await supabase
@@ -351,50 +405,56 @@ export function AllInOneBooking({
           .gte("date", rangeStartISO)
           .lte("date", rangeEndISO)
           .order("date", { ascending: true })
-          .order("start_time", { ascending: true })
+          .order("start_time", { ascending: true });
 
-        if (openErr) {
-          console.warn("[open slots] error:", openErr)
-        }
+        if (openErr) console.warn("[open slots] error:", openErr);
 
-        if (!alive) return
+        if (!alive) return;
 
-        setHolidays(hol || [])
-        setWeeklyAvailability(wav || [])
-        setBooked(bookedData || [])
+        setHolidays(hol || []);
+        setWeeklyAvailability(wav || []);
+        setBooked(bookedRows || []);
 
         // filter open against holidays + overlaps
-        const isHoliday = (d) => (hol || []).some((h) => within(d, h.starts_on, h.ends_on))
-        const usableStatus = (s) => {
-          const v = (s ?? "").toString().trim().toLowerCase()
-          return ["", "open", "available", "free", "publish", "published", "true", "1"].includes(v)
-        }
+        const isHoliday = (d: string) => (hol || []).some((h) => within(d, h.starts_on, h.ends_on));
+        const usableStatus = (s?: string | null) => {
+          const v = (s ?? "").toString().trim().toLowerCase();
+          return ["", "open", "available", "free", "publish", "published", "true", "1"].includes(v);
+        };
 
-        let filtered = (openData || []).filter((r) => {
-          if (!usableStatus(r.status)) return false
-          if (isHoliday(r.date)) return false
-          const overlap = (bookedData || []).some(
-            (b) => b.date === r.date && overlaps(r.start_time, r.end_time, b.start_time, b.end_time),
-          )
-          return !overlap
-        })
+        let filtered = ((openData ?? []) as OpenSlotRow[]).filter((r) => {
+          if (!usableStatus(r.status)) return false;
+          if (isHoliday(r.date)) return false;
+          const overlap = (bookedRows || []).some(
+            (b) => b.date === r.date && overlaps(r.start_time, r.end_time, b.start_time, b.end_time)
+          );
+          return !overlap;
+        });
 
         // derive from weekly availability if no explicit open slots
         if (filtered.length === 0 && (wav || []).length > 0) {
-          const start = new Date(`${rangeStartISO}T00:00:00`)
-          const weekdayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
-          const derived = []
+          const start = new Date(`${rangeStartISO}T00:00:00`);
+          const weekdayNames: WeekdayKey[] = [
+            "sunday",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+          ];
+          const derived: OpenSlotRow[] = [];
           for (let i = 0; i < 30; i++) {
-            const d = new Date(start)
-            d.setDate(start.getDate() + i)
-            const iso = toISODate(d)
-            if (isHoliday(iso)) continue
-            const weekdayKey = weekdayNames[d.getDay()]
-            const daySlots = (wav || []).filter((x) => x.weekday === weekdayKey)
+            const d = new Date(start);
+            d.setDate(start.getDate() + i);
+            const iso = toISODate(d);
+            if (isHoliday(iso)) continue;
+            const weekdayKey = weekdayNames[d.getDay()];
+            const daySlots = (wav || []).filter((x) => x.weekday === weekdayKey);
             for (const s of daySlots) {
-              const overlap = (bookedData || []).some(
-                (b) => b.date === iso && overlaps(s.start_time, s.end_time, b.start_time, b.end_time),
-              )
+              const overlap = (bookedRows || []).some(
+                (b) => b.date === iso && overlaps(s.start_time, s.end_time, b.start_time, b.end_time)
+              );
               if (!overlap) {
                 derived.push({
                   date: iso,
@@ -402,155 +462,119 @@ export function AllInOneBooking({
                   end_time: hhmm(s.end_time),
                   is_online: !!s.is_online,
                   status: "open",
-                })
+                });
               }
             }
           }
           filtered = derived.sort(
             (a, b) =>
-              a.date.localeCompare(b.date) || timeToMinutes(hhmm(a.start_time)) - timeToMinutes(hhmm(b.start_time)),
-          )
+              a.date.localeCompare(b.date) || timeToMinutes(hhmm(a.start_time)) - timeToMinutes(hhmm(b.start_time))
+          );
         }
 
-        setOpenRows(filtered)
+        setOpenRows(filtered);
       } catch (e) {
-        console.error(e)
-        setBanner({ type: "error", title: "Σφάλμα", message: "Αδυναμία φόρτωσης διαθεσιμότητας." })
+        console.error(e);
+        setBanner({ type: "error", title: "Σφάλμα", message: "Αδυναμία φόρτωσης διαθεσιμότητας." });
       } finally {
-        if (alive) setLoading(false)
+        if (alive) setLoading(false);
       }
-    })()
+    })();
 
     return () => {
-      alive = false
-    }
-  }, [trainerId, rangeStartISO, rangeEndISO, holidaysProp, weeklyAvailProp])
+      alive = false;
+    };
+  }, [trainerId, rangeStartISO, rangeEndISO, holidaysProp, weeklyAvailProp]);
 
+  // mobile scroll helpers
   useEffect(() => {
-    if (selectedDateISO && timeSlotsRef.current) {
-      // Only scroll on mobile devices (screen width < 768px)
-      const isMobile = window.innerWidth < 768
-      if (isMobile) {
-        setTimeout(() => {
-          timeSlotsRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          })
-        }, 300)
-      }
-    }
-  }, [selectedDateISO])
-
-  useEffect(() => {
-    if (selectedKey && notesRef.current) {
-      // Only scroll on mobile devices (screen width < 768px)
-      const isMobile = window.innerWidth < 768
-      if (isMobile) {
-        setTimeout(() => {
-          notesRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          })
-        }, 500)
-      }
-    }
-  }, [selectedKey])
-
-  useEffect(() => {
-    if (selectedDateISO && timeSlotsRef.current) {
+    if (selectedDateISO && timeSlotsRef.current && typeof window !== "undefined" && window.innerWidth < 768) {
       setTimeout(() => {
-        timeSlotsRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        })
-      }, 300)
+        timeSlotsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
     }
-  }, [selectedDateISO])
+  }, [selectedDateISO]);
 
   useEffect(() => {
-    if (selectedKey && notesRef.current) {
+    if (selectedKey && notesRef.current && typeof window !== "undefined" && window.innerWidth < 768) {
       setTimeout(() => {
-        notesRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        })
-      }, 500)
+        notesRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 500);
     }
-  }, [selectedKey])
+  }, [selectedKey]);
 
-  // map by date
+  // map by date (iterator-safe for TS target < ES2015)
   const byDate = useMemo(() => {
-    const m = new Map()
-    for (const r of openRows) {
-      const key = r.date
-      if (!m.has(key)) m.set(key, [])
-      m.get(key).push(r)
+    const m = new Map<string, OpenSlotRow[]>();
+    for (let i = 0; i < openRows.length; i++) {
+      const r = openRows[i];
+      if (!m.has(r.date)) m.set(r.date, []);
+      m.get(r.date)!.push(r);
     }
-    // sort each date's slots by time
-    for (const [k, arr] of m) {
-      arr.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
-    }
-    return m
-  }, [openRows])
+    // sort each date's slots by time without using for..of over Map
+    m.forEach((arr) => {
+      arr.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+    });
+    return m;
+  }, [openRows]);
 
-  const availableDateSet = useMemo(() => new Set([...byDate.keys()]), [byDate])
+  // avoid spreading Map iterators
+  const availableDateSet = useMemo(() => new Set<string>(Array.from(byDate.keys())), [byDate]);
 
   // calendar grid (7x6)
-  const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate()
-  const getFirstDayOfMonthIndex = (month, year) => {
+  const getDaysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonthIndex = (month: number, year: number) => {
     // Monday=0 ... Sunday=6
-    const firstDay = new Date(year, month, 1).getDay() // Sun=0
-    return firstDay === 0 ? 6 : firstDay - 1
-  }
-  const daysInMonth = getDaysInMonth(displayMonth, displayYear)
-  const firstDayIdx = getFirstDayOfMonthIndex(displayMonth, displayYear)
-  const calendarDays = Array.from({ length: 42 }, (_, i) => {
-    const dayNumber = i - firstDayIdx + 1
-    return dayNumber > 0 && dayNumber <= daysInMonth ? dayNumber : null
-  })
+    const firstDay = new Date(year, month, 1).getDay(); // Sun=0
+    return firstDay === 0 ? 6 : firstDay - 1;
+  };
+  const daysInMonth = getDaysInMonth(displayMonth, displayYear);
+  const firstDayIdx = getFirstDayOfMonthIndex(displayMonth, displayYear);
+  const calendarDays: Array<number | null> = Array.from({ length: 42 }, (_, i) => {
+    const dayNumber = i - firstDayIdx + 1;
+    return dayNumber > 0 && dayNumber <= daysInMonth ? dayNumber : null;
+  });
 
-  const shiftMonth = (delta) => {
-    const next = Math.min(Math.max(monthIndex + delta, initialIndex), maxIndex)
-    setMonthIndex(next)
-    // if selected date falls outside the visible month, keep it—no change
-  }
+  const shiftMonth = (delta: number) => {
+    const next = Math.min(Math.max(monthIndex + delta, initialIndex), maxIndex);
+    setMonthIndex(next);
+  };
 
   // slots for selected date & filter by period
-  const daySlots = useMemo(() => {
-    if (!selectedDateISO) return []
-    const list = byDate.get(selectedDateISO) || []
-    if (selectedPeriod === "all") return list
-    return list.filter((s) => getPeriodFromTime(s.start_time) === selectedPeriod)
-  }, [selectedDateISO, selectedPeriod, byDate])
+  const daySlots: OpenSlotRow[] = useMemo(() => {
+    if (!selectedDateISO) return [];
+    const list = byDate.get(selectedDateISO) || [];
+    if (selectedPeriod === "all") return list;
+    return list.filter((s) => getPeriodFromTime(s.start_time) === selectedPeriod);
+  }, [selectedDateISO, selectedPeriod, byDate]);
 
   const selectedSlot = useMemo(() => {
-    if (!selectedKey) return null
-    const [date, start, end] = selectedKey.split("|")
-    return { date, start_time: start, end_time: end }
-  }, [selectedKey])
+    if (!selectedKey) return null;
+    const [date, start, end] = selectedKey.split("|");
+    return { date, start_time: start, end_time: end };
+  }, [selectedKey]);
 
   // booking
   const handleContinue = async () => {
-    if (!selectedSlot) return
-    // ensure logged in
-    const { data: sess } = await supabase.auth.getSession()
-    const sessionUserId = sess?.session?.user?.id
+    if (!selectedSlot) return;
+    const { data: sess } = await supabase.auth.getSession();
+    const sessionUserId: string | undefined = (sess as any)?.session?.user?.id;
     if (!sessionUserId) {
-      setBanner({ type: "error", title: "Απαιτείται σύνδεση", message: "Συνδεθείτε για να ολοκληρώσετε την κράτηση." })
-      return
+      setBanner({ type: "error", title: "Απαιτείται σύνδεση", message: "Συνδεθείτε για να ολοκληρώσετε την κράτηση." });
+      return;
     }
 
     try {
-      setSubmitting(true)
-      setBanner(null)
+      setSubmitting(true);
+      setBanner(null);
 
-      const startMinutes = timeToMinutes(hhmm(selectedSlot.start_time))
-      const endMinutes = timeToMinutes(hhmm(selectedSlot.end_time))
-      const duration = Math.max(0, endMinutes - startMinutes) || 60
+      const startMinutes = timeToMinutes(hhmm(selectedSlot.start_time));
+      const endMinutes = timeToMinutes(hhmm(selectedSlot.end_time));
+      const duration = Math.max(0, endMinutes - startMinutes) || 60;
 
       const slot = (byDate.get(selectedSlot.date) || []).find(
-        (s) => s.start_time === selectedSlot.start_time && s.end_time === selectedSlot.end_time,
-      )
+        (s) => s.start_time === selectedSlot.start_time && s.end_time === selectedSlot.end_time
+      );
 
       const payload = {
         trainer_id: trainerId,
@@ -562,25 +586,24 @@ export function AllInOneBooking({
         break_before_min: 0,
         break_after_min: 0,
         note: notes.trim() || null,
-        status: "pending",
+        status: "pending" as BookingStatus,
         is_online: !!slot?.is_online,
         created_at: new Date().toISOString(),
-      }
+      };
 
-      const { data, error } = await supabase.from("trainer_bookings").insert([payload]).select().single()
-      if (error) throw error
+      const { data, error } = await supabase.from("trainer_bookings").insert([payload]).select().single();
+      if (error) throw error;
 
-      // success modal
       setLastBooking({
         date: selectedSlot.date,
         start_time: hhmm(selectedSlot.start_time),
         end_time: hhmm(selectedSlot.end_time),
         is_online: !!slot?.is_online,
-        booking_id: data?.id,
-      })
-      setShowSuccess(true)
-      setNotes("")
-      setSelectedKey(null)
+        booking_id: (data as { id?: string })?.id,
+      });
+      setShowSuccess(true);
+      setNotes("");
+      setSelectedKey(null);
 
       // remove slot from state
       setOpenRows((prev) =>
@@ -590,60 +613,50 @@ export function AllInOneBooking({
               s.date === selectedSlot.date &&
               s.start_time === selectedSlot.start_time &&
               s.end_time === selectedSlot.end_time
-            ),
-        ),
-      )
+            )
+        )
+      );
 
-      // if no more slots for that day, clear date selection
+      // clear date if no more slots that day
       const remainingForDay = (byDate.get(selectedSlot.date) || []).filter(
-        (s) => !(s.start_time === selectedSlot.start_time && s.end_time === selectedSlot.end_time),
-      )
-      if (remainingForDay.length === 0) {
-        setSelectedDateISO(null)
-      }
-    } catch (e) {
-      console.error("booking error:", e)
-      setBanner({
-        type: "error",
-        title: "Η κράτηση απέτυχε",
-        message: e?.message || "Κάτι πήγε στραβά. Παρακαλώ δοκιμάστε ξανά.",
-      })
+        (s) => !(s.start_time === selectedSlot.start_time && s.end_time === selectedSlot.end_time)
+      );
+      if (remainingForDay.length === 0) setSelectedDateISO(null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Κάτι πήγε στραβά. Παρακαλώ δοκιμάστε ξανά.";
+      console.error("booking error:", e);
+      setBanner({ type: "error", title: "Η κράτηση απέτυχε", message: msg });
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
-  // helper: whether a calendar day (in current display month) is selectable (inside 30d range and has slots)
-  const dayMeta = (dayNumber) => {
-    if (!dayNumber) return { iso: null, inRange: false, hasSlots: false }
-    const dObj = new Date(displayYear, displayMonth, dayNumber)
-    const iso = toISODate(dObj)
-    const inRange = dObj >= minDateObj && dObj <= maxDateObj
-    const hasSlots = availableDateSet.has(iso)
-    return { iso, inRange, hasSlots }
-  }
+  // helper: whether a calendar day is selectable
+  const dayMeta = (dayNumber: number | null) => {
+    if (!dayNumber) return { iso: null as string | null, inRange: false, hasSlots: false };
+    const dObj = new Date(displayYear, displayMonth, dayNumber);
+    const iso = toISODate(dObj);
+    const inRange = dObj >= minDateObj && dObj <= maxDateObj;
+    const hasSlots = availableDateSet.has(iso);
+    return { iso, inRange, hasSlots };
+  };
 
-  const navigateTimeSlot = (direction) => {
-    if (!selectedDateISO || daySlots.length === 0) return
-
+  const navigateTimeSlot = (direction: "prev" | "next") => {
+    if (!selectedDateISO || daySlots.length === 0) return;
     const currentIndex = daySlots.findIndex((slot) => {
-      const key = `${slot.date}|${slot.start_time}|${slot.end_time}`
-      return key === selectedKey
-    })
+      const key = `${slot.date}|${slot.start_time}|${slot.end_time}`;
+      return key === selectedKey;
+    });
+    const nextIndex = direction === "prev"
+      ? (currentIndex > 0 ? currentIndex - 1 : daySlots.length - 1)
+      : (currentIndex < daySlots.length - 1 ? currentIndex + 1 : 0);
 
-    let nextIndex
-    if (direction === "prev") {
-      nextIndex = currentIndex > 0 ? currentIndex - 1 : daySlots.length - 1
-    } else {
-      nextIndex = currentIndex < daySlots.length - 1 ? currentIndex + 1 : 0
-    }
-
-    const nextSlot = daySlots[nextIndex]
+    const nextSlot = daySlots[nextIndex];
     if (nextSlot) {
-      const nextKey = `${nextSlot.date}|${nextSlot.start_time}|${nextSlot.end_time}`
-      setSelectedKey(nextKey)
+      const nextKey = `${nextSlot.date}|${nextSlot.start_time}|${nextSlot.end_time}`;
+      setSelectedKey(nextKey);
     }
-  }
+  };
 
   return (
     <div className="w-full min-h-screen flex items-center justify-center p-4 md:p-8">
@@ -660,7 +673,7 @@ export function AllInOneBooking({
         <BookingSuccessModal
           isOpen={showSuccess}
           onClose={() => setShowSuccess(false)}
-          bookingDetails={lastBooking}
+          bookingDetails={lastBooking ?? undefined}
           trainerName={trainerName}
         />
 
@@ -691,6 +704,7 @@ export function AllInOneBooking({
                       onClick={() => shiftMonth(-1)}
                       disabled={!canPrevMonth}
                       className="h-10 w-10 md:h-10 md:w-10 p-0 text-white hover:bg-white/10 disabled:opacity-30 backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95"
+                      aria-label="Προηγούμενος μήνας"
                     >
                       <ChevronLeft className="h-6 w-6 md:h-5 md:w-5" />
                     </CustomButton>
@@ -700,6 +714,7 @@ export function AllInOneBooking({
                       onClick={() => shiftMonth(1)}
                       disabled={!canNextMonth}
                       className="h-10 w-10 md:h-10 md:w-10 p-0 text-white hover:bg-white/10 disabled:opacity-30 backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95"
+                      aria-label="Επόμενος μήνας"
                     >
                       <ChevronRight className="h-6 w-6 md:h-5 md:w-5" />
                     </CustomButton>
@@ -716,8 +731,8 @@ export function AllInOneBooking({
 
                 <div className="grid grid-cols-7 gap-1 md:gap-2">
                   {calendarDays.map((day, idx) => {
-                    const { iso, inRange, hasSlots } = dayMeta(day)
-                    const isSelected = selectedDateISO === iso
+                    const { iso, inRange, hasSlots } = dayMeta(day);
+                    const isSelected = selectedDateISO === iso;
                     return (
                       <CustomButton
                         key={idx}
@@ -736,15 +751,15 @@ export function AllInOneBooking({
                           ${hasSlots && inRange && !isSelected ? "hover:ring-1 hover:ring-white/30" : ""}
                         `}
                         title={iso ? (hasSlots ? fmtDate(iso) : "Χωρίς διαθέσιμα") : ""}
+                        aria-pressed={isSelected}
                       >
                         {isSelected && <div className="absolute inset-0 bg-white/95 rounded-md" />}
                         <span className={`relative z-10 font-bold ${isSelected ? "text-black" : ""}`}>{day}</span>
                       </CustomButton>
-                    )
+                    );
                   })}
                 </div>
 
-                {/* Loading state under calendar */}
                 {loading && (
                   <div className="flex items-center gap-3 text-white/60 pt-2 transition-all duration-300">
                     <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
@@ -756,7 +771,6 @@ export function AllInOneBooking({
 
             {/* Right Column - Time Slots & Booking */}
             <div className="space-y-6 transition-all duration-500 ease-out">
-              {/* Period filter + slots */}
               {selectedDateISO && (
                 <div className="animate-slide-in" ref={timeSlotsRef}>
                   <div className="space-y-4">
@@ -766,69 +780,64 @@ export function AllInOneBooking({
                         variant={selectedPeriod === "all" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSelectedPeriod("all")}
-                        className={`flex items-center gap-2 backdrop-blur-sm transition-all duration-300 hover:scale-105 active:scale-95 relative overflow-hidden ${
+                        className={`flex items-center gap-2 ${
                           selectedPeriod === "all"
                             ? "bg-gradient-to-r from-white via-white/95 to-white/90 text-black hover:from-white hover:via-white hover:to-white shadow-xl ring-2 ring-white/50 font-semibold"
                             : "bg-white/10 border-white/20 text-white hover:bg-white/25 hover:border-white/40 hover:backdrop-blur-md"
                         }`}
+                        aria-pressed={selectedPeriod === "all"}
                       >
-                        {selectedPeriod === "all" && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-blue-400/15 via-transparent to-emerald-400/15" />
-                        )}
-                        <span className="relative z-10">Όλες</span>
+                        <span>Όλες</span>
                       </CustomButton>
+
                       <CustomButton
                         variant={selectedPeriod === "morning" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSelectedPeriod("morning")}
-                        className={`flex items-center gap-2 backdrop-blur-sm transition-all duration-300 hover:scale-105 active:scale-95 relative overflow-hidden ${
+                        className={`flex items-center gap-2 ${
                           selectedPeriod === "morning"
                             ? "bg-gradient-to-r from-white via-white/95 to-white/90 text-black hover:from-white hover:via-white hover:to-white shadow-xl ring-2 ring-white/50 font-semibold"
                             : "bg-white/10 border-white/20 text-white hover:bg-white/25 hover:border-white/40 hover:backdrop-blur-md"
                         }`}
+                        aria-pressed={selectedPeriod === "morning"}
                       >
-                        {selectedPeriod === "morning" && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/15 via-transparent to-orange-400/15" />
-                        )}
-                        <Sun className="h-4 w-4 relative z-10" />
-                        <span className="relative z-10">Πρωί</span>
+                        <Sun className="h-4 w-4" />
+                        <span>Πρωί</span>
                       </CustomButton>
+
                       <CustomButton
                         variant={selectedPeriod === "afternoon" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSelectedPeriod("afternoon")}
-                        className={`flex items-center gap-2 backdrop-blur-sm transition-all duration-300 hover:scale-105 active:scale-95 relative overflow-hidden ${
+                        className={`flex items-center gap-2 ${
                           selectedPeriod === "afternoon"
                             ? "bg-gradient-to-r from-white via-white/95 to-white/90 text-black hover:from-white hover:via-white hover:to-white shadow-xl ring-2 ring-white/50 font-semibold"
                             : "bg-white/10 border-white/20 text-white hover:bg-white/25 hover:border-white/40 hover:backdrop-blur-md"
                         }`}
+                        aria-pressed={selectedPeriod === "afternoon"}
                       >
-                        {selectedPeriod === "afternoon" && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-orange-400/15 via-transparent to-red-400/15" />
-                        )}
-                        <Sunset className="h-4 w-4 relative z-10" />
-                        <span className="relative z-10">Απόγευμα</span>
+                        <Sunset className="h-4 w-4" />
+                        <span>Απόγευμα</span>
                       </CustomButton>
+
                       <CustomButton
                         variant={selectedPeriod === "night" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSelectedPeriod("night")}
-                        className={`flex items-center gap-2 backdrop-blur-sm transition-all duration-300 hover:scale-105 active:scale-95 relative overflow-hidden ${
+                        className={`flex items-center gap-2 ${
                           selectedPeriod === "night"
                             ? "bg-gradient-to-r from-white via-white/95 to-white/90 text-black hover:from-white hover:via-white hover:to-white shadow-xl ring-2 ring-white/50 font-semibold"
                             : "bg-white/10 border-white/20 text-white hover:bg-white/25 hover:border-white/40 hover:backdrop-blur-md"
                         }`}
+                        aria-pressed={selectedPeriod === "night"}
                       >
-                        {selectedPeriod === "night" && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-purple-400/15 via-transparent to-indigo-400/15" />
-                        )}
-                        <Moon className="h-4 w-4 relative z-10" />
-                        <span className="relative z-10">Βράδυ</span>
+                        <Moon className="h-4 w-4" />
+                        <span>Βράδυ</span>
                       </CustomButton>
                     </div>
                   </div>
 
-                  <div className="space-y-4 animate-fade-in">
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm md:text-base font-medium text-white">{fmtDate(selectedDateISO)}</h3>
                       <div className="flex gap-2">
@@ -837,8 +846,9 @@ export function AllInOneBooking({
                           size="sm"
                           onClick={() => navigateTimeSlot("prev")}
                           disabled={daySlots.length === 0 || !selectedKey}
-                          className="h-10 w-10 md:h-10 md:w-10 p-0 text-white hover:bg-white/20 disabled:opacity-30 backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95"
+                          className="h-10 w-10 md:h-10 md:w-10 p-0 text-white hover:bg-white/20 disabled:opacity-30"
                           title="Προηγούμενη ώρα"
+                          aria-label="Προηγούμενη ώρα"
                         >
                           <ChevronLeft className="h-6 w-6 md:h-5 md:w-5" />
                         </CustomButton>
@@ -847,8 +857,9 @@ export function AllInOneBooking({
                           size="sm"
                           onClick={() => navigateTimeSlot("next")}
                           disabled={daySlots.length === 0 || !selectedKey}
-                          className="h-10 w-10 md:h-10 md:w-10 p-0 text-white hover:bg-white/20 disabled:opacity-30 backdrop-blur-sm transition-all duration-200 hover:scale-110 active:scale-95"
+                          className="h-10 w-10 md:h-10 md:w-10 p-0 text-white hover:bg-white/20 disabled:opacity-30"
                           title="Επόμενη ώρα"
+                          aria-label="Επόμενη ώρα"
                         >
                           <ChevronRight className="h-6 w-6 md:h-5 md:w-5" />
                         </CustomButton>
@@ -856,61 +867,52 @@ export function AllInOneBooking({
                     </div>
 
                     {daySlots.length === 0 ? (
-                      <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 backdrop-blur-sm text-amber-100 px-4 py-6 flex items-center gap-3 text-sm md:text-base animate-fade-in">
+                      <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 text-amber-100 px-4 py-6 flex items-center gap-3 text-sm md:text-base">
                         <AlertTriangle className="h-5 w-5" />
                         Δεν υπάρχουν ανοικτά ραντεβού για το επιλεγμένο φίλτρο.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-3 animate-slide-up">
+                      <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-3">
                         {daySlots.map((slot, idx) => {
-                          const key = `${slot.date}|${slot.start_time}|${slot.end_time}`
-                          const selected = selectedKey === key
+                          const key = `${slot.date}|${slot.start_time}|${slot.end_time}`;
+                          const selected = selectedKey === key;
                           return (
                             <CustomButton
                               key={key}
                               variant="outline"
                               onClick={() => setSelectedKey(key)}
-                              className={`
-                                h-12 md:h-14 text-sm md:text-base relative backdrop-blur-sm transition-all duration-300 ease-out transform hover:scale-105 active:scale-95 hover:shadow-lg
-                                ${
-                                  selected
-                                    ? "bg-white/90 text-black border-white hover:bg-white shadow-lg scale-105 ring-2 ring-white/50"
-                                    : "bg-white/10 border-white/20 text-white hover:bg-white/30 hover:border-white/40"
-                                }
-                                hover:backdrop-blur-md
-                              `}
+                              className={`h-12 md:h-14 text-sm md:text-base relative ${
+                                selected
+                                  ? "bg-white/90 text-black border-white hover:bg-white ring-2 ring-white/50"
+                                  : "bg-white/10 border-white/20 text-white hover:bg-white/30 hover:border-white/40"
+                              }`}
                               title={`${slot.start_time}–${slot.end_time}`}
-                              style={{ animationDelay: `${idx * 50}ms` }}
+                              style={{ animationDelay: `${idx * 50}ms` as React.CSSProperties["animationDelay"] }}
+                              aria-pressed={selected}
                             >
-                              <span
-                                className={`font-medium transition-all duration-200 ${selected ? "text-black" : "text-white"}`}
-                              >
+                              <span className={`font-medium ${selected ? "text-black" : "text-white"}`}>
                                 {slot.start_time}
                               </span>
                               {slot.is_online && (
-                                <span
-                                  className={`absolute top-1 right-1 transition-all duration-200 ${selected ? "opacity-70" : "opacity-80"}`}
-                                >
+                                <span className={`absolute top-1 right-1 ${selected ? "opacity-70" : "opacity-80"}`}>
                                   <Wifi className="h-3 w-3" />
                                 </span>
                               )}
                               {selected && (
-                                <div className="absolute inset-0 rounded-md bg-gradient-to-r from-white/20 to-transparent pointer-events-none animate-pulse" />
+                                <div className="absolute inset-0 rounded-md bg-gradient-to-r from-white/20 to-transparent pointer-events-none" />
                               )}
                             </CustomButton>
-                          )
+                          );
                         })}
                       </div>
                     )}
                   </div>
 
                   {selectedKey && (
-                    <div className="text-center text-sm md:text-base text-white/70 py-2 mt-8 mb-6 animate-bounce-in">
-                      <div className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 transition-all duration-300 hover:bg-white/20">
+                    <div className="text-center text-sm md:text-base text-white/70 py-2 mt-8 mb-6">
+                      <div className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-white/10 border border-white/20">
                         <Clock className="h-4 w-4" />
-                        <span>
-                          Επιλέχθηκε: {fmtDate(selectedSlot.date)} στις {selectedSlot.start_time}
-                        </span>
+                        <span>Επιλέχθηκε: {fmtDate(selectedSlot?.date)} στις {selectedSlot?.start_time}</span>
                       </div>
                     </div>
                   )}
@@ -918,10 +920,7 @@ export function AllInOneBooking({
               )}
 
               {/* Notes */}
-              <div
-                ref={notesRef}
-                className="rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm text-white shadow-sm transition-all duration-300 hover:bg-white/10"
-              >
+              <div ref={notesRef} className="rounded-lg border border-white/10 bg-white/5 text-white">
                 <div className="flex flex-col space-y-1.5 p-4 md:p-6 pb-4">
                   <h3 className="text-sm md:text-base font-medium leading-none tracking-tight text-white">
                     Σημείωση (προαιρετική)
@@ -932,7 +931,7 @@ export function AllInOneBooking({
                     placeholder="Στόχοι, περιορισμοί, προτίμηση για εξοπλισμό κ.λπ."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="bg-white/10 border-white/20 text-white placeholder:text-white/50 resize-none backdrop-blur-sm transition-all duration-300 focus:bg-white/15 text-sm md:text-base"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
                     rows={3}
                   />
                 </div>
@@ -943,14 +942,11 @@ export function AllInOneBooking({
                 <CustomButton
                   onClick={handleContinue}
                   disabled={!selectedKey || submitting}
-                  className={`
-                    w-full h-12 md:h-14 text-base md:text-lg font-medium transition-all duration-300 backdrop-blur-sm transform hover:scale-[1.02] active:scale-[0.98]
-                    ${
-                      selectedKey && !submitting
-                        ? "bg-white/90 text-black hover:bg-white hover:shadow-xl"
-                        : "bg-white/10 text-white/50 cursor-not-allowed border border-white/10"
-                    }
-                  `}
+                  className={`w-full h-12 md:h-14 text-base md:text-lg font-medium ${
+                    selectedKey && !submitting
+                      ? "bg-white/90 text-black hover:bg-white"
+                      : "bg-white/10 text-white/50 cursor-not-allowed border border-white/10"
+                  }`}
                 >
                   {submitting ? (
                     <div className="flex items-center gap-2">
@@ -958,7 +954,6 @@ export function AllInOneBooking({
                       <span>Γίνεται κράτηση…</span>
                     </div>
                   ) : (
-                    /* Added calendar icon to continue button */
                     <div className="flex items-center gap-2">
                       <CalendarIcon className="h-5 w-5 md:h-6 md:w-6" />
                       <span>Συνέχεια</span>
@@ -971,64 +966,11 @@ export function AllInOneBooking({
         </div>
       </div>
 
+      {/* tiny local styles for simple animations */}
       <style jsx>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes slide-in {
-          from {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        @keyframes slide-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes bounce-in {
-          0% {
-            opacity: 0;
-            transform: scale(0.8) translateY(10px);
-          }
-          60% {
-            opacity: 1;
-            transform: scale(1.05) translateY(-2px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.4s ease-out;
-        }
-        .animate-slide-in {
-          animation: slide-in 0.5s ease-out;
-        }
-        .animate-slide-up {
-          animation: slide-up 0.6s ease-out;
-        }
-        .animate-bounce-in {
-          animation: bounce-in 0.5s ease-out;
-        }
+        @keyframes slide-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        .animate-slide-in { animation: slide-in 0.5s ease-out; }
       `}</style>
     </div>
-  )
-}
+  );
+};

@@ -1,38 +1,45 @@
+// backend/supabaseClient.js
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
-/*────── validate env vars ──────*/
+/* ───────────────── env checks (backend only) ───────────────── */
 const {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
 } = process.env;
 
-if (!SUPABASE_URL)
-  throw new Error("❌ SUPABASE_URL env var missing (check backend/.env)");
-if (!SUPABASE_ANON_KEY)
-  throw new Error("❌ SUPABASE_ANON_KEY env var missing (check backend/.env)");
-if (!SUPABASE_SERVICE_ROLE_KEY)
-  throw new Error(
-    "❌ SUPABASE_SERVICE_ROLE_KEY env var missing (check backend/.env)"
-  );
+if (!SUPABASE_URL) {
+  throw new Error("❌ SUPABASE_URL missing (set it in Vercel → Project → Env or backend/.env)");
+}
+if (!SUPABASE_ANON_KEY) {
+  throw new Error("❌ SUPABASE_ANON_KEY missing (set it in Vercel → Project → Env or backend/.env)");
+}
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("❌ SUPABASE_SERVICE_ROLE_KEY missing (backend only)");
+}
 
-/*────── two separate clients ──────*/
+/* ─────────────── singleton helpers (reuse across invocations) ───────────────
+   Vercel serverless may import this file multiple times. Cache instances on
+   globalThis to avoid re-creating clients per request.
+--------------------------------------------------------------------------- */
+const g = globalThis;
 
-// 1) Full‐access (service_role) client for any admin tasks, RLS bypass
-export const supabaseAdmin = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY, // full‐access key
-  {
-    auth: { autoRefreshToken: false, persistSession: false },
-  }
-);
+function makeClient(key) {
+  return createClient(SUPABASE_URL, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    // Optional headers—handy for tracing
+    global: {
+      headers: { "X-Client-Info": "peakvelocity-backend" },
+    },
+  });
+}
 
-// 2) Public (anon) client for normal, RLS‐enforced reads/writes
-export const supabasePublic = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY, // anon/public key
-  {
-    auth: { autoRefreshToken: false, persistSession: false },
-  }
-);
+export const supabaseAdmin =
+  g.__sv_supabaseAdmin || (g.__sv_supabaseAdmin = makeClient(SUPABASE_SERVICE_ROLE_KEY));
+
+export const supabasePublic =
+  g.__sv_supabasePublic || (g.__sv_supabasePublic = makeClient(SUPABASE_ANON_KEY));

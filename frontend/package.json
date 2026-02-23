@@ -2,6 +2,12 @@
   "name": "frontend",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.48.0",
@@ -9,22 +15,29 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.9",
     "lucide-react": "^0.514.0",
-    "react": "^18.3.1",
+    "react": "18.2.0",
     "react-day-picker": "^9.8.0",
-    "react-dom": "^18.3.1",
+    "react-dom": "18.2.0",
     "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
-    "react-router-dom": "^6.22.3",
-    "react-scripts": "^5.0.1",
-    "tailwind-merge": "^3.3.1"
+    "react-router-dom": "^6.30.1",
+    "tailwind-merge": "^3.3.1",
+    "react-scripts": "5.0.1"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+  "devDependencies": {
+    "@tailwindcss/aspect-ratio": "^0.4.2",
+    "@tailwindcss/forms": "^0.5.10",
+    "@tailwindcss/line-clamp": "^0.4.4",
+    "@tailwindcss/typography": "^0.5.18",
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^8.57.1",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.17",
+    "typescript": "4.9.5"
   },
-  "proxy": "http://localhost:5000",
   "browserslist": {
     "production": [
       ">0.2%",
@@ -36,24 +49,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-<<<<<<< HEAD
-    "@tailwindcss/aspect-ratio": "^0.4.2",
-    "@tailwindcss/forms": "^0.5.10",
-    "@tailwindcss/line-clamp": "^0.4.4",
-    "@tailwindcss/typography": "^0.5.18",
-    "autoprefixer": "^10.4.21",
-    "eslint": "^8.57.1",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17"
-=======
-    "autoprefixer": "^10.4.21",
-    "eslint": "^8.57.1",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "postcss": "^8.5.5",
-    "tailwindcss": "^4.1.10"
->>>>>>> 6504192de63054a547a6cc75a9a143b5e97ef6f9
   }
 }

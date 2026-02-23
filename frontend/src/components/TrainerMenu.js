@@ -5,21 +5,34 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
 import TrainerSearch from "../components/TrainerSearch";
 
 import {
-  BarChart3, FileText, Globe, ShoppingBag,
-  CalendarCheck, CreditCard, User as UserIcon, ImagePlus,
-  ShieldCheck, Settings, LogOut,
+  BarChart3,
+  FileText,
+  Globe,
+  ShoppingBag,
+  CalendarCheck,
+  CreditCard,
+  User as UserIcon,
+  ImagePlus,
+  ShieldCheck,
+  Settings,
+  LogOut,
   X,
-  Home, CalendarClock, CalendarDays,
+  Home,
+  CalendarClock,
+  CalendarDays,
   Settings as SettingsIcon,
-  Search, CircleHelp, Heart,          // ← added Heart
-  MoreHorizontal, // ← 3-dots icon
+  Search,
+  CircleHelp,
+  Heart,
+  MoreHorizontal,
+  FileBadge2,
 } from "lucide-react";
 
 /* -------------------------------- Helpers -------------------------------- */
@@ -52,16 +65,40 @@ const isActiveBottom = (activePath, activeHash, href) => {
 /*                              Avatars                               */
 /* ------------------------------------------------------------------ */
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
-const safeAvatar = (url) =>
-  url ? `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}` : AVATAR_PLACEHOLDER;
 
-function Avatar({ url, className = "h-9 w-9", ring = false }) {
+/**
+ * ✅ IMPORTANT:
+ * Old code appended Date.now() -> forced a new URL every render -> nonstop network requests.
+ * New code keeps a stable src, and only “busts” cache when `version` changes (e.g. profile.updated_at).
+ */
+const safeAvatar = (url, version) => {
+  if (!url) return AVATAR_PLACEHOLDER;
+
+  // If you pass a stable version (like profile.updated_at), it changes ONLY when profile updates.
+  if (!version) return url;
+
+  try {
+    const base =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    const u = new URL(url, base);
+    u.searchParams.set("v", String(version));
+    return u.toString();
+  } catch {
+    return url;
+  }
+};
+
+function Avatar({ url, className = "h-9 w-9", ring = false, version }) {
   const ringCls = ring ? "ring-2 ring-white/20 shadow-lg" : "";
+  const src = safeAvatar(url, version);
+
   if (url) {
     return (
       <img
-        src={safeAvatar(url)}
+        src={src}
         alt="avatar"
+        loading="lazy"
+        decoding="async"
         onError={(e) => {
           e.currentTarget.onerror = null;
           e.currentTarget.src = AVATAR_PLACEHOLDER;
@@ -70,8 +107,11 @@ function Avatar({ url, className = "h-9 w-9", ring = false }) {
       />
     );
   }
+
   return (
-    <div className={`${className} rounded-full bg-white/10 flex items-center justify-center ${ringCls}`}>
+    <div
+      className={`${className} rounded-full bg-white/10 flex items-center justify-center ${ringCls}`}
+    >
       <UserIcon className="h-4 w-4 text-gray-400" />
     </div>
   );
@@ -95,11 +135,27 @@ function RedBadge({ count, className = "" }) {
 /* ----------------------- Badges logic (bookings + posts) ----------------------- */
 
 const LS_PREFIX = "pv_seen_";
-const getSeen = (key) => parseInt(localStorage.getItem(LS_PREFIX + key) || "0", 10) || 0;
-const setSeen = (key, ts = Date.now()) => localStorage.setItem(LS_PREFIX + key, String(ts));
+const hasWindow = typeof window !== "undefined";
+
+const getSeen = (key) => {
+  if (!hasWindow) return 0;
+  try {
+    return parseInt(window.localStorage.getItem(LS_PREFIX + key) || "0", 10) || 0;
+  } catch {
+    return 0;
+  }
+};
+
+const setSeen = (key, ts = Date.now()) => {
+  if (!hasWindow) return;
+  try {
+    window.localStorage.setItem(LS_PREFIX + key, String(ts));
+  } catch {}
+};
 
 /** Our schema: trainer_bookings.status in ['pending','accepted','declined','cancelled','completed'] */
-const isPendingBooking = (row = {}) => (row.status || "").toLowerCase() === "pending";
+const isPendingBooking = (row = {}) =>
+  (row.status || "").toLowerCase() === "pending";
 
 function useNewCounters({ profile, activePath }) {
   const trainerId = profile?.id;
@@ -152,65 +208,86 @@ function useNewCounters({ profile, activePath }) {
       const updates = {};
       for (const w of WATCHERS) {
         if (w.mode === "pending") {
-          // Count current pending bookings for this trainer
-          const { data, error } = await w.initialFilter(
-            supabase.from(w.table).select(w.select, { count: "exact", head: false })
+          // ✅ lighter: only count (no need to download rows)
+          const { count, error } = await w.initialFilter(
+            supabase.from(w.table).select("id", { count: "exact", head: true })
           );
-          updates[w.key] = error ? 0 : (data || []).filter(isPendingBooking).length;
+          updates[w.key] = error ? 0 : count || 0;
         } else {
           const lastSeen = getSeen(w.key) || fallbackTs;
           const { data, error } = await w
             .initialFilter(supabase.from(w.table).select(w.select))
             .gt("created_at", new Date(lastSeen).toISOString())
             .limit(500);
-          updates[w.key] = error ? 0 : (data?.length || 0);
+          updates[w.key] = error ? 0 : data?.length || 0;
         }
       }
       if (!canceled) setCounts((prev) => ({ ...prev, ...updates }));
     }
 
     if (trainerId) loadCounts();
-    return () => { canceled = true; };
+    return () => {
+      canceled = true;
+    };
   }, [WATCHERS, trainerId, fallbackTs]);
 
   // Realtime: bookings pending changes + new posts
   useEffect(() => {
+    if (!trainerId) return;
+
     const channels = WATCHERS.map((w) => {
-      const ch = supabase.channel(`rt-${w.table}-${w.key}`);
+      // ✅ stable channel name per trainer + watcher key
+      const ch = supabase.channel(`rt-${w.key}-${trainerId}`);
 
       if (w.mode === "pending") {
         // INSERT (new booking)
-        ch.on("postgres_changes", { event: "INSERT", schema: "public", table: w.table }, (payload) => {
-          const row = payload?.new || {};
-          if (!w.matchRow(row)) return;
-          if (isPendingBooking(row)) {
-            setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
+        ch.on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: w.table },
+          (payload) => {
+            const row = payload?.new || {};
+            if (!w.matchRow(row)) return;
+            if (isPendingBooking(row)) {
+              setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
+            }
           }
-        });
+        );
+
         // UPDATE (status flips)
-        ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: w.table }, (payload) => {
-          const oldRow = payload?.old || {};
-          const newRow = payload?.new || {};
-          if (!w.matchRow(newRow)) return;
-          const was = isPendingBooking(oldRow);
-          const is  = isPendingBooking(newRow);
-          if (was && !is) {
-            setCounts((prev) => ({ ...prev, [w.key]: Math.max(0, (prev[w.key] || 0) - 1) }));
-          } else if (!was && is) {
-            setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
+        ch.on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: w.table },
+          (payload) => {
+            const oldRow = payload?.old || {};
+            const newRow = payload?.new || {};
+            if (!w.matchRow(newRow)) return;
+            const was = isPendingBooking(oldRow);
+            const is = isPendingBooking(newRow);
+            if (was && !is) {
+              setCounts((prev) => ({
+                ...prev,
+                [w.key]: Math.max(0, (prev[w.key] || 0) - 1),
+              }));
+            } else if (!was && is) {
+              setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
+            }
           }
-        });
+        );
       } else {
         // "new" posts since lastSeen
-        ch.on("postgres_changes", { event: "INSERT", schema: "public", table: w.table }, (payload) => {
-          const row = payload?.new || {};
-          if (!w.matchRow(row)) return;
-          const lastSeen = getSeen(w.key) || fallbackTs;
-          const createdTs = row?.created_at ? new Date(row.created_at).getTime() : 0;
-          if (createdTs > lastSeen) {
-            setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
+        ch.on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: w.table },
+          (payload) => {
+            const row = payload?.new || {};
+            if (!w.matchRow(row)) return;
+            const lastSeen = getSeen(w.key) || fallbackTs;
+            const createdTs = row?.created_at ? new Date(row.created_at).getTime() : 0;
+            if (createdTs > lastSeen) {
+              setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
+            }
           }
-        });
+        );
       }
 
       ch.subscribe();
@@ -218,13 +295,19 @@ function useNewCounters({ profile, activePath }) {
     });
 
     return () => {
-      channels.forEach((ch) => { try { supabase.removeChannel(ch); } catch {} });
+      channels.forEach((ch) => {
+        try {
+          supabase.removeChannel(ch);
+        } catch {}
+      });
     };
-  }, [WATCHERS, fallbackTs]);
+  }, [WATCHERS, trainerId, fallbackTs]);
 
   // Mark-as-seen only for "new" mode (do NOT clear pending on visit)
   useEffect(() => {
-    const watcher = WATCHERS.find((w) => normalizePath(activePath) === normalizePath(w.route));
+    const watcher = WATCHERS.find(
+      (w) => normalizePath(activePath) === normalizePath(w.route)
+    );
     if (!watcher) return;
     if (watcher.mode === "new") {
       setSeen(watcher.key, Date.now());
@@ -234,7 +317,9 @@ function useNewCounters({ profile, activePath }) {
 
   const countForHref = (href) => {
     const { path } = splitHref(href);
-    const watcher = WATCHERS.find((w) => normalizePath(w.route) === normalizePath(path));
+    const watcher = WATCHERS.find(
+      (w) => normalizePath(w.route) === normalizePath(path)
+    );
     return watcher ? counts[watcher.key] || 0 : 0;
   };
 
@@ -245,8 +330,13 @@ function useNewCounters({ profile, activePath }) {
 
 const COLLAPSED = 72;
 const EXPANDED = 240;
-const LOGO_SRC = "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
-document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
+const LOGO_SRC =
+  "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
+
+// ✅ don't touch document during SSR
+if (typeof document !== "undefined") {
+  document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
+}
 
 export default function TrainerMenu() {
   const { profile, profileLoaded } = useAuth();
@@ -259,68 +349,88 @@ export default function TrainerMenu() {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const syncVar = (o) => {
+    if (typeof document === "undefined") return;
     const w = window.innerWidth >= 1024 ? (o ? EXPANDED : COLLAPSED) : 0;
     document.documentElement.style.setProperty("--side-w", `${w}px`);
   };
+
   useEffect(() => syncVar(open), [open]);
+
   useEffect(() => {
-    const h = () => { if (window.innerWidth < 1024) setOpen(false); syncVar(open); };
+    const h = () => {
+      if (window.innerWidth < 1024) setOpen(false);
+      syncVar(open);
+    };
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, [open]);
+
   useEffect(() => setReady(true), []);
 
   if (!profileLoaded || !profile || profile.role !== "trainer") return null;
 
   const navMain = [
-    { id: "dash",     label: "Πίνακας",        href: "/trainer",            icon: BarChart3 },
-    { id: "schedule", label: "Πρόγραμμα",      href: "/trainer/schedule",   icon: CalendarDays },
-    { id: "posts",    label: "Αναρτήσεις",     href: "/trainer/posts",      icon: FileText  },
-    { id: "allp",     label: "Όλες οι Αναρτ.", href: "/posts",              icon: Globe    },       // badge: new posts
-    { id: "mark",     label: "Προπονητές",     href: "/services",           icon: ShoppingBag },
-    { id: "books",    label: "Κρατήσεις",      href: "/trainer/bookings",   icon: CalendarCheck },  // badge: pending bookings
-    { id: "pay",      label: "Πληρωμές",       href: "/trainer/payments",   icon: CreditCard },
-    { id: "likes", label: "Αγαπημένα", href: "/trainer/likes", icon: Heart },        // ✅ new page
-    { id: "faq",      label: "FAQ",            href: "/faq",                icon: CircleHelp },
+    { id: "dash", label: "Πίνακας", href: "/trainer", icon: BarChart3 },
+    { id: "schedule", label: "Πρόγραμμα", href: "/trainer/schedule", icon: CalendarDays },
+    { id: "posts", label: "Αναρτήσεις", href: "/trainer/posts", icon: FileText },
+    { id: "allp", label: "Όλες οι Αναρτ.", href: "/posts", icon: Globe }, // badge: new posts
+    { id: "mark", label: "Προπονητές", href: "/services", icon: ShoppingBag },
+    { id: "books", label: "Κρατήσεις", href: "/trainer/bookings", icon: CalendarCheck }, // badge: pending bookings
+    { id: "pay", label: "Πληρωμές", href: "/trainer/payments", icon: CreditCard },
+    { id: "likes", label: "Αγαπημένα", href: "/trainer/likes", icon: Heart },
+    { id: "faq", label: "FAQ", href: "/faq", icon: CircleHelp },
   ];
 
+  // ✅ IMPORTANT: these hashes MUST match your TrainerDashboard panel ids
+  // dashboard | profile | avatar | credentials | security
   const navSettings = [
-    { id: "profile",  label: "Πληροφορίες", href: "/trainer#dashboard", icon: UserIcon },
-    { id: "avatar",   label: "Avatar",      href: "/trainer#avatar",    icon: ImagePlus },
-    { id: "security", label: "Ασφάλεια",    href: "/trainer#security",  icon: ShieldCheck },
+    { id: "profile", label: "Πληροφορίες", href: "/trainer#profile", icon: UserIcon },
+    { id: "avatar", label: "Avatar", href: "/trainer#avatar", icon: ImagePlus },
+    { id: "credentials", label: "Δικαιολογητικά", href: "/trainer#credentials", icon: FileBadge2 },
+    { id: "security", label: "Ασφάλεια", href: "/trainer#security", icon: ShieldCheck },
   ];
 
-  // MOBILE bottom nav:
-  // - keep first three the same (Home, Schedule, Bookings)
-  // - put Settings where FAQ used to be
-  // - put 3-dots "More" where Settings used to be; clicking opens drawer with all items
+  // MOBILE bottom nav
   const bottomNav = [
-    { href: "/trainer",           label: "Αρχική",    icon: Home },
-    { href: "/trainer/schedule",  label: "Πρόγραμμα", icon: CalendarClock },
-    { href: "/trainer/bookings",  label: "Κρατήσεις", icon: CalendarDays }, // badge: pending
-    { href: "/trainer#dashboard", label: "Ρυθμίσεις", icon: SettingsIcon }, // moved into FAQ slot
-    { href: "drawer",             label: "Περισσότερα", icon: MoreHorizontal }, // 3-dots in Settings slot
+    { href: "/trainer", label: "Αρχική", icon: Home },
+    { href: "/trainer/schedule", label: "Πρόγραμμα", icon: CalendarClock },
+    { href: "/trainer/bookings", label: "Κρατήσεις", icon: CalendarDays }, // badge: pending
+    { href: "/trainer#profile", label: "Ρυθμίσεις", icon: SettingsIcon }, // ✅ was #dashboard
+    { href: "drawer", label: "Περισσότερα", icon: MoreHorizontal },
   ];
 
   const activePath = location.pathname;
   const activeHash = location.hash || "";
   const route = activePath + activeHash;
 
-  const logout = async () => { await supabase.auth.signOut(); navigate("/"); };
+  const logout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
+
   const openOverlay = () => setSearchOpen(true);
 
   const { countForHref } = useNewCounters({ profile, activePath });
+
+  // ✅ Stable version for avatar cache-bust only on profile updates
+  const avatarVersion = profile?.avatar_updated_at || profile?.updated_at || "";
 
   return (
     <>
       {/* -------- DESKTOP RAIL -------- */}
       <DesktopRail
-        open={open} setOpen={setOpen} ready={ready}
-        navMain={navMain} navSettings={navSettings}
-        activePath={activePath} activeHash={activeHash}
-        profile={profile} logout={logout}
+        open={open}
+        setOpen={setOpen}
+        ready={ready}
+        navMain={navMain}
+        navSettings={navSettings}
+        activePath={activePath}
+        activeHash={activeHash}
+        profile={profile}
+        logout={logout}
         onOpenSearch={openOverlay}
         countForHref={countForHref}
+        avatarVersion={avatarVersion}
       />
 
       {/* -------- MOBILE TOP BAR -------- */}
@@ -329,7 +439,10 @@ export default function TrainerMenu() {
         animate={{ opacity: drawer ? 0 : 1, pointerEvents: drawer ? "none" : "auto" }}
         className="lg:hidden fixed inset-x-0 top-0 z-40 flex items-center
                    px-4 bg-black/60 backdrop-blur-xl ring-1 ring-white/10 transition-opacity"
-        style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(4rem + env(safe-area-inset-top))" }}
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          height: "calc(4rem + env(safe-area-inset-top))",
+        }}
       >
         <button
           onClick={openOverlay}
@@ -340,24 +453,37 @@ export default function TrainerMenu() {
         </button>
 
         <div className="flex-1 flex justify-center">
-          <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+          <img
+            src={LOGO_SRC}
+            alt="logo"
+            className="h-10 w-10 rounded-xl bg-white object-contain p-1"
+          />
         </div>
-        <Avatar url={profile.avatar_url} className="h-9 w-9" />
+
+        <Avatar url={profile.avatar_url} version={avatarVersion} className="h-9 w-9" />
       </motion.header>
 
       {/* spacer for mobile top bar */}
-      <div className="lg:hidden" style={{ height: "calc(4.75rem + env(safe-area-inset-top))" }} />
+      <div
+        className="lg:hidden"
+        style={{ height: "calc(4.75rem + env(safe-area-inset-top))" }}
+      />
 
       {/* -------- SEARCH OVERLAY -------- */}
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {/* -------- MOBILE DRAWER (shows ALL pages) -------- */}
+      {/* -------- MOBILE DRAWER -------- */}
       <MobileDrawer
-        open={drawer} setOpen={setDrawer}
-        navMain={navMain} navSettings={navSettings}
-        activePath={activePath} activeHash={activeHash}
-        profile={profile} logout={logout}
+        open={drawer}
+        setOpen={setDrawer}
+        navMain={navMain}
+        navSettings={navSettings}
+        activePath={activePath}
+        activeHash={activeHash}
+        profile={profile}
+        logout={logout}
         countForHref={countForHref}
+        avatarVersion={avatarVersion}
       />
 
       {/* -------- MOBILE BOTTOM NAV -------- */}
@@ -376,12 +502,18 @@ export default function TrainerMenu() {
 
 /* ------------- Desktop rail helpers ------------- */
 function DesktopRail({
-  open, setOpen, ready,
-  navMain, navSettings,
-  activePath, activeHash,
-  profile, logout,
+  open,
+  setOpen,
+  ready,
+  navMain,
+  navSettings,
+  activePath,
+  activeHash,
+  profile,
+  logout,
   onOpenSearch,
   countForHref,
+  avatarVersion,
 }) {
   return (
     <motion.aside
@@ -390,7 +522,7 @@ function DesktopRail({
       whileHover={{ width: EXPANDED }}
       transition={{
         opacity: { duration: 1.0, ease: [0.4, 0, 0.2, 1] },
-        width:   { type: "spring", stiffness: 120, damping: 20, mass: 1.1 },
+        width: { type: "spring", stiffness: 120, damping: 20, mass: 1.1 },
       }}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
@@ -401,23 +533,50 @@ function DesktopRail({
       <div className="flex flex-col gap-4 p-4">
         <Brand open={open} />
         <DesktopSearch open={open} onOpen={onOpenSearch} />
-        <NavList items={navMain} open={open} activePath={activePath} activeHash={activeHash} countForHref={countForHref} />
+        <NavList
+          items={navMain}
+          open={open}
+          activePath={activePath}
+          activeHash={activeHash}
+          countForHref={countForHref}
+        />
         <hr className="my-3 border-gray-700/60" />
-        {open && <p className="px-4 pt-1 pb-2 text-[11px] uppercase tracking-wider text-gray-500">Ρυθμίσεις</p>}
-        <NavList items={navSettings} open={open} activePath={activePath} activeHash={activeHash} countForHref={countForHref} />
+        {open && (
+          <p className="px-4 pt-1 pb-2 text-[11px] uppercase tracking-wider text-gray-500">
+            Ρυθμίσεις
+          </p>
+        )}
+        <NavList
+          items={navSettings}
+          open={open}
+          activePath={activePath}
+          activeHash={activeHash}
+          countForHref={countForHref}
+        />
       </div>
-      <FooterBlock open={open} profile={profile} onLogout={logout} />
+      <FooterBlock
+        open={open}
+        profile={profile}
+        onLogout={logout}
+        avatarVersion={avatarVersion}
+      />
     </motion.aside>
   );
 }
 
 const Brand = ({ open }) => (
   <div className="flex items-center gap-3">
-    <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+    <img
+      src={LOGO_SRC}
+      alt="logo"
+      className="h-10 w-10 rounded-xl bg-white object-contain p-1"
+    />
     <AnimatePresence>
       {open && (
         <motion.span
-          initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -8 }}
           transition={{ duration: 0.3 }}
           className="max-w-[110px] truncate text-xl font-bold text-white"
         >
@@ -432,7 +591,11 @@ function DesktopSearch({ open, onOpen }) {
   if (!open) {
     return (
       <div className="flex justify-center">
-        <button onClick={onOpen} className="p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors" aria-label="Αναζήτηση">
+        <button
+          onClick={onOpen}
+          className="p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+          aria-label="Αναζήτηση"
+        >
           <Search className="h-5 w-5 text-white" />
         </button>
       </div>
@@ -465,7 +628,11 @@ function NavList({ items, open, activePath, activeHash, countForHref }) {
             <Link
               to={href}
               className={`flex items-center gap-4 w-full rounded-xl py-3 ${layout}
-                          ${active ? "bg-white text-black shadow-inner" : "text-gray-300 hover:bg-white/10"}
+                          ${
+                            active
+                              ? "bg-white text-black shadow-inner"
+                              : "text-gray-300 hover:bg-white/10"
+                          }
                           transition-colors relative`}
             >
               <div className="relative">
@@ -476,7 +643,9 @@ function NavList({ items, open, activePath, activeHash, countForHref }) {
               <AnimatePresence>
                 {open && (
                   <motion.span
-                    initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -8 }}
                     transition={{ duration: 0.3 }}
                     className="truncate text-sm font-medium"
                   >
@@ -492,14 +661,16 @@ function NavList({ items, open, activePath, activeHash, countForHref }) {
   );
 }
 
-function FooterBlock({ open, profile, onLogout }) {
+function FooterBlock({ open, profile, onLogout, avatarVersion }) {
   return (
     <div className="flex items-center gap-3 p-4 hover:bg-white/10 cursor-pointer">
-      <Avatar url={profile.avatar_url} className="h-9 w-9" />
+      <Avatar url={profile.avatar_url} version={avatarVersion} className="h-9 w-9" />
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -8 }}
             transition={{ duration: 0.3 }}
             className="min-w-0 text-sm text-white"
           >
@@ -527,13 +698,17 @@ function SearchOverlay({ open, onClose }) {
     <AnimatePresence>
       <motion.div
         key="search-overlay"
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
         onClick={onClose}
       />
       <motion.div
         key="search-panel"
-        initial={{ y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -24, opacity: 0 }}
+        initial={{ y: -24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: -24, opacity: 0 }}
         transition={{ type: "spring", stiffness: 180, damping: 20 }}
         className="fixed inset-x-3 top-[calc(8vh+env(safe-area-inset-top))] z-[61] mx-auto max-w-xl
                    rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-4"
@@ -544,14 +719,21 @@ function SearchOverlay({ open, onClose }) {
             <Search className="h-5 w-5" />
             <span className="text-sm">Αναζήτηση σελίδων</span>
           </div>
-          <button onClick={onClose} className="rounded-md p-2 text-gray-400 hover:text-white hover:bg-white/10" aria-label="Κλείσιμο">
+          <button
+            onClick={onClose}
+            className="rounded-md p-2 text-gray-400 hover:text-white hover:bg-white/10"
+            aria-label="Κλείσιμο"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <TrainerSearch
           ui="panel"
-          onSelectHref={(href) => { onClose(); navigate(href); }}
+          onSelectHref={(href) => {
+            onClose();
+            navigate(href);
+          }}
         />
       </motion.div>
     </AnimatePresence>
@@ -559,20 +741,35 @@ function SearchOverlay({ open, onClose }) {
 }
 
 /* ------------- Mobile drawer ------------- */
-function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, activeHash, profile, logout, countForHref }) {
+function MobileDrawer({
+  open,
+  setOpen,
+  navMain,
+  navSettings,
+  activePath,
+  activeHash,
+  profile,
+  logout,
+  countForHref,
+  avatarVersion,
+}) {
   if (!open) return null;
   return (
     <AnimatePresence>
       <motion.div
         key="overlay"
-        initial={{ opacity: 0 }} animate={{ opacity: 0.55 }} exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.55 }}
+        exit={{ opacity: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="fixed inset-0 z-40 bg-black backdrop-blur-sm"
         onClick={() => setOpen(false)}
       />
       <motion.aside
         key="drawer"
-        initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }}
+        initial={{ x: -320 }}
+        animate={{ x: 0 }}
+        exit={{ x: -320 }}
         transition={{ type: "spring", stiffness: 110, damping: 20, mass: 1.1 }}
         className="fixed inset-y-0 left-0 z-50 w-[76vw] max-w-[320px] flex flex-col
                    bg-gradient-to-b from-black/90 to-black/70 border-r border-gray-800 shadow-2xl"
@@ -580,31 +777,57 @@ function MobileDrawer({ open, setOpen, navMain, navSettings, activePath, activeH
         <DrawerHeader close={() => setOpen(false)} />
         <div className="flex-1 overflow-y-auto p-4">
           <Section>Μενού</Section>
-          <DrawerLinks items={navMain} activePath={activePath} activeHash={activeHash} close={() => setOpen(false)} countForHref={countForHref} />
+          <DrawerLinks
+            items={navMain}
+            activePath={activePath}
+            activeHash={activeHash}
+            close={() => setOpen(false)}
+            countForHref={countForHref}
+          />
           <div className="my-5 h-px bg-gradient-to-r from-transparent via-gray-800 to-transparent" />
           <Section>Ρυθμίσεις</Section>
-          <DrawerLinks items={navSettings} activePath={activePath} activeHash={activeHash} close={() => setOpen(false)} countForHref={countForHref} />
+          <DrawerLinks
+            items={navSettings}
+            activePath={activePath}
+            activeHash={activeHash}
+            close={() => setOpen(false)}
+            countForHref={countForHref}
+          />
         </div>
-        <DrawerFooter profile={profile} close={() => setOpen(false)} logout={logout} />
+        <DrawerFooter
+          profile={profile}
+          close={() => setOpen(false)}
+          logout={logout}
+          avatarVersion={avatarVersion}
+        />
       </motion.aside>
     </AnimatePresence>
   );
 }
 
 const Section = ({ children }) => (
-  <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">{children}</p>
+  <p className="mb-3 mt-1 px-2 text-[12px] uppercase tracking-wider text-gray-500">
+    {children}
+  </p>
 );
 
 function DrawerHeader({ close }) {
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-800">
       <div className="flex items-center gap-3">
-        <img src={LOGO_SRC} alt="logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1" />
+        <img
+          src={LOGO_SRC}
+          alt="logo"
+          className="h-10 w-10 rounded-xl bg-white object-contain p-1"
+        />
         <span className="text-lg font-bold text-white">
           Trainer<span className="font-light text-gray-400">Hub</span>
         </span>
       </div>
-      <button onClick={close} className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10">
+      <button
+        onClick={close}
+        className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10"
+      >
         <X className="h-5 w-5" />
       </button>
     </div>
@@ -623,7 +846,7 @@ function DrawerLinks({ items, activePath, activeHash, close, countForHref }) {
               to={href}
               onClick={close}
               className={`flex min-h-11 items-center gap-3 rounded-xl px-4 text-sm font-medium
-                          ${active ? "bg-white text-black" : "text-gray-300 hover:bg.gray-800 hover:bg-gray-800"}
+                          ${active ? "bg-white text-black" : "text-gray-300 hover:bg-gray-800"}
                           relative`}
             >
               <div className="relative">
@@ -639,21 +862,33 @@ function DrawerLinks({ items, activePath, activeHash, close, countForHref }) {
   );
 }
 
-function DrawerFooter({ profile, close, logout }) {
+function DrawerFooter({ profile, close, logout, avatarVersion }) {
   return (
     <div className="space-y-4 bg-gradient-to-t from-black/90 to-black/70 p-4 shadow-inner">
       <div className="flex items-center gap-3">
-        <Avatar url={profile.avatar_url} className="h-11 w-11" ring />
+        <Avatar url={profile.avatar_url} version={avatarVersion} className="h-11 w-11" ring />
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text:white">{profile.full_name || "Trainer"}</p>
+          <p className="truncate text-sm font-medium text-white">
+            {profile.full_name || "Trainer"}
+          </p>
           <p className="truncate text-xs text-gray-400">{profile.email}</p>
         </div>
       </div>
-      <Link to="/trainer#dashboard" onClick={close} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800">
+
+      {/* ✅ was /trainer#dashboard */}
+      <Link
+        to="/trainer#profile"
+        onClick={close}
+        className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-300 hover:bg-gray-800"
+      >
         <Settings className="h-5 w-5" /> Ρυθμίσεις προφίλ
       </Link>
+
       <button
-        onClick={() => { logout(); close(); }}
+        onClick={() => {
+          logout();
+          close();
+        }}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-800/20 px-4 py-3 text-red-300 hover:bg-red-700/30"
       >
         <LogOut className="h-5 w-5" /> Αποσύνδεση
@@ -668,7 +903,10 @@ const CREAMY_WHITE = "#FFF5E6";
 function NavBtn({ href, label, icon: Icon, active, onClick, count }) {
   if (active) {
     const Body = (
-      <div className="inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-black shadow-sm relative" style={{ backgroundColor: CREAMY_WHITE }}>
+      <div
+        className="inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-black shadow-sm relative"
+        style={{ backgroundColor: CREAMY_WHITE }}
+      >
         <div className="relative">
           <Icon className="h-5 w-5" />
           <RedBadge count={count} />
@@ -676,8 +914,15 @@ function NavBtn({ href, label, icon: Icon, active, onClick, count }) {
         <span className="text-xs font-semibold leading-none">{label}</span>
       </div>
     );
-    return href ? <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
-                : <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>;
+    return href ? (
+      <Link to={href} className="flex-1 flex justify-center">
+        {Body}
+      </Link>
+    ) : (
+      <button onClick={onClick} className="flex-1 flex justify-center">
+        {Body}
+      </button>
+    );
   }
 
   const Body = (
@@ -686,25 +931,40 @@ function NavBtn({ href, label, icon: Icon, active, onClick, count }) {
       <RedBadge count={count} />
     </div>
   );
-  return href ? <Link to={href} className="flex-1 flex justify-center">{Body}</Link>
-              : <button onClick={onClick} className="flex-1 flex justify-center">{Body}</button>;
+  return href ? (
+    <Link to={href} className="flex-1 flex justify-center">
+      {Body}
+    </Link>
+  ) : (
+    <button onClick={onClick} className="flex-1 flex justify-center">
+      {Body}
+    </button>
+  );
 }
 
 function BottomNav({ items, path, hash, route, drawerOpen, openDrawer, countForHref }) {
   return (
     <motion.nav
       initial={{ y: 36, opacity: 0 }}
-      animate={{ y: 0, opacity: drawerOpen ? 0 : 1, pointerEvents: drawerOpen ? "none" : "auto" }}
+      animate={{
+        y: 0,
+        opacity: drawerOpen ? 0 : 1,
+        pointerEvents: drawerOpen ? "none" : "auto",
+      }}
       transition={{ duration: 0.85, ease: [0.25, 0.1, 0.25, 1] }}
       className="lg:hidden fixed inset-x-0 bottom-0 z-40 pointer-events-none"
     >
-      <div className="mx-auto w-[92%] max-w-md pointer-events-auto" style={{ marginBottom: "calc(14px + env(safe-area-inset-bottom))" }}>
+      <div
+        className="mx-auto w-[92%] max-w-md pointer-events-auto"
+        style={{ marginBottom: "calc(14px + env(safe-area-inset-bottom))" }}
+      >
         <div className="relative flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/40 backdrop-blur-xl px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-b from-black/30 via-black/10 to-transparent" />
           <div className="relative z-10 flex w-full items-center justify-between">
             {items.map(({ href, label, icon }) => {
               const active = href === "drawer" ? false : isActiveBottom(path, hash, href);
-              const count = href === "drawer" ? 0 : (countForHref?.(href) || 0);
+              const count = href === "drawer" ? 0 : countForHref?.(href) || 0;
+
               return (
                 <NavBtn
                   key={label}

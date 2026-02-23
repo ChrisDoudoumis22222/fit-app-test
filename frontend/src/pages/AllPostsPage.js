@@ -1,6 +1,4 @@
-// src/pages/AllPostsPage.js
-"use client";
-
+// FILE: src/pages/AllPostsPage.js
 import {
   useState,
   useEffect,
@@ -134,7 +132,7 @@ export default function AllPostsPage() {
         setPage(1);
       } catch (err) {
         console.error(err);
-        setError(err.message);
+        setError(err.message || "Απέτυχε η φόρτωση");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -143,25 +141,7 @@ export default function AllPostsPage() {
     [profile?.id]
   );
 
-  /* -------------------------- infinite scroll IO ---------------------------- */
-  useEffect(() => {
-    const node = loadMoreRef.current;
-    if (!node) return;
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && hasMore && !loadingMore && !loading) {
-          handleLoadMore();
-        }
-      },
-      { rootMargin: "160px" }
-    );
-
-    io.observe(node);
-    return () => io.disconnect();
-  }, [hasMore, loadingMore, loading, /* stable */ handleLoadMore]);
-
-  /* ----------------------------- initial fetch ------------------------------ */
+  /* -------------------------- initial fetch ------------------------------ */
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
@@ -207,9 +187,7 @@ export default function AllPostsPage() {
     setHasMore(filteredSortedList.length > initial.length);
   }, [filteredSortedList]);
 
-
-  /* -------------------------- load more (define first!) --------------------- */
-
+  /* -------------------------- load more (define BEFORE useEffect) ---------- */
   const handleLoadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -225,8 +203,7 @@ export default function AllPostsPage() {
     });
   }, [page, hasMore, loadingMore, filteredSortedList, startTransition]);
 
-
-  /* -------------------------- infinite scroll IO ---------------------------- */
+  /* -------------------------- infinite scroll IO (single effect) ----------- */
   useEffect(() => {
     const node = loadMoreRef.current;
     if (!node) return;
@@ -243,7 +220,6 @@ export default function AllPostsPage() {
     io.observe(node);
     return () => io.disconnect();
   }, [hasMore, loadingMore, loading, handleLoadMore]);
-
 
   async function handleLike(postId, isLiked) {
     if (!profile?.id) {
@@ -679,7 +655,7 @@ const PostCard = memo(
             alt=""
             loading={priority ? "eager" : "lazy"}
             decoding="async"
-            fetchpriority={priority ? "high" : "auto"}
+            fetchPriority={priority ? "high" : "auto"}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           />
           {hasMultipleImages && (
@@ -704,7 +680,6 @@ const PostCard = memo(
             </div>
           </div>
 
-
           <h3 className="text-xl font-bold text-zinc-50 line-clamp-2">{post.title}</h3>
           <p className="text-zinc-300 text-sm line-clamp-3">{post.description}</p>
 
@@ -716,19 +691,6 @@ const PostCard = memo(
             </div>
             <IconBtn icon={Eye} onClick={view} />
           </div>
-
-        <h3 className="text-xl font-bold text-zinc-50 line-clamp-2">{post.title}</h3>
-        <p className="text-zinc-300 text-sm line-clamp-3">{post.description}</p>
-
-        <div className="flex items-center justify-between pt-4 border-t border-white/10">
-          <div className="flex items-center gap-4">
-            <LikeBtn count={post.like_count} isLiked={isLiked} onClick={like} disabled={isLiking} />
-            <IconBtn icon={MessageCircle} label={post.comment_count} onClick={comment} />
-            <IconBtn icon={Share2} onClick={share} />
-          </div>
-          <IconBtn icon={Eye} onClick={view} />
-        </div>
-
         </div>
       </motion.article>
     );
