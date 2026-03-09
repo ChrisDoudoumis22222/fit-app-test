@@ -1,0 +1,404 @@
+"use client";
+
+import React, { useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Wifi,
+  X,
+  CheckCircle2,
+  Mail,
+  CalendarIcon,
+  Clock,
+  AlertTriangle,
+  Calendar as CalendarPlus,
+  ExternalLink,
+  MapPin,
+} from "lucide-react";
+
+const cn = (...classes: Array<string | false | null | undefined>) =>
+  classes.filter(Boolean).join(" ");
+
+const fmtDate = (d?: string | null): string => {
+  if (!d) return "";
+  try {
+    return new Date(`${d}T00:00:00`).toLocaleDateString("el-GR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+  } catch {
+    return d;
+  }
+};
+
+const generateGoogleCalendarUrl = (booking: {
+  date: string;
+  start_time: string;
+  end_time: string;
+  trainerName: string;
+  is_online?: boolean | null;
+}): string => {
+  const { date, start_time, end_time, trainerName, is_online } = booking;
+
+  const [year, month, day] = date.split("-").map(Number);
+  const [startHour, startMin] = start_time.split(":").map(Number);
+  const [endHour, endMin] = end_time.split(":").map(Number);
+
+  const formatDateTime = (
+    y: number,
+    m: number,
+    d: number,
+    h: number,
+    min: number
+  ) =>
+    `${y}${String(m).padStart(2, "0")}${String(d).padStart(
+      2,
+      "0"
+    )}T${String(h).padStart(2, "0")}${String(min).padStart(2, "0")}00`;
+
+  const startDateTime = formatDateTime(year, month, day, startHour, startMin);
+  const endDateTime = formatDateTime(year, month, day, endHour, endMin);
+
+  const title = encodeURIComponent(`Προπόνηση με ${trainerName}`);
+  const details = encodeURIComponent(
+    is_online
+      ? "Online συνεδρία προπόνησης. Θα λάβετε σύνδεσμο πριν την έναρξη."
+      : "Προσωπική συνεδρία προπόνησης."
+  );
+  const location = encodeURIComponent(is_online ? "Online" : "Γυμναστήριο");
+
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDateTime}/${endDateTime}&details=${details}&location=${location}`;
+};
+
+const ActionButton: React.FC<{
+  children: React.ReactNode;
+  onClick?: () => void;
+  variant?: "primary" | "secondary";
+  className?: string;
+  type?: "button" | "submit";
+  disabled?: boolean;
+}> = ({
+  children,
+  onClick,
+  variant = "primary",
+  className = "",
+  type = "button",
+  disabled = false,
+}) => {
+  const base =
+    "inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 text-[14px] sm:text-[15px] font-semibold transition-all duration-200 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50";
+
+  const variants = {
+    primary:
+      "bg-white text-black hover:bg-zinc-100 shadow-[0_8px_24px_rgba(255,255,255,0.12)]",
+    secondary:
+      "border border-white/10 bg-transparent text-zinc-300 hover:border-white/20 hover:text-white",
+  };
+
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={`${base} ${variants[variant]} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+export interface BookingModalPopupProps {
+  isOpen: boolean;
+  status: "success" | "error";
+  onClose: () => void;
+  onCancel?: () => void;
+  bookingDetails?: {
+    date: string;
+    start_time: string;
+    end_time: string;
+    is_online?: boolean | null;
+  } | null;
+  trainerName: string;
+  errorMessage?: string;
+}
+
+const BookingModalPopup: React.FC<{
+  isOpen: boolean;
+  status: "success" | "error";
+  onClose: () => void;
+  onCancel?: () => void;
+  bookingDetails?: {
+    date: string;
+    start_time: string;
+    end_time: string;
+    is_online?: boolean | null;
+  } | null;
+  trainerName: string;
+  errorMessage?: string;
+}> = ({
+  isOpen,
+  status,
+  onClose,
+  onCancel,
+  bookingDetails,
+  trainerName,
+  errorMessage,
+}) => {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose?.();
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen, onClose]);
+
+  const formatPopupDate = (d?: string | null) => {
+    if (!d) return "";
+    try {
+      return new Date(`${d}T00:00:00`).toLocaleDateString("el-GR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      });
+    } catch {
+      return d;
+    }
+  };
+
+  const generateGoogleCalendarUrl = (booking: {
+    date: string;
+    start_time: string;
+    end_time: string;
+    trainerName: string;
+    is_online?: boolean | null;
+  }): string => {
+    const { date, start_time, end_time, trainerName, is_online } = booking;
+
+    const [year, month, day] = date.split("-").map(Number);
+    const [startHour, startMin] = start_time.split(":").map(Number);
+    const [endHour, endMin] = end_time.split(":").map(Number);
+
+    const formatDateTime = (
+      y: number,
+      m: number,
+      d: number,
+      h: number,
+      min: number
+    ) =>
+      `${y}${String(m).padStart(2, "0")}${String(d).padStart(
+        2,
+        "0"
+      )}T${String(h).padStart(2, "0")}${String(min).padStart(2, "0")}00`;
+
+    const startDateTime = formatDateTime(year, month, day, startHour, startMin);
+    const endDateTime = formatDateTime(year, month, day, endHour, endMin);
+
+    const title = encodeURIComponent(`Προπόνηση με ${trainerName}`);
+    const details = encodeURIComponent(
+      is_online
+        ? "Online συνεδρία προπόνησης. Θα λάβετε σύνδεσμο πριν την έναρξη."
+        : "Προσωπική συνεδρία προπόνησης."
+    );
+    const location = encodeURIComponent(is_online ? "Online" : "Γυμναστήριο");
+
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDateTime}/${endDateTime}&details=${details}&location=${location}`;
+  };
+
+  const handleGoogleCalendar = () => {
+    if (!bookingDetails) return;
+
+    const url = generateGoogleCalendarUrl({
+      date: bookingDetails.date,
+      start_time: bookingDetails.start_time,
+      end_time: bookingDetails.end_time,
+      trainerName,
+      is_online: bookingDetails.is_online,
+    });
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleCancel = () => {
+    onCancel?.();
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-[220] flex items-center justify-center p-3 sm:p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.button
+            type="button"
+            aria-label="Κλείσιμο"
+            className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            onClick={onClose}
+          />
+
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-confirmation-title"
+            initial={{ opacity: 0, y: 18, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.985 }}
+            transition={{ type: "spring", stiffness: 320, damping: 28 }}
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxHeight: "calc(100dvh - 24px)" }}
+            className="relative w-full max-w-[500px] overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950/95 shadow-[0_24px_70px_rgba(0,0,0,0.82)]"
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_42%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(0,0,0,0.28))]" />
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-xl text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+              aria-label="Κλείσιμο"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="relative z-10 max-h-[calc(100dvh-24px)] overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl sm:mb-5">
+                <div
+                  className={cn(
+                    "flex h-full w-full items-center justify-center rounded-3xl ring-1",
+                    status === "success"
+                      ? "bg-emerald-500/12 text-emerald-300 ring-emerald-500/20"
+                      : "bg-red-500/12 text-red-300 ring-red-500/20"
+                  )}
+                >
+                  {status === "success" ? (
+                    <CheckCircle2 className="h-8 w-8" />
+                  ) : (
+                    <AlertTriangle className="h-8 w-8" />
+                  )}
+                </div>
+              </div>
+
+              <h2
+                id="booking-confirmation-title"
+                className="text-center text-xl font-bold leading-tight text-white sm:text-2xl"
+              >
+                {status === "success"
+                  ? "Η κράτηση ολοκληρώθηκε"
+                  : "Η κράτηση απέτυχε"}
+              </h2>
+
+              <p className="mx-auto mt-2 max-w-[38ch] text-center text-sm leading-relaxed text-zinc-400">
+                {status === "success"
+                  ? "Το αίτημά σου καταχωρήθηκε επιτυχώς."
+                  : errorMessage || "Κάτι πήγε στραβά. Δοκίμασε ξανά σε λίγο."}
+              </p>
+
+              {status === "success" && bookingDetails ? (
+                <>
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.06]">
+                        <CalendarIcon className="h-4 w-4 text-zinc-300" />
+                      </div>
+                      <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                        Ημερομηνία
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        {formatPopupDate(bookingDetails.date)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.06]">
+                        <Clock className="h-4 w-4 text-zinc-300" />
+                      </div>
+                      <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                        Ώρα
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        {bookingDetails.start_time} - {bookingDetails.end_time}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 sm:col-span-2">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.06]">
+                        {bookingDetails.is_online ? (
+                          <Wifi className="h-4 w-4 text-zinc-300" />
+                        ) : (
+                          <MapPin className="h-4 w-4 text-zinc-300" />
+                        )}
+                      </div>
+                      <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                        Τύπος συνεδρίας
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        {bookingDetails.is_online
+                          ? "Online συνεδρία"
+                          : "Δια ζώσης"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/10 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
+                        <Mail className="h-4 w-4 text-zinc-200" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">
+                          Επιβεβαίωση μέσω email
+                        </div>
+                        <div className="mt-1 text-sm leading-relaxed text-zinc-300">
+                          Θα λάβεις ενημέρωση στο email σου εντός 24 ωρών.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <ActionButton onClick={handleGoogleCalendar} variant="primary">
+                      <CalendarPlus className="h-4 w-4 opacity-80" />
+                      <span>Google Calendar</span>
+                    </ActionButton>
+
+                    <ActionButton onClick={handleCancel} variant="secondary">
+                      <X className="h-4 w-4" />
+                      <span>Ακύρωση κράτησης</span>
+                    </ActionButton>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <ActionButton onClick={onClose} variant="primary">
+                    Δοκίμασε ξανά
+                  </ActionButton>
+
+                  <ActionButton onClick={onClose} variant="secondary">
+                    Κλείσιμο
+                  </ActionButton>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export default BookingModalPopup;

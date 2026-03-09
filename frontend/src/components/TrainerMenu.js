@@ -17,7 +17,7 @@ import {
   Globe,
   ShoppingBag,
   CalendarCheck,
-  CreditCard,
+  History,
   User as UserIcon,
   ImagePlus,
   ShieldCheck,
@@ -64,6 +64,7 @@ const isActiveBottom = (activePath, activeHash, href) => {
 /* ------------------------------------------------------------------ */
 /*                              Avatars                               */
 /* ------------------------------------------------------------------ */
+
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
 
 /**
@@ -74,7 +75,6 @@ const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
 const safeAvatar = (url, version) => {
   if (!url) return AVATAR_PLACEHOLDER;
 
-  // If you pass a stable version (like profile.updated_at), it changes ONLY when profile updates.
   if (!version) return url;
 
   try {
@@ -121,6 +121,7 @@ function Avatar({ url, className = "h-9 w-9", ring = false, version }) {
 
 function RedBadge({ count, className = "" }) {
   if (!count || count <= 0) return null;
+
   return (
     <span
       className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white
@@ -139,6 +140,7 @@ const hasWindow = typeof window !== "undefined";
 
 const getSeen = (key) => {
   if (!hasWindow) return 0;
+
   try {
     return parseInt(window.localStorage.getItem(LS_PREFIX + key) || "0", 10) || 0;
   } catch {
@@ -148,6 +150,7 @@ const getSeen = (key) => {
 
 const setSeen = (key, ts = Date.now()) => {
   if (!hasWindow) return;
+
   try {
     window.localStorage.setItem(LS_PREFIX + key, String(ts));
   } catch {}
@@ -160,7 +163,6 @@ const isPendingBooking = (row = {}) =>
 function useNewCounters({ profile, activePath }) {
   const trainerId = profile?.id;
 
-  // If no lastSeen exists for "new" mode, count items from N days back.
   const FALLBACK_DAYS = 7;
   const fallbackTs = useMemo(
     () => Date.now() - FALLBACK_DAYS * 24 * 60 * 60 * 1000,
@@ -189,7 +191,7 @@ function useNewCounters({ profile, activePath }) {
         route: "/posts",
         table: "posts",
         select: "id,created_at",
-        initialFilter: (q) => q, // global posts feed
+        initialFilter: (q) => q,
         matchRow: () => true,
       },
     ],
@@ -206,26 +208,35 @@ function useNewCounters({ profile, activePath }) {
 
     async function loadCounts() {
       const updates = {};
+
       for (const w of WATCHERS) {
         if (w.mode === "pending") {
-          // ✅ lighter: only count (no need to download rows)
           const { count, error } = await w.initialFilter(
             supabase.from(w.table).select("id", { count: "exact", head: true })
           );
+
           updates[w.key] = error ? 0 : count || 0;
         } else {
           const lastSeen = getSeen(w.key) || fallbackTs;
+
           const { data, error } = await w
             .initialFilter(supabase.from(w.table).select(w.select))
             .gt("created_at", new Date(lastSeen).toISOString())
             .limit(500);
+
           updates[w.key] = error ? 0 : data?.length || 0;
         }
       }
-      if (!canceled) setCounts((prev) => ({ ...prev, ...updates }));
+
+      if (!canceled) {
+        setCounts((prev) => ({ ...prev, ...updates }));
+      }
     }
 
-    if (trainerId) loadCounts();
+    if (trainerId) {
+      loadCounts();
+    }
+
     return () => {
       canceled = true;
     };
@@ -236,33 +247,34 @@ function useNewCounters({ profile, activePath }) {
     if (!trainerId) return;
 
     const channels = WATCHERS.map((w) => {
-      // ✅ stable channel name per trainer + watcher key
       const ch = supabase.channel(`rt-${w.key}-${trainerId}`);
 
       if (w.mode === "pending") {
-        // INSERT (new booking)
         ch.on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: w.table },
           (payload) => {
             const row = payload?.new || {};
             if (!w.matchRow(row)) return;
+
             if (isPendingBooking(row)) {
               setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
             }
           }
         );
 
-        // UPDATE (status flips)
         ch.on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: w.table },
           (payload) => {
             const oldRow = payload?.old || {};
             const newRow = payload?.new || {};
+
             if (!w.matchRow(newRow)) return;
+
             const was = isPendingBooking(oldRow);
             const is = isPendingBooking(newRow);
+
             if (was && !is) {
               setCounts((prev) => ({
                 ...prev,
@@ -274,15 +286,16 @@ function useNewCounters({ profile, activePath }) {
           }
         );
       } else {
-        // "new" posts since lastSeen
         ch.on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: w.table },
           (payload) => {
             const row = payload?.new || {};
             if (!w.matchRow(row)) return;
+
             const lastSeen = getSeen(w.key) || fallbackTs;
             const createdTs = row?.created_at ? new Date(row.created_at).getTime() : 0;
+
             if (createdTs > lastSeen) {
               setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
             }
@@ -308,7 +321,9 @@ function useNewCounters({ profile, activePath }) {
     const watcher = WATCHERS.find(
       (w) => normalizePath(activePath) === normalizePath(w.route)
     );
+
     if (!watcher) return;
+
     if (watcher.mode === "new") {
       setSeen(watcher.key, Date.now());
       setCounts((prev) => ({ ...prev, [watcher.key]: 0 }));
@@ -349,7 +364,8 @@ export default function TrainerMenu() {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const syncVar = (o) => {
-    if (typeof document === "undefined") return;
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+
     const w = window.innerWidth >= 1024 ? (o ? EXPANDED : COLLAPSED) : 0;
     document.documentElement.style.setProperty("--side-w", `${w}px`);
   };
@@ -357,15 +373,29 @@ export default function TrainerMenu() {
   useEffect(() => syncVar(open), [open]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const h = () => {
       if (window.innerWidth < 1024) setOpen(false);
       syncVar(open);
     };
+
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, [open]);
 
   useEffect(() => setReady(true), []);
+
+  // ✅ MUST stay ABOVE any early return
+  const activePath = location.pathname;
+  const activeHash = location.hash || "";
+  const route = activePath + activeHash;
+
+  // ✅ Hook always runs in every render
+  const { countForHref } = useNewCounters({ profile, activePath });
+
+  // ✅ Stable version for avatar cache-bust only on profile updates
+  const avatarVersion = profile?.avatar_updated_at || profile?.updated_at || "";
 
   if (!profileLoaded || !profile || profile.role !== "trainer") return null;
 
@@ -373,10 +403,10 @@ export default function TrainerMenu() {
     { id: "dash", label: "Πίνακας", href: "/trainer", icon: BarChart3 },
     { id: "schedule", label: "Πρόγραμμα", href: "/trainer/schedule", icon: CalendarDays },
     { id: "posts", label: "Αναρτήσεις", href: "/trainer/posts", icon: FileText },
-    { id: "allp", label: "Όλες οι Αναρτ.", href: "/posts", icon: Globe }, // badge: new posts
+    { id: "allp", label: "Όλες οι Αναρτ.", href: "/posts", icon: Globe },
     { id: "mark", label: "Προπονητές", href: "/services", icon: ShoppingBag },
-    { id: "books", label: "Κρατήσεις", href: "/trainer/bookings", icon: CalendarCheck }, // badge: pending bookings
-    { id: "pay", label: "Πληρωμές", href: "/trainer/payments", icon: CreditCard },
+    { id: "books", label: "Κρατήσεις", href: "/trainer/bookings", icon: CalendarCheck },
+    { id: "pay", label: "Ιστορικό Κρατήσεων", href: "/trainer/payments", icon: History },
     { id: "likes", label: "Αγαπημένα", href: "/trainer/likes", icon: Heart },
     { id: "faq", label: "FAQ", href: "/faq", icon: CircleHelp },
   ];
@@ -390,18 +420,13 @@ export default function TrainerMenu() {
     { id: "security", label: "Ασφάλεια", href: "/trainer#security", icon: ShieldCheck },
   ];
 
-  // MOBILE bottom nav
   const bottomNav = [
     { href: "/trainer", label: "Αρχική", icon: Home },
     { href: "/trainer/schedule", label: "Πρόγραμμα", icon: CalendarClock },
-    { href: "/trainer/bookings", label: "Κρατήσεις", icon: CalendarDays }, // badge: pending
-    { href: "/trainer#profile", label: "Ρυθμίσεις", icon: SettingsIcon }, // ✅ was #dashboard
+    { href: "/trainer/bookings", label: "Κρατήσεις", icon: CalendarDays },
+    { href: "/trainer#profile", label: "Ρυθμίσεις", icon: SettingsIcon },
     { href: "drawer", label: "Περισσότερα", icon: MoreHorizontal },
   ];
-
-  const activePath = location.pathname;
-  const activeHash = location.hash || "";
-  const route = activePath + activeHash;
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -409,11 +434,6 @@ export default function TrainerMenu() {
   };
 
   const openOverlay = () => setSearchOpen(true);
-
-  const { countForHref } = useNewCounters({ profile, activePath });
-
-  // ✅ Stable version for avatar cache-bust only on profile updates
-  const avatarVersion = profile?.avatar_updated_at || profile?.updated_at || "";
 
   return (
     <>
@@ -501,6 +521,7 @@ export default function TrainerMenu() {
 }
 
 /* ------------- Desktop rail helpers ------------- */
+
 function DesktopRail({
   open,
   setOpen,
@@ -554,6 +575,7 @@ function DesktopRail({
           countForHref={countForHref}
         />
       </div>
+
       <FooterBlock
         open={open}
         profile={profile}
@@ -601,6 +623,7 @@ function DesktopSearch({ open, onOpen }) {
       </div>
     );
   }
+
   return (
     <div className="px-2">
       <button
@@ -690,8 +713,10 @@ function FooterBlock({ open, profile, onLogout, avatarVersion }) {
 }
 
 /* ----------------- Search Overlay ----------------- */
+
 function SearchOverlay({ open, onClose }) {
   const navigate = useNavigate();
+
   if (!open) return null;
 
   return (
@@ -704,6 +729,7 @@ function SearchOverlay({ open, onClose }) {
         className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
         onClick={onClose}
       />
+
       <motion.div
         key="search-panel"
         initial={{ y: -24, opacity: 0 }}
@@ -719,6 +745,7 @@ function SearchOverlay({ open, onClose }) {
             <Search className="h-5 w-5" />
             <span className="text-sm">Αναζήτηση σελίδων</span>
           </div>
+
           <button
             onClick={onClose}
             className="rounded-md p-2 text-gray-400 hover:text-white hover:bg-white/10"
@@ -741,6 +768,7 @@ function SearchOverlay({ open, onClose }) {
 }
 
 /* ------------- Mobile drawer ------------- */
+
 function MobileDrawer({
   open,
   setOpen,
@@ -754,6 +782,7 @@ function MobileDrawer({
   avatarVersion,
 }) {
   if (!open) return null;
+
   return (
     <AnimatePresence>
       <motion.div
@@ -765,6 +794,7 @@ function MobileDrawer({
         className="fixed inset-0 z-40 bg-black backdrop-blur-sm"
         onClick={() => setOpen(false)}
       />
+
       <motion.aside
         key="drawer"
         initial={{ x: -320 }}
@@ -775,6 +805,7 @@ function MobileDrawer({
                    bg-gradient-to-b from-black/90 to-black/70 border-r border-gray-800 shadow-2xl"
       >
         <DrawerHeader close={() => setOpen(false)} />
+
         <div className="flex-1 overflow-y-auto p-4">
           <Section>Μενού</Section>
           <DrawerLinks
@@ -784,7 +815,9 @@ function MobileDrawer({
             close={() => setOpen(false)}
             countForHref={countForHref}
           />
+
           <div className="my-5 h-px bg-gradient-to-r from-transparent via-gray-800 to-transparent" />
+
           <Section>Ρυθμίσεις</Section>
           <DrawerLinks
             items={navSettings}
@@ -794,6 +827,7 @@ function MobileDrawer({
             countForHref={countForHref}
           />
         </div>
+
         <DrawerFooter
           profile={profile}
           close={() => setOpen(false)}
@@ -824,6 +858,7 @@ function DrawerHeader({ close }) {
           Trainer<span className="font-light text-gray-400">Hub</span>
         </span>
       </div>
+
       <button
         onClick={close}
         className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10"
@@ -840,6 +875,7 @@ function DrawerLinks({ items, activePath, activeHash, close, countForHref }) {
       {items.map(({ id, label, href, icon: Icon }) => {
         const active = isActiveRoute(activePath, activeHash, href);
         const count = countForHref?.(href) || 0;
+
         return (
           <li key={id}>
             <Link
@@ -875,7 +911,6 @@ function DrawerFooter({ profile, close, logout, avatarVersion }) {
         </div>
       </div>
 
-      {/* ✅ was /trainer#dashboard */}
       <Link
         to="/trainer#profile"
         onClick={close}
@@ -898,6 +933,7 @@ function DrawerFooter({ profile, close, logout, avatarVersion }) {
 }
 
 /* ------------- Bottom nav (MOBILE ONLY) ------------- */
+
 const CREAMY_WHITE = "#FFF5E6";
 
 function NavBtn({ href, label, icon: Icon, active, onClick, count }) {
@@ -914,6 +950,7 @@ function NavBtn({ href, label, icon: Icon, active, onClick, count }) {
         <span className="text-xs font-semibold leading-none">{label}</span>
       </div>
     );
+
     return href ? (
       <Link to={href} className="flex-1 flex justify-center">
         {Body}
@@ -931,6 +968,7 @@ function NavBtn({ href, label, icon: Icon, active, onClick, count }) {
       <RedBadge count={count} />
     </div>
   );
+
   return href ? (
     <Link to={href} className="flex-1 flex justify-center">
       {Body}
@@ -960,6 +998,7 @@ function BottomNav({ items, path, hash, route, drawerOpen, openDrawer, countForH
       >
         <div className="relative flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/40 backdrop-blur-xl px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-b from-black/30 via-black/10 to-transparent" />
+
           <div className="relative z-10 flex w-full items-center justify-between">
             {items.map(({ href, label, icon }) => {
               const active = href === "drawer" ? false : isActiveBottom(path, hash, href);

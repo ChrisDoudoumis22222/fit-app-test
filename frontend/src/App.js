@@ -34,11 +34,7 @@ const Loading = () => (
 );
 
 function Shell({ children }) {
-  return (
-    <div className="pl-[calc(var(--side-w)+4px)] lg:pt-0 pt-14 transition-[padding]">
-      {children}
-    </div>
-  );
+  return <div className="lg:pl-[calc(var(--side-w)+4px)] transition-[padding]">{children}</div>;
 }
 
 function AuthPopup({
@@ -48,13 +44,15 @@ function AuthPopup({
 }) {
   const navigate = useNavigate();
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white text-black p-6 rounded shadow-xl max-w-sm w-[92%] text-center space-y-4">
-        <p className="font-semibold">{message || "Χρειάζεσαι σύνδεση για να συνεχίσεις."}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-[92%] max-w-sm space-y-4 rounded bg-white p-6 text-center text-black shadow-xl">
+        <p className="font-semibold">
+          {message || "Χρειάζεσαι σύνδεση για να συνεχίσεις."}
+        </p>
         <button
           type="button"
           onClick={() => navigate(actionTo, { replace: true })}
-          className="inline-block bg-blue-600 text-white px-4 py-2 rounded"
+          className="inline-block rounded bg-blue-600 px-4 py-2 text-white"
         >
           {actionLabel}
         </button>
@@ -70,9 +68,7 @@ function PublicRoute({ children }) {
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth();
 
-  // ✅ prevents “popup for a split second”
   if (loading) return <Loading />;
-
   if (!session) return <AuthPopup />;
 
   return <Shell>{children}</Shell>;
@@ -124,38 +120,199 @@ export default function App() {
         <Suspense fallback={<Loading />}>
           <Routes>
             {/* public */}
-            <Route path="/" element={<PublicRoute><AuthPage /></PublicRoute>} />
-            <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
-            <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
-            <Route path="/faq" element={<PublicRoute><TrainerFAQPage /></PublicRoute>} />
-            <Route path="/faq/users" element={<PublicRoute><UserFAQPage /></PublicRoute>} />
+            <Route
+              path="/"
+              element={
+                <PublicRoute>
+                  <AuthPage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/forgot-password"
+              element={
+                <PublicRoute>
+                  <ForgotPasswordPage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                <PublicRoute>
+                  <ResetPasswordPage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/faq"
+              element={
+                <PublicRoute>
+                  <TrainerFAQPage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/faq/users"
+              element={
+                <PublicRoute>
+                  <UserFAQPage />
+                </PublicRoute>
+              }
+            />
 
             {/* user protected */}
-            <Route path="/user" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
-            <Route path="/user/bookings" element={<ProtectedRoute><UserBookingsPage /></ProtectedRoute>} />
-            <Route path="/user/likes" element={<ProtectedRoute><UserLikesPage /></ProtectedRoute>} />
-            <Route path="/userlikes" element={<ProtectedRoute><UserLikesPage /></ProtectedRoute>} />
-            <Route path="/goals" element={<ProtectedRoute><EpicGoalsPage /></ProtectedRoute>} />
+            <Route
+              path="/user"
+              element={
+                <ProtectedRoute>
+                  <UserDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/user/bookings"
+              element={
+                <ProtectedRoute>
+                  <UserBookingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/user/likes"
+              element={
+                <ProtectedRoute>
+                  <UserLikesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/userlikes"
+              element={
+                <ProtectedRoute>
+                  <UserLikesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/goals"
+              element={
+                <ProtectedRoute>
+                  <EpicGoalsPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* trainer protected */}
-            <Route path="/trainer" element={<ProtectedRoute><TrainerDashboard /></ProtectedRoute>} />
-            <Route path="/trainer/services" element={<ProtectedRoute><TrainerServicesPage /></ProtectedRoute>} />
-            <Route path="/trainer/posts" element={<ProtectedRoute><TrainerPostsPage /></ProtectedRoute>} />
-            <Route path="/trainer/bookings" element={<ProtectedRoute><TrainerBookingsPage /></ProtectedRoute>} />
-            <Route path="/trainer/payments" element={<ProtectedRoute><TrainerPaymentsPage /></ProtectedRoute>} />
+            <Route
+              path="/trainer"
+              element={
+                <ProtectedRoute>
+                  <TrainerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trainer/services"
+              element={
+                <ProtectedRoute>
+                  <TrainerServicesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trainer/posts"
+              element={
+                <ProtectedRoute>
+                  <TrainerPostsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trainer/bookings"
+              element={
+                <ProtectedRoute>
+                  <TrainerBookingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trainer/payments"
+              element={
+                <ProtectedRoute>
+                  <TrainerPaymentsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/trainer/schedule" element={<TrainerScheduleWrapper />} />
-            <Route path="/trainer/likes" element={<ProtectedRoute><TrainerLikesPage /></ProtectedRoute>} />
+            <Route
+              path="/trainer/likes"
+              element={
+                <ProtectedRoute>
+                  <TrainerLikesPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* shared protected */}
-            <Route path="/posts" element={<ProtectedRoute><AllPostsPage /></ProtectedRoute>} />
-            <Route path="/post/:id" element={<ProtectedRoute><PostDetailPage /></ProtectedRoute>} />
-            <Route path="/trainer/:trainerId/posts" element={<ProtectedRoute><TrainerPostsViewPage /></ProtectedRoute>} />
+            <Route
+              path="/posts"
+              element={
+                <ProtectedRoute>
+                  <AllPostsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/post/:id"
+              element={
+                <ProtectedRoute>
+                  <PostDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trainer/:trainerId/posts"
+              element={
+                <ProtectedRoute>
+                  <TrainerPostsViewPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* public marketplace */}
-            <Route path="/services" element={<PublicRoute><ServicesMarketplacePage /></PublicRoute>} />
-            <Route path="/service/:id" element={<PublicRoute><ServiceDetailPage /></PublicRoute>} />
-            <Route path="/trainers" element={<PublicRoute><TrainersMarketplacePage /></PublicRoute>} />
-            <Route path="/trainer/:trainerId" element={<PublicRoute><TrainerDetailPage /></PublicRoute>} />
+            <Route
+              path="/services"
+              element={
+                <PublicRoute>
+                  <ServicesMarketplacePage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/service/:id"
+              element={
+                <PublicRoute>
+                  <ServiceDetailPage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/trainers"
+              element={
+                <PublicRoute>
+                  <TrainersMarketplacePage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/trainer/:trainerId"
+              element={
+                <PublicRoute>
+                  <TrainerDetailPage />
+                </PublicRoute>
+              }
+            />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

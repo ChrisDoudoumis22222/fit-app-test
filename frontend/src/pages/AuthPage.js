@@ -1,5 +1,4 @@
-"use client";
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
@@ -48,6 +47,24 @@ import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 /* ------------------ CONFIG ------------------ */
 const LOGO_SRC =
   "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
+
+const SUPABASE_GOOGLE_CALLBACK =
+  "https://ovweimyblcsksbsrxeox.supabase.co/auth/v1/callback";
+
+const LOCATION_OPTIONS = [
+  "Όλες οι πόλεις",
+  "Αθήνα",
+  "Θεσσαλονίκη",
+  "Πάτρα",
+  "Ηράκλειο",
+  "Λάρισα",
+  "Βόλος",
+  "Ιωάννινα",
+  "Καβάλα",
+  "Σέρρες",
+  "Χανιά",
+  "Αχαρνές",
+];
 
 /** tiny helper – reject if an SDK call hangs */
 function withTimeout(promise, ms, label = "operation") {
@@ -106,7 +123,20 @@ function mapAuthErrorToGreek(err) {
     };
   }
 
-  // fallback
+  if (
+    msg.includes("popup closed") ||
+    msg.includes("access_denied") ||
+    msg.includes("oauth") ||
+    msg.includes("provider")
+  ) {
+    return {
+      kind: "oauth",
+      title: "Η σύνδεση με Google δεν ολοκληρώθηκε",
+      message:
+        "Η διαδικασία με τη Google δεν ολοκληρώθηκε. Δοκίμασε ξανά.",
+    };
+  }
+
   return {
     kind: "generic",
     title: "Κάτι πήγε στραβά",
@@ -117,9 +147,7 @@ function mapAuthErrorToGreek(err) {
   };
 }
 
-/**
- * Map icon keys -> actual icon components.
- */
+/* ------------------ ICON MAP ------------------ */
 const ICON_BY_KEY = {
   dumbbell: FaDumbbell,
   users: FaUsers,
@@ -140,9 +168,7 @@ const ICON_BY_KEY = {
   psychology: MdPsychology,
 };
 
-/**
- * Trainer categories in Greek
- */
+/* ------------------ TRAINER CATEGORIES ------------------ */
 const TRAINER_CATEGORIES = [
   {
     value: "personal_trainer",
@@ -371,64 +397,99 @@ export default function AuthPage() {
     role: "user",
     category: "",
     specialities: [],
-    location: "",
+    location: "Όλες οι πόλεις",
   });
 
-  const [error, setError] = useState(""); // κρατάμε το state για debug/telemetry
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
-  /* ---------- POPUPS (Toasts + Modal) ---------- */
   const [toasts, setToasts] = useState([]);
   const [modal, setModal] = useState(null);
-
-  // ✅ toasts: info/success μένουν αρκετά, errors είναι sticky (μόνο με X)
-  const pushToast = useCallback((t) => {
-    const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    const type = t.type || "info"; // "success" | "error" | "info"
-
-    const durationMs =
-      typeof t.durationMs === "number"
-        ? t.durationMs
-        : type === "error"
-        ? 0 // ✅ error stays until closed
-        : type === "success"
-        ? 6000
-        : 8000;
-
-    const toast = {
-      id,
-      type,
-      title: t.title || "",
-      message: t.message || "",
-      durationMs,
-    };
-
-    setToasts((prev) => [toast, ...prev].slice(0, 4));
-
-    if (durationMs > 0) {
-      window.setTimeout(() => {
-        setToasts((prev) => prev.filter((x) => x.id !== id));
-      }, durationMs);
-    }
-  }, []);
+  const toastTimersRef = useRef(new Map());
+  const oauthHandledRef = useRef(false);
 
   const closeToast = useCallback((id) => {
+    const timer = toastTimersRef.current.get(id);
+
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
+
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const pushToast = useCallback(
+    (t) => {
+      const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const type = t.type || "info";
+
+      const durationMs =
+        typeof t.durationMs === "number"
+          ? t.durationMs
+          : type === "error"
+          ? 0
+          : type === "success"
+          ? 6000
+          : 8000;
+
+      const toast = {
+        id,
+        type,
+        title: t.title || "",
+        message: t.message || "",
+        durationMs,
+      };
+
+      setToasts((prev) => {
+        const next = [toast, ...prev];
+
+        if (next.length > 2) {
+          const removed = next.slice(2);
+
+          removed.forEach((oldToast) => {
+            const oldTimer = toastTimersRef.current.get(oldToast.id);
+            if (oldTimer) {
+              clearTimeout(oldTimer);
+              toastTimersRef.current.delete(oldToast.id);
+            }
+          });
+        }
+
+        return next.slice(0, 2);
+      });
+
+      if (durationMs > 0) {
+        const timer = window.setTimeout(() => {
+          closeToast(id);
+        }, durationMs);
+
+        toastTimersRef.current.set(id, timer);
+      }
+    },
+    [closeToast]
+  );
 
   const openModal = useCallback((m) => {
     setModal({
       title: m.title || "",
       message: m.message || "",
-      icon: m.icon || "info", // "success" | "error" | "info"
+      icon: m.icon || "info",
       actions: Array.isArray(m.actions) ? m.actions : [{ label: "ΟΚ" }],
     });
   }, []);
 
   const closeModal = useCallback(() => setModal(null), []);
 
-  // small “alive” popup όταν αλλάζει login/signup (δεν είναι error)
+  useEffect(() => {
+    return () => {
+      toastTimersRef.current.forEach((timer) => clearTimeout(timer));
+      toastTimersRef.current.clear();
+    };
+  }, []);
+
   useEffect(() => {
     pushToast(
       mode === "signup"
@@ -465,21 +526,33 @@ export default function AuthPage() {
   };
 
   const validate = useCallback(() => {
-    if (!form.email.trim() || !form.password.trim())
+    if (!form.email.trim() || !form.password.trim()) {
       return "Το email και ο κωδικός είναι υποχρεωτικά.";
-    if (mode === "signup" && form.password.length < 6)
+    }
+
+    if (mode === "signup" && form.password.length < 6) {
       return "Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.";
-    if (mode === "signup" && form.role === "trainer" && !form.category)
+    }
+
+    if (mode === "signup" && form.role === "trainer" && !form.category) {
       return "Διάλεξε κατηγορία επαγγελματία.";
+    }
+
+    if (mode === "signup" && !LOCATION_OPTIONS.includes(form.location)) {
+      return "Επίλεξε μία πόλη από τις διαθέσιμες επιλογές.";
+    }
+
     return null;
   }, [form, mode]);
 
   const persistSession = async () => {
     const { data } = await supabase.auth.getSession();
     const sess = data?.session ?? null;
+
     try {
       localStorage.setItem("pv_session", JSON.stringify(sess));
     } catch (_) {}
+
     return sess;
   };
 
@@ -490,10 +563,216 @@ export default function AuthPage() {
         .select("*")
         .eq("id", userId)
         .single();
+
       if (!profErr && data) {
         localStorage.setItem("pv_profile", JSON.stringify(data));
+        return data;
       }
     } catch (_) {}
+
+    return null;
+  };
+
+  const getPostLoginRoute = (authUser, profile) => {
+    const role = profile?.role || authUser?.user_metadata?.role || "user";
+
+    if (role === "trainer") {
+      return "/trainer";
+    }
+
+    if (role === "user" && profile?.has_seen_welcome === false) {
+      return "/welcome";
+    }
+
+    return "/user";
+  };
+
+  const getOAuthRedirectUrl = () => {
+    const origin = window.location.origin;
+    return `${origin}/auth`;
+  };
+
+  const ensureOAuthUserProfile = useCallback(async (authUser) => {
+    if (!authUser?.id) return null;
+
+    const email =
+      authUser.email ||
+      authUser.user_metadata?.email ||
+      authUser.identities?.[0]?.identity_data?.email ||
+      null;
+
+    const fullName =
+      authUser.user_metadata?.full_name ||
+      authUser.user_metadata?.name ||
+      authUser.user_metadata?.user_name ||
+      "";
+
+    const avatarUrl =
+      authUser.user_metadata?.avatar_url ||
+      authUser.user_metadata?.picture ||
+      null;
+
+    let existingProfile = null;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        existingProfile = data;
+      }
+    } catch (_) {}
+
+    const profilePayload = {
+      id: authUser.id,
+      email,
+      full_name: existingProfile?.full_name || fullName || "",
+      avatar_url: existingProfile?.avatar_url || avatarUrl || null,
+      role: existingProfile?.role || "user",
+      specialty: existingProfile?.specialty || null,
+      roles: Array.isArray(existingProfile?.roles) ? existingProfile.roles : [],
+      location: existingProfile?.location || "Όλες οι πόλεις",
+      has_seen_welcome:
+        typeof existingProfile?.has_seen_welcome === "boolean"
+          ? existingProfile.has_seen_welcome
+          : false,
+    };
+
+    const { error: upsertErr } = await supabase
+      .from("profiles")
+      .upsert(profilePayload, { onConflict: "id" });
+
+    if (upsertErr) throw upsertErr;
+
+    return await persistProfile(authUser.id);
+  }, []);
+
+  const finalizeOAuthLogin = useCallback(
+    async (session) => {
+      if (!session?.user?.id || oauthHandledRef.current) return;
+
+      oauthHandledRef.current = true;
+      setGoogleSubmitting(true);
+
+      try {
+        const sess = await persistSession();
+        const profile = await ensureOAuthUserProfile(session.user);
+
+        await refreshProfile().catch(console.error);
+
+        const nextRoute = getPostLoginRoute(session.user || sess?.user, profile);
+
+        pushToast({
+          type: "success",
+          title: "Έτοιμο",
+          message: "Η σύνδεση με Google ολοκληρώθηκε.",
+          durationMs: 6000,
+        });
+
+        navigate(nextRoute, { replace: true });
+      } catch (err) {
+        console.error("OAuth finalize error:", err);
+
+        const mapped = mapAuthErrorToGreek(err);
+        setError(mapped.message);
+
+        openModal({
+          icon: "error",
+          title: mapped.title,
+          message: mapped.message,
+          actions: [{ label: "ΟΚ", onClick: closeModal }],
+        });
+
+        pushToast({
+          type: "error",
+          title: mapped.title,
+          message: mapped.message,
+          durationMs: 0,
+        });
+
+        oauthHandledRef.current = false;
+      } finally {
+        setGoogleSubmitting(false);
+      }
+    },
+    [ensureOAuthUserProfile, navigate, pushToast, refreshProfile, openModal, closeModal]
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    const boot = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      if (data?.session?.user) {
+        finalizeOAuthLogin(data.session);
+      }
+    };
+
+    boot();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
+        setTimeout(() => {
+          finalizeOAuthLogin(session);
+        }, 0);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [finalizeOAuthLogin]);
+
+  const handleGoogleLogin = async () => {
+    setError("");
+    setGoogleSubmitting(true);
+
+    try {
+      pushToast({
+        type: "info",
+        title: "Google…",
+        message: "Σε μεταφέρουμε στη Google για ασφαλή σύνδεση.",
+        durationMs: 8000,
+      });
+
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: getOAuthRedirectUrl(),
+        },
+      });
+    } catch (err) {
+      console.error("Google auth error:", err);
+
+      const mapped = mapAuthErrorToGreek(err);
+      setError(mapped.message);
+
+      openModal({
+        icon: "error",
+        title: mapped.title,
+        message: mapped.message,
+        actions: [{ label: "ΟΚ", onClick: closeModal }],
+      });
+
+      pushToast({
+        type: "error",
+        title: mapped.title,
+        message: mapped.message,
+        durationMs: 0,
+      });
+
+      setGoogleSubmitting(false);
+    }
   };
 
   const submit = async (e) => {
@@ -504,7 +783,6 @@ export default function AuthPage() {
     if (validationError) {
       setError(validationError);
 
-      // ✅ “limit stuff” => ΜΟΝΙΜΟ modal (δεν φεύγει σε 2s)
       openModal({
         icon: "error",
         title: "Χρειάζονται στοιχεία",
@@ -534,16 +812,15 @@ export default function AuthPage() {
           8000,
           "login"
         );
+
         if (loginErr) throw loginErr;
 
         const sess = await persistSession();
-        if (sess?.user?.id) persistProfile(sess.user.id); // fire & forget
+        const profile = sess?.user?.id ? await persistProfile(sess.user.id) : null;
+
         refreshProfile().catch(console.error);
 
-        const role =
-          data?.user?.user_metadata?.role ??
-          JSON.parse(localStorage.getItem("pv_profile") || "{}")?.role ??
-          "user";
+        const nextRoute = getPostLoginRoute(data?.user || sess?.user, profile);
 
         pushToast({
           type: "success",
@@ -552,7 +829,7 @@ export default function AuthPage() {
           durationMs: 6000,
         });
 
-        navigate(role === "trainer" ? "/trainer" : "/user", { replace: true });
+        navigate(nextRoute, { replace: true });
       } else {
         pushToast({
           type: "info",
@@ -581,6 +858,7 @@ export default function AuthPage() {
 
         if (signErr) {
           const signMsg = String(signErr?.message || "").toLowerCase();
+
           if (
             signErr.status === 400 &&
             /registered|exists|used|already/i.test(signMsg)
@@ -589,7 +867,6 @@ export default function AuthPage() {
               "Υπάρχει ήδη λογαριασμός με αυτό το email. Παρακαλώ συνδέσου.";
             setError(msg);
 
-            // ✅ ΜΟΝΙΜΟ popup
             openModal({
               icon: "error",
               title: "Υπάρχει ήδη λογαριασμός",
@@ -608,31 +885,30 @@ export default function AuthPage() {
 
             return;
           }
+
           throw signErr;
         }
 
         if (data?.user) {
           await withTimeout(
-            supabase
-              .from("profiles")
-              .upsert(
-                {
-                  id: data.user.id,
-                  email: form.email.trim(),
-                  full_name: form.full_name.trim(),
-                  role: form.role,
-                  specialty: form.role === "trainer" ? form.category : null,
-                  roles: form.role === "trainer" ? form.specialities : [],
-                  location: form.location || null,
-                },
-                { onConflict: "id" }
-              ),
+            supabase.from("profiles").upsert(
+              {
+                id: data.user.id,
+                email: form.email.trim(),
+                full_name: form.full_name.trim(),
+                role: form.role,
+                specialty: form.role === "trainer" ? form.category : null,
+                roles: form.role === "trainer" ? form.specialities : [],
+                location: form.location || null,
+                has_seen_welcome: form.role === "user" ? false : null,
+              },
+              { onConflict: "id" }
+            ),
             8000,
             "profiles upsert"
           );
         }
 
-        // ✅ ΜΟΝΙΜΟ modal (όχι alert)
         openModal({
           icon: "success",
           title: "Σχεδόν τελείωσες",
@@ -650,7 +926,6 @@ export default function AuthPage() {
           ],
         });
 
-        // auto login (αν το project σου το επιτρέπει)
         const { data: signInData, error: relogErr } = await withTimeout(
           supabase.auth.signInWithPassword({
             email: form.email.trim(),
@@ -659,16 +934,15 @@ export default function AuthPage() {
           8000,
           "auto-login"
         );
+
         if (relogErr) throw relogErr;
 
         const sess = await persistSession();
-        if (sess?.user?.id) persistProfile(sess.user.id);
+        const profile = sess?.user?.id ? await persistProfile(sess.user.id) : null;
+
         refreshProfile().catch(console.error);
 
-        const role =
-          signInData?.user?.user_metadata?.role ??
-          JSON.parse(localStorage.getItem("pv_profile") || "{}")?.role ??
-          "user";
+        const nextRoute = getPostLoginRoute(signInData?.user || sess?.user, profile);
 
         pushToast({
           type: "success",
@@ -677,7 +951,7 @@ export default function AuthPage() {
           durationMs: 6000,
         });
 
-        navigate(role === "trainer" ? "/trainer" : "/user", { replace: true });
+        navigate(nextRoute, { replace: true });
       }
     } catch (err) {
       console.error("Auth error:", err);
@@ -685,7 +959,6 @@ export default function AuthPage() {
       const mapped = mapAuthErrorToGreek(err);
       setError(mapped.message);
 
-      // ✅ αντικαθιστά “Invalid login credentials” + όλα τα auth errors με ΜΟΝΙΜΟ popup
       if (mapped.kind === "invalid_creds") {
         openModal({
           icon: "error",
@@ -704,15 +977,13 @@ export default function AuthPage() {
         });
       } else {
         openModal({
-          icon:
-            mapped.kind === "email_not_confirmed" ? "info" : "error",
+          icon: mapped.kind === "email_not_confirmed" ? "info" : "error",
           title: mapped.title,
           message: mapped.message,
           actions: [{ label: "ΟΚ", onClick: closeModal }],
         });
       }
 
-      // optional sticky toast (manual close)
       pushToast({
         type: "error",
         title: mapped.title,
@@ -727,15 +998,15 @@ export default function AuthPage() {
   const selectedCategory =
     TRAINER_CATEGORIES.find((c) => c.value === form.category) ?? null;
 
+  const disableMainActions = submitting || googleSubmitting;
+  const showGoogleButton = mode === "login";
+
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-zinc-900">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-zinc-900 px-4 py-10">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-black" />
       <StaticBlobs />
 
-      {/* ✅ Toast Popups */}
       <ToastViewport toasts={toasts} onClose={closeToast} />
-
-      {/* ✅ Modal Popup */}
       <ModalPopup modal={modal} onClose={closeModal} />
 
       <LayoutGroup>
@@ -749,7 +1020,6 @@ export default function AuthPage() {
                      bg-black/40 backdrop-blur-xl border border-zinc-700/50 text-gray-200
                      shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
         >
-          {/* Header */}
           <motion.div
             className="text-center space-y-3"
             initial={{ opacity: 0 }}
@@ -771,7 +1041,26 @@ export default function AuthPage() {
 
           <TogglePill mode={mode} setMode={setMode} />
 
-          {/* Form fields */}
+          {showGoogleButton ? (
+            <div className="space-y-3">
+              <GoogleButton
+                loading={googleSubmitting}
+                onClick={handleGoogleLogin}
+              />
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-zinc-700/70" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-black/40 px-3 text-xs tracking-wide uppercase text-zinc-500">
+                    ή
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="space-y-5">
             <AnimatePresence mode="wait">
               {mode === "signup" && (
@@ -790,11 +1079,17 @@ export default function AuthPage() {
                     onChange={setField("full_name")}
                   />
 
-                  <Input
-                    icon={MapPin}
-                    placeholder="Τοποθεσία (π.χ. Αθήνα, Θεσσαλονίκη...)"
+                  <LocationPicker
                     value={form.location}
-                    onChange={setField("location")}
+                    onChange={(next) => {
+                      setForm((prev) => ({ ...prev, location: next }));
+                      pushToast({
+                        type: "info",
+                        title: "Πόλη επιλέχθηκε",
+                        message: next,
+                        durationMs: 5000,
+                      });
+                    }}
                   />
 
                   <Select
@@ -811,14 +1106,14 @@ export default function AuthPage() {
                               type: "info",
                               title: "Ρόλος: Εκπαιδευτής",
                               message:
-                                "Διάλεξε κατηγορία και ειδικότητες για να σε βρίσκουν σωστά οι χρήστες.",
+                                "Ο trainer λογαριασμός δημιουργείται μόνο μέσω της φόρμας εγγραφής.",
                               durationMs: 8000,
                             }
                           : {
                               type: "info",
                               title: "Ρόλος: Χρήστης",
                               message:
-                                "Θα μπορείς να ανακαλύπτεις επαγγελματίες και να κλείνεις συνεδρίες.",
+                                "Μπορείς να κάνεις εγγραφή με email και κωδικό.",
                               durationMs: 8000,
                             }
                       );
@@ -935,9 +1230,15 @@ export default function AuthPage() {
                 </button>
               }
             />
+
+            {!!error && (
+              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                {error}
+              </div>
+            )}
           </div>
 
-          <SubmitButton disabled={submitting} mode={mode} />
+          <SubmitButton disabled={disableMainActions} mode={mode} />
 
           {mode === "login" && (
             <button
@@ -976,6 +1277,8 @@ export default function AuthPage() {
               {mode === "login" ? "Εγγραφή" : "Σύνδεση"}
             </button>
           </p>
+
+
         </motion.form>
       </LayoutGroup>
     </div>
@@ -1008,14 +1311,67 @@ function TogglePill({ mode, setMode }) {
             key={key}
             type="button"
             onClick={() => setMode(key)}
-            className={`relative flex-1 py-2 text-base rounded-xl z-10 transition-colors
-              ${mode === key ? "text-white font-semibold" : "text-gray-300"}`}
+            className={`relative flex-1 py-2 text-base rounded-xl z-10 transition-colors ${
+              mode === key ? "text-white font-semibold" : "text-gray-300"
+            }`}
           >
             {key === "login" ? "Σύνδεση" : "Εγγραφή"}
           </button>
         ))}
       </div>
     </div>
+  );
+}
+
+function GoogleButton({ loading, onClick }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      whileHover={!loading ? { y: -1 } : {}}
+      whileTap={!loading ? { scale: 0.98 } : {}}
+      transition={{ duration: 0.15 }}
+      className={`w-full py-4 rounded-xl font-semibold text-base border
+        transition-all duration-300 flex items-center justify-center gap-3
+        ${
+          loading
+            ? "bg-white/70 text-zinc-700 border-white/70 opacity-80 cursor-not-allowed"
+            : "bg-white text-zinc-900 border-white hover:bg-zinc-100 shadow-lg"
+        }`}
+    >
+      {loading ? (
+        <Loader2 className="animate-spin w-5 h-5" />
+      ) : (
+        <>
+          <GoogleIcon />
+          <span>Σύνδεση με Google</span>
+        </>
+      )}
+    </motion.button>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+      <path
+        fill="#FFC107"
+        d="M43.611 20.083H42V20H24v8h11.303C33.654 32.657 29.239 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+      />
+      <path
+        fill="#FF3D00"
+        d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
+      />
+      <path
+        fill="#4CAF50"
+        d="M24 44c5.166 0 9.86-1.977 13.409-5.193l-6.19-5.238C29.145 35.091 26.715 36 24 36c-5.218 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+      />
+      <path
+        fill="#1976D2"
+        d="M43.611 20.083H42V20H24v8h11.303a12.051 12.051 0 0 1-4.084 5.569l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+      />
+    </svg>
   );
 }
 
@@ -1060,9 +1416,7 @@ function Input({ icon: Icon, append, ...props }) {
           transition-all"
       />
       {append && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          {append}
-        </div>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">{append}</div>
       )}
     </div>
   );
@@ -1070,6 +1424,7 @@ function Input({ icon: Icon, append, ...props }) {
 
 function Select({ icon: DefaultIcon, leftIcon: LeftIcon, options = [], ...props }) {
   const IconToUse = LeftIcon || DefaultIcon;
+
   return (
     <div className="relative group">
       {IconToUse && (
@@ -1158,6 +1513,42 @@ function CategorySelect({ value, onChange }) {
   );
 }
 
+function LocationPicker({ value, onChange }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-zinc-300">
+        <MapPin className="w-4 h-4 text-zinc-500" />
+        <span>Πόλη</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {LOCATION_OPTIONS.map((city) => {
+          const active = value === city;
+
+          return (
+            <button
+              key={city}
+              type="button"
+              onClick={() => onChange(city)}
+              className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm transition-all
+                ${
+                  active
+                    ? "bg-white text-black border-white font-semibold"
+                    : "bg-black/30 text-zinc-300 border-zinc-700 hover:border-zinc-500 hover:text-white"
+                }`}
+            >
+              <MapPin
+                className={`w-4 h-4 ${active ? "text-black" : "text-zinc-500"}`}
+              />
+              <span className="truncate">{city}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ------------------ POPUPS ------------------ */
 function ToastViewport({ toasts, onClose }) {
   return (
@@ -1201,7 +1592,7 @@ function ToastCard({ toast, onClose }) {
       initial={{ opacity: 0, y: -8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.98 }}
-      transition={{ duration: 0.18 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
       className={`pointer-events-auto rounded-2xl border ${ring} ${bg}
                   backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.45)]
                   px-4 py-3`}
@@ -1243,7 +1634,6 @@ function ModalPopup({ modal, onClose }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          {/* overlay */}
           <motion.button
             type="button"
             aria-label="Κλείσιμο"
@@ -1254,7 +1644,6 @@ function ModalPopup({ modal, onClose }) {
             exit={{ opacity: 0 }}
           />
 
-          {/* dialog */}
           <motion.div
             initial={{ y: 14, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}

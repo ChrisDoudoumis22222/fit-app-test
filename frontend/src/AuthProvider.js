@@ -16,22 +16,27 @@ export const useAuth = () => useContext(AuthCtx);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
-
   const [profile, setProfile] = useState(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (uid) => {
+    if (!uid) {
+      setProfile(null);
+      return null;
+    }
+
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", uid)
-      .single();
+      .maybeSingle();
 
     if (error) {
       setProfile(null);
       return null;
     }
+
     setProfile(data || null);
     return data || null;
   }, []);
@@ -52,7 +57,7 @@ export function AuthProvider({ children }) {
       const role =
         user.app_metadata?.role || user.user_metadata?.role || "user";
 
-      const { data: inserted, error } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .insert({
           id: user.id,
@@ -68,48 +73,28 @@ export function AuthProvider({ children }) {
         return null;
       }
 
-      setProfile(inserted);
-      return inserted;
+      setProfile(data || null);
+      return data || null;
     },
     [fetchProfile]
   );
 
-  const refreshProfile = useCallback(
-    () => (session?.user ? fetchProfile(session.user.id) : Promise.resolve(null)),
-    [session, fetchProfile]
+  const syncProfileForSession = useCallback(
+    async (nextSession) => {
+      if (nextSession?.user) {
+        await createProfileIfMissing(nextSession.user);
+      } else {
+        setProfile(null);
+      }
+      setProfileLoaded(true);
+    },
+    [createProfileIfMissing]
   );
 
-  // ✅ This is the big fix: when you come back to the tab, re-hydrate / refresh tokens
-  const recoverSession = useCallback(async () => {
-    // 1) normal session read
-    const {
-      data: { session: s1 },
-    } = await supabase.auth.getSession();
-
-    if (s1) {
-      setSession(s1);
-      await createProfileIfMissing(s1.user);
-      setProfileLoaded(true);
-      return s1;
-    }
-
-    // 2) force refresh from refresh_token if needed
-    const { data, error } = await supabase.auth.refreshSession();
-    const s2 = data?.session || null;
-
-    if (!error && s2) {
-      setSession(s2);
-      await createProfileIfMissing(s2.user);
-      setProfileLoaded(true);
-      return s2;
-    }
-
-    // signed out
-    setSession(null);
-    setProfile(null);
-    setProfileLoaded(true);
-    return null;
-  }, [createProfileIfMissing]);
+  const refreshProfile = useCallback(() => {
+    if (!session?.user?.id) return Promise.resolve(null);
+    return fetchProfile(session.user.id);
+  }, [session, fetchProfile]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
@@ -119,53 +104,58 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    let unsub = () => {};
+    let mounted = true;
 
-    (async () => {
-      await recoverSession();
-      setLoading(false);
+    const runProfileSync = (nextSession) => {
+      setTimeout(async () => {
+        if (!mounted) return;
 
-      const { data } = supabase.auth.onAuthStateChange(
-        async (event, newSession) => {
-          // ✅ don’t “perma die” on refresh hiccup
-          if (event === "TOKEN_REFRESH_FAILED") {
-            await recoverSession();
-            return;
-          }
-
-          setSession(newSession || null);
-
-          if (newSession?.user) {
-            await createProfileIfMissing(newSession.user);
-            setProfileLoaded(true);
-          } else {
-            setProfile(null);
-            setProfileLoaded(true);
-          }
+        try {
+          await syncProfileForSession(nextSession);
+        } catch {
+          if (!mounted) return;
+          setProfile(null);
+          setProfileLoaded(true);
         }
-      );
-
-      unsub = () => data.subscription?.unsubscribe();
-    })();
-
-    return () => unsub();
-  }, [recoverSession, createProfileIfMissing]);
-
-  // ✅ tab focus / visibility restore
-  useEffect(() => {
-    const onFocus = () => recoverSession();
-    const onVis = () => {
-      if (!document.hidden) recoverSession();
+      }, 0);
     };
 
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
+    const boot = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
+        const currentSession = data?.session || null;
+
+        if (!mounted) return;
+
+        setSession(currentSession);
+        setLoading(false); // unblock UI immediately
+        runProfileSync(currentSession);
+      } catch {
+        if (!mounted) return;
+        setSession(null);
+        setProfile(null);
+        setProfileLoaded(true);
+        setLoading(false);
+      }
+    };
+
+    boot();
+
+    const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!mounted) return;
+
+      setSession(newSession || null);
+      setLoading(false); // do not block login on profile work
+      runProfileSync(newSession || null);
+    });
 
     return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVis);
+      mounted = false;
+      data.subscription?.unsubscribe();
     };
-  }, [recoverSession]);
+  }, [syncProfileForSession]);
 
   const role =
     profile?.role ||
@@ -182,19 +172,9 @@ export function AuthProvider({ children }) {
       role,
       profileLoaded,
       refreshProfile,
-      recoverSession, // ✅ expose this so pages can refetch on focus if needed
       signOut,
     }),
-    [
-      loading,
-      session,
-      profile,
-      role,
-      profileLoaded,
-      refreshProfile,
-      recoverSession,
-      signOut,
-    ]
+    [loading, session, profile, role, profileLoaded, refreshProfile, signOut]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

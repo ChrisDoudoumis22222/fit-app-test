@@ -5,14 +5,11 @@ import { useEffect, useMemo, useRef, useState, useCallback, memo, lazy, Suspense
 import { useNavigate } from "react-router-dom";
 import {
   Search,
-  X,
   MapPin,
   Wifi,
-  WifiOff,
   Calendar as CalendarIcon,
   Sun,
   BadgeCheck,
-  Tag,
   User as UserIcon,
   Star,
   Clock,
@@ -21,19 +18,18 @@ import {
   ChevronDown,
   ChevronUp,
   Banknote,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "../supabaseClient";
-import { useAuth } from "../AuthProvider";
-import UserMenu from "../components/UserMenu";
-import TrainerMenu from "../components/TrainerMenu";
-import GlassmorphicNavbar from "../components/GlassmorphicNavbar"; // ← NEW
-
-// external search + filters UI
+import { supabase } from "../supabaseClient.js";
+import { useAuth } from "../AuthProvider.js";
+import UserMenu from "../components/UserMenu.js";
+import TrainerMenu from "../components/TrainerMenu.js";
+import GlassmorphicNavbar from "../components/GlassmorphicNavbar.jsx";
 import TrainerSearchNav from "../components/TrainerSearchNav.tsx";
 
-// lazy booking modal
 const QuickBookModal = lazy(() => import("../components/QuickBookModal.tsx"));
+const GuestBookingAuthModal = lazy(() => import("../components/guest/GuestBookingAuthModal.jsx"));
 
 /* --------------------------- Small UI helpers --------------------------- */
 function PremiumButton({ children, variant = "primary", size = "default", className = "", ...props }) {
@@ -41,17 +37,22 @@ function PremiumButton({ children, variant = "primary", size = "default", classN
     "w-full inline-flex items-center justify-center gap-2 font-semibold leading-none " +
     "transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/10 " +
     "disabled:opacity-50 disabled:pointer-events-none rounded-2xl";
+
   const variants = {
     primary: "bg-white text-black hover:bg-zinc-100 shadow-lg hover:shadow-xl active:scale-95",
-    secondary: "bg-zinc-800/80 text-white hover:bg-zinc-700/80 border border-white/10 shadow-lg active:scale-95",
-    outline: "border border-white/15 bg-black/40 backdrop-blur text-white hover:bg-white/10 hover:border-white/25",
+    secondary:
+      "bg-zinc-800/80 text-white hover:bg-zinc-700/80 border border-white/10 shadow-lg active:scale-95",
+    outline:
+      "border border-white/15 bg-black/40 backdrop-blur text-white hover:bg-white/10 hover:border-white/25",
     ghost: "text-white hover:bg-white/10",
   };
+
   const sizes = {
     sm: "h-10 text-sm px-4",
     default: "h-11 text-sm px-5",
     lg: "h-12 text-base px-6",
   };
+
   return (
     <button {...props} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}>
       {children}
@@ -85,6 +86,9 @@ const ICON_BY_KEY = {
   psychology: MdPsychology,
 };
 
+const DEFAULT_TRAINER_ICON = MdFitnessCenter;
+const DEFAULT_CATEGORY_LABEL = "Γενικός Εκπαιδευτής";
+
 const TRAINER_CATEGORIES = [
   { value: "personal_trainer", label: "Προσωπικός Εκπαιδευτής", iconKey: "dumbbell" },
   { value: "group_fitness_instructor", label: "Εκπαιδευτής Ομαδικών", iconKey: "users" },
@@ -109,9 +113,17 @@ const TRAINER_CATEGORIES = [
 const GREEK_CITIES = [
   { value: "all", label: "Όλες οι πόλεις", aliases: [] },
   { value: "Αθήνα", label: "Αθήνα", aliases: ["athens", "athina", "αθηνα", "athena", "athen"] },
-  { value: "Θεσσαλονίκη", label: "Θεσσαλονίκη", aliases: ["thessaloniki", "thessalonica", "salonica", "θεσσαλονικη", "saloniki", "thessalonika"] },
+  {
+    value: "Θεσσαλονίκη",
+    label: "Θεσσαλονίκη",
+    aliases: ["thessaloniki", "thessalonica", "salonica", "θεσσαλονικη", "saloniki", "thessalonika"],
+  },
   { value: "Πάτρα", label: "Πάτρα", aliases: ["patras", "patra", "πατρα", "patrai"] },
-  { value: "Ηράκλειο", label: "Ηράκλειο", aliases: ["heraklion", "iraklion", "ηρακλειο", "herakleion", "candia", "crete"] },
+  {
+    value: "Ηράκλειο",
+    label: "Ηράκλειο",
+    aliases: ["heraklion", "iraklion", "ηρακλειο", "herakleion", "candia", "crete"],
+  },
   { value: "Λάρισα", label: "Λάρισα", aliases: ["larissa", "larisa", "λαρισα"] },
   { value: "Βόλος", label: "Βόλος", aliases: ["volos", "βολος", "volo"] },
   { value: "Ιωάννινα", label: "Ιωάννινα", aliases: ["ioannina", "ιωαννινα", "yannina", "janina", "giannina"] },
@@ -123,8 +135,9 @@ const GREEK_CITIES = [
   { value: "Πειραιάς", label: "Πειραιάς", aliases: ["piraeus", "πειραιας", "pireaus", "pireas"] },
 ];
 
-/* ------------------- date + format helpers ------------------- */
+/* ------------------- helpers ------------------- */
 const pad2 = (n) => String(n).padStart(2, "0");
+
 const toYMD = (input) => {
   if (!input) return "";
   if (typeof input === "string") {
@@ -136,16 +149,22 @@ const toYMD = (input) => {
   const d = new Date(input);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
+
 const within = (dateStr, fromStr, toStr) => {
-  const d = toYMD(dateStr), f = toYMD(fromStr), t = toYMD(toStr);
+  const d = toYMD(dateStr);
+  const f = toYMD(fromStr);
+  const t = toYMD(toStr);
   if (!d || !f || !t) return false;
   return d >= f && d <= t;
 };
-const todayYMD = () => toYMD(new Date()); // ← fixed
+
+const todayYMD = () => toYMD(new Date());
+
 const weekdayKeyFromDate = (date) => {
   const keys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
   return keys[new Date(date).getDay()];
 };
+
 const formatDate = (d) => {
   try {
     const ymd = toYMD(d);
@@ -156,6 +175,7 @@ const formatDate = (d) => {
     return d;
   }
 };
+
 const formatCurrency = (amount, code = "EUR") => {
   try {
     const opts = { style: "currency", currency: code, maximumFractionDigits: amount % 1 === 0 ? 0 : 2 };
@@ -164,6 +184,7 @@ const formatCurrency = (amount, code = "EUR") => {
     return `${amount} ${code}`;
   }
 };
+
 const formatDuration = (min) => {
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -171,34 +192,209 @@ const formatDuration = (min) => {
   if (h) return `${h}ω`;
   return `${m}’`;
 };
+
 const median = (arr) => {
   if (!arr || arr.length === 0) return null;
   const a = [...arr].sort((x, y) => x - y);
   const mid = Math.floor(a.length / 2);
   return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
 };
+
 const mode = (arr) => {
   if (!arr || arr.length === 0) return null;
   const map = new Map();
-  let best = null, bestCount = 0;
+  let best = null;
+  let bestCount = 0;
+
   for (const v of arr) {
     const c = (map.get(v) || 0) + 1;
     map.set(v, c);
-    if (c > bestCount) { best = v; bestCount = c; }
+    if (c > bestCount) {
+      best = v;
+      bestCount = c;
+    }
   }
+
   return best;
 };
+
 const timeToMinutes = (t) => {
   if (!t) return null;
   const [hh = "0", mm = "0"] = String(t).split(":");
-  const h = Number(hh), m = Number(mm);
+  const h = Number(hh);
+  const m = Number(mm);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
   return h * 60 + m;
+};
+
+const hasUploadedDiploma = (value) => typeof value === "string" && value.trim().length > 0;
+
+const getTrainerCategory = (specialty) => TRAINER_CATEGORIES.find((c) => c.value === specialty) || null;
+
+const normalizeCategoryArray = (values) => {
+  if (!Array.isArray(values) || values.length === 0) return [];
+
+  const out = [];
+  const seen = new Set();
+
+  for (const value of values) {
+    const v = String(value ?? "").trim();
+    if (!v || v === "all" || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+
+  return out;
+};
+
+const sameStringArrayAsSet = (a = [], b = []) => {
+  if (a.length !== b.length) return false;
+  const as = [...a].sort();
+  const bs = [...b].sort();
+  for (let i = 0; i < as.length; i += 1) {
+    if (as[i] !== bs[i]) return false;
+  }
+  return true;
+};
+
+const sanitizeSearchToken = (value) =>
+  String(value ?? "")
+    .replace(/[,%_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const extractSearchTerms = (raw) => {
+  const cleaned = String(raw ?? "")
+    .replace(/[|;\n,]+/g, " ")
+    .trim();
+
+  if (!cleaned) return [];
+
+  return cleaned
+    .split(/\s+/)
+    .map(sanitizeSearchToken)
+    .filter(Boolean);
+};
+
+/* ---------- smart search parsing ---------- */
+const normalizeLooseToken = (value) =>
+  String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9α-ω\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const ONLINE_TERMS = [
+  "online",
+  "remote",
+  "virtual",
+  "web",
+  "διαδικτυακα",
+  "διαδικτυακος",
+  "διαδικτυακη",
+];
+
+const OFFLINE_TERMS = [
+  "offline",
+  "in person",
+  "inperson",
+  "onsite",
+  "δια ζωσης",
+  "διαζωσης",
+];
+
+const getCategoryNeedles = (category) => {
+  const extras = {
+    personal_trainer: ["personal trainer", "pt"],
+    group_fitness_instructor: ["group", "group fitness", "ομαδικα", "ομαδικά"],
+    pilates_instructor: ["pilates"],
+    yoga_instructor: ["yoga"],
+    nutritionist: ["nutrition", "διατροφη", "διατροφή", "nutritionist"],
+    online_coach: ["online coach", "remote coach"],
+    strength_conditioning: ["strength", "conditioning"],
+    calisthenics: ["calisthenics"],
+    crossfit_coach: ["crossfit", "cross fit"],
+    boxing_kickboxing: ["boxing", "kickboxing", "kick boxing"],
+    martial_arts: ["martial arts", "mma", "πολεμικες", "πολεμικές"],
+    dance_fitness: ["dance", "zumba"],
+    running_coach: ["running", "run coach"],
+    physiotherapist: ["physio", "physiotherapy", "φυσικοθεραπεια", "φυσικοθεραπεία"],
+    rehab_prevention: ["rehab", "recovery", "αποκατασταση", "αποκατάσταση"],
+    wellness_life_coach: ["wellness", "life coach", "ευεξια", "ευεξία"],
+    performance_psych: ["psychology", "sports psych", "ψυχολογια", "ψυχολογία"],
+  };
+
+  return [
+    category.value,
+    category.value.replace(/_/g, " "),
+    category.label,
+    ...(extras[category.value] || []),
+  ].map(normalizeLooseToken);
+};
+
+const parseSmartSearch = (raw) => {
+  const rawTerms = extractSearchTerms(raw);
+
+  const out = {
+    cats: [],
+    city: "all",
+    onlyOnline: false,
+    onlyOffline: false,
+    freeTextTerms: [],
+  };
+
+  for (const term of rawTerms) {
+    const norm = normalizeLooseToken(term);
+    if (!norm) continue;
+
+    if (ONLINE_TERMS.some((needle) => norm.includes(needle))) {
+      out.onlyOnline = true;
+      continue;
+    }
+
+    if (OFFLINE_TERMS.some((needle) => norm.includes(needle))) {
+      out.onlyOffline = true;
+      continue;
+    }
+
+    const cityMatch = GREEK_CITIES.find((city) => {
+      const needles = [city.value, city.label, ...(city.aliases || [])].map(normalizeLooseToken);
+      return needles.some(
+        (needle) => needle && (norm === needle || norm.includes(needle) || needle.includes(norm))
+      );
+    });
+
+    if (cityMatch && cityMatch.value !== "all") {
+      out.city = cityMatch.value;
+      continue;
+    }
+
+    const catMatch = TRAINER_CATEGORIES.find((category) =>
+      getCategoryNeedles(category).some(
+        (needle) => needle && (norm === needle || norm.includes(needle) || needle.includes(norm))
+      )
+    );
+
+    if (catMatch) {
+      out.cats.push(catMatch.value);
+      continue;
+    }
+
+    out.freeTextTerms.push(sanitizeSearchToken(term));
+  }
+
+  out.cats = normalizeCategoryArray(out.cats);
+  out.freeTextTerms = out.freeTextTerms.filter(Boolean);
+  return out;
 };
 
 /* ------------------------------ Visual bits ------------------------------ */
 function AnimatedParticles() {
   const [particles, setParticles] = useState([]);
+
   useEffect(() => {
     const newParticles = [...Array(12)].map(() => ({
       left: `${Math.random() * 100}%`,
@@ -208,6 +404,7 @@ function AnimatedParticles() {
     }));
     setParticles(newParticles);
   }, []);
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {particles.map((p, i) => (
@@ -221,7 +418,7 @@ function AnimatedParticles() {
   );
 }
 
-/** Placeholder(s) */
+/* ------------------------------ placeholders ------------------------------ */
 const AVATAR_PLACEHOLDER = "/placeholder.svg?height=120&width=120&text=Avatar";
 const FALLBACK_DATA_URI =
   "data:image/svg+xml;utf8," +
@@ -240,9 +437,9 @@ const FALLBACK_DATA_URI =
     </svg>`
   );
 
-/** Always render an <img>, fallback to placeholder -> data URI */
 const LargeAvatarCover = memo(function LargeAvatarCover({ url, alt }) {
   const src = url && String(url).trim() ? url : AVATAR_PLACEHOLDER;
+
   return (
     <img
       src={src}
@@ -267,8 +464,9 @@ const LargeAvatarCover = memo(function LargeAvatarCover({ url, alt }) {
 const SkeletonCard = memo(function SkeletonCard({ list = false }) {
   return (
     <div
-      className={`overflow-hidden rounded-3xl border border-white/10 bg-white/5
-                  ${list ? "flex flex-col lg:flex-row min-h-[260px]" : "flex flex-col min-h-[440px] h-full"} animate-pulse`}
+      className={`overflow-hidden rounded-3xl border border-white/10 bg-white/5 ${
+        list ? "flex flex-col lg:flex-row min-h-[260px]" : "flex flex-col min-h-[440px] h-full"
+      } animate-pulse`}
     >
       <div className={list ? "h-44 lg:h-auto lg:w-64 bg-white/10" : "h-44 bg-white/10"} />
       <div className={`${list ? "p-6" : "p-5"} space-y-3 flex-1 flex flex-col`}>
@@ -318,6 +516,7 @@ const AvailabilityGrid = memo(function AvailabilityGrid({ availability }) {
       {ALL_DAYS.map((day) => {
         const slots = avByDay[day.key] || [];
         if (slots.length === 0) return null;
+
         return (
           <div key={day.key} className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="text-xs font-medium text-white mb-1.5">{day.label}</div>
@@ -376,22 +575,25 @@ const TrainerCard = memo(function TrainerCard({
   onNavigate,
   liked = false,
   onToggleLike,
-  onOpenBooking
+  onOpenBooking,
 }) {
   const [expanded, setExpanded] = useState(false);
 
   const today = useMemo(() => todayYMD(), []);
+
   const currentVacation = useMemo(
     () => (trainer.holidays || []).find((h) => within(today, h.starts_on, h.ends_on)) || null,
     [trainer.holidays, today]
   );
+
   const nextVacation = useMemo(() => {
     const future = (trainer.holidays || []).filter((h) => toYMD(h.starts_on) >= today);
     return future.sort((a, b) => toYMD(a.starts_on).localeCompare(toYMD(b.starts_on)))[0] || null;
   }, [trainer.holidays, today]);
 
-  const cat = TRAINER_CATEGORIES.find((c) => c.value === trainer.specialty) || null;
-  const CatIcon = cat?.iconKey ? ICON_BY_KEY[cat.iconKey] : null;
+  const cat = getTrainerCategory(trainer.specialty);
+  const CatIcon = cat?.iconKey ? ICON_BY_KEY[cat.iconKey] : DEFAULT_TRAINER_ICON;
+  const StatusBadgeIcon = trainer.is_online ? Wifi : MapPin;
 
   const isInteractiveTarget = (target) => {
     if (!(target instanceof Element)) return false;
@@ -399,9 +601,7 @@ const TrainerCard = memo(function TrainerCard({
   };
 
   const goProfile = useCallback(() => {
-    if (typeof onNavigate === "function") {
-      onNavigate(`/trainer/${trainer.id}`);
-    }
+    if (typeof onNavigate === "function") onNavigate(`/trainer/${trainer.id}`);
   }, [onNavigate, trainer.id]);
 
   const handleCardClick = (e) => {
@@ -419,9 +619,9 @@ const TrainerCard = memo(function TrainerCard({
 
   return (
     <motion.article
-      className={`panel relative overflow-hidden rounded-3xl border border-white/10 transition-all duration-300
-                  ${list ? "flex flex-col lg:flex-row" : "flex flex-col"}
-                  h-full ${list ? "min-h-[260px]" : "min-h-[440px]"} cursor-pointer`}
+      className={`panel relative overflow-hidden rounded-3xl border border-white/10 transition-all duration-300 ${
+        list ? "flex flex-col lg:flex-row" : "flex flex-col"
+      } h-full ${list ? "min-h-[260px]" : "min-h-[440px]"} cursor-pointer`}
       role="group"
       aria-label={`${trainer.full_name} — άνοιγμα προφίλ`}
       tabIndex={0}
@@ -431,13 +631,10 @@ const TrainerCard = memo(function TrainerCard({
       transition={{ duration: 0.25 }}
       title="Άνοιγμα προφίλ προπονητή"
     >
-      {/* Image */}
       <div className={list ? "relative h-44 lg:h-auto lg:w-64 shrink-0" : "relative h-44"}>
         <LargeAvatarCover url={trainer.avatar_url} alt={trainer.full_name} />
-        {/* Ensure overlay doesn't block clicks */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
 
-        {/* Favorite (top-left) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -452,23 +649,23 @@ const TrainerCard = memo(function TrainerCard({
           {liked ? <Heart className="h-5 w-5 fill-current" /> : <Heart className="h-5 w-5" />}
         </button>
 
-        {/* Status + Vacation */}
         <div className="absolute top-3 right-3 flex flex-col gap-2">
           <div className="relative group">
             <span
-              className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl backdrop-blur-sm text-[11px] font-semibold border ${
+              className={`inline-flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl backdrop-blur-sm text-[10px] sm:text-[11px] font-semibold border ${
                 trainer.is_online
                   ? "bg-emerald-500/90 text-white border-emerald-300/40"
-                  : "bg-zinc-800/90 text-zinc-300 border-white/10"
+                  : "bg-sky-500/90 text-white border-sky-300/40"
               }`}
             >
-              {trainer.is_online ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-              {trainer.is_online ? "Διαδικτυακά" : "Δια ζώσης"}
+              <StatusBadgeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              {trainer.is_online ? "Online" : "Δια ζώσης"}
               <HelpCircle className="h-3 w-3" />
             </span>
+
             <div className="absolute top-full right-0 mt-2 w-64 p-3 panel text-white text-xs rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-[60]">
               <div className="font-medium text-white mb-1.5">
-                {trainer.is_online ? "Διαδικτυακά Μαθήματα" : "Μαθήματα Δια Ζώσης"}
+                {trainer.is_online ? "Online Μαθήματα" : "Μαθήματα Δια Ζώσης"}
               </div>
               <div className="text-zinc-300 leading-relaxed">
                 {trainer.is_online
@@ -477,6 +674,7 @@ const TrainerCard = memo(function TrainerCard({
               </div>
             </div>
           </div>
+
           {currentVacation && (
             <span className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-amber-500/90 backdrop-blur-sm text-black text-[11px] font-semibold border border-amber-300/50">
               <Sun className="h-4 w-4" />
@@ -486,20 +684,25 @@ const TrainerCard = memo(function TrainerCard({
         </div>
       </div>
 
-      {/* Content */}
       <div className={`${list ? "flex-1 p-5" : "p-4"} flex flex-col`}>
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-base sm:text-lg font-bold text-white">{trainer.full_name}</h3>
-            {trainer.diploma_url && trainer.diploma_url.trim() && (
+
+            {hasUploadedDiploma(trainer.diploma_url) && (
               <div className="relative group" data-no-nav>
-                <BadgeCheck className="h-5 w-5 text-blue-400 flex-shrink-0 cursor-help" title="Πιστοποιημένος προπονητής" />
+                <BadgeCheck
+                  className="h-5 w-5 text-blue-400 flex-shrink-0 cursor-help"
+                  title="Πιστοποιημένος προπονητής"
+                />
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 panel text-white text-xs rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-[60]">
                   <div className="font-medium text-white mb-1.5 flex items-center gap-2">
                     <BadgeCheck className="h-4 w-4 text-blue-400" />
                     Πιστοποιημένος Προπονητής
                   </div>
-                  <div className="text-zinc-300 leading-relaxed">Ο προπονητής έχει ανεβάσει δίπλωμα και έχει επαληθευτεί.</div>
+                  <div className="text-zinc-300 leading-relaxed">
+                    Ο προπονητής έχει ανεβάσει δίπλωμα και έχει επαληθευτεί.
+                  </div>
                 </div>
               </div>
             )}
@@ -516,12 +719,12 @@ const TrainerCard = memo(function TrainerCard({
             </span>
           </div>
 
-          {/* Rating */}
           <div className="mt-2 flex items-center gap-1" data-no-nav>
             {[...Array(5)].map((_, i) => {
               const r = trainer.rating || 0;
               const isFilled = i < Math.floor(r);
               const isHalf = i === Math.floor(r) && r % 1 >= 0.5;
+
               if (isHalf) {
                 return (
                   <div key={i} className="relative h-4 w-4">
@@ -532,6 +735,7 @@ const TrainerCard = memo(function TrainerCard({
                   </div>
                 );
               }
+
               return (
                 <Star
                   key={i}
@@ -539,22 +743,27 @@ const TrainerCard = memo(function TrainerCard({
                 />
               );
             })}
+
             <span className="ml-1 text-[11px] text-zinc-400">
               {trainer.rating > 0 ? `${trainer.rating.toFixed(1)} • ${trainer.reviewCount || 0} κριτ.` : "—"}
             </span>
           </div>
 
-          {/* Category chip */}
-          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium" data-no-nav>
-            {CatIcon ? <CatIcon className="h-4 w-4 text-zinc-300" /> : <Tag className="h-4 w-4 text-zinc-300" />}
-            {cat?.label || "Γενικός Εκπαιδευτής"}
+          <div
+            className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium"
+            data-no-nav
+          >
+            <CatIcon className="h-4 w-4 text-zinc-300" />
+            {cat?.label || DEFAULT_CATEGORY_LABEL}
           </div>
 
-          {/* Tag preview */}
           {Array.isArray(trainer.tags) && trainer.tags.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5" data-no-nav>
               {trainer.tags.slice(0, MAX_TAGS_PREVIEW).map((tag) => (
-                <span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-[11px]">
+                <span
+                  key={tag}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-[11px]"
+                >
                   {tag}
                 </span>
               ))}
@@ -566,7 +775,6 @@ const TrainerCard = memo(function TrainerCard({
             </div>
           )}
 
-          {/* Price + Duration */}
           <div className="mt-3 flex flex-wrap items-center gap-2" data-no-nav>
             {typeof trainer.typicalPrice === "number" && trainer.typicalPrice > 0 && (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium">
@@ -574,6 +782,7 @@ const TrainerCard = memo(function TrainerCard({
                 {formatCurrency(trainer.typicalPrice, trainer.currencyCode || "EUR")} / συνεδρία
               </span>
             )}
+
             {trainer.typicalDurationMin ? (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-medium">
                 <Clock className="h-4 w-4" />
@@ -582,16 +791,25 @@ const TrainerCard = memo(function TrainerCard({
             ) : null}
           </div>
 
-          {/* Upcoming vacation */}
-          {!currentVacation && (trainer.holidays?.length > 0) && (trainer.holidays || []).some(h => toYMD(h.starts_on) >= today) && (
-            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs" data-no-nav>
-              <Sun className="h-4 w-4" />
-              {nextVacation ? <>Προσεχής άδεια: {formatDate(nextVacation.starts_on)}–{formatDate(nextVacation.ends_on)}</> : "Προσεχείς άδειες"}
-            </div>
-          )}
+          {!currentVacation &&
+            trainer.holidays?.length > 0 &&
+            (trainer.holidays || []).some((h) => toYMD(h.starts_on) >= today) && (
+              <div
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs"
+                data-no-nav
+              >
+                <Sun className="h-4 w-4" />
+                {nextVacation ? (
+                  <>
+                    Προσεχής άδεια: {formatDate(nextVacation.starts_on)}–{formatDate(nextVacation.ends_on)}
+                  </>
+                ) : (
+                  "Προσεχείς άδειες"
+                )}
+              </div>
+            )}
         </div>
 
-        {/* Secondary actions */}
         <div className="mt-4 space-y-2">
           <PremiumButton
             variant="secondary"
@@ -606,7 +824,7 @@ const TrainerCard = memo(function TrainerCard({
             Προβολή
           </PremiumButton>
 
-        <PremiumButton
+          <PremiumButton
             variant="outline"
             size="default"
             onClick={(e) => {
@@ -620,10 +838,8 @@ const TrainerCard = memo(function TrainerCard({
           </PremiumButton>
         </div>
 
-        {/* Push primary button to bottom */}
         <div className="mt-auto" />
 
-        {/* Primary CTA */}
         <div className="pt-4">
           <PremiumButton
             size="lg"
@@ -638,7 +854,6 @@ const TrainerCard = memo(function TrainerCard({
           </PremiumButton>
         </div>
 
-        {/* Expandable */}
         <AnimatePresence initial={false}>
           {expanded && (
             <motion.div
@@ -653,6 +868,7 @@ const TrainerCard = memo(function TrainerCard({
                   <CalendarIcon className="h-4 w-4" />
                   <span className="font-medium text-sm">Διαθεσιμότητα</span>
                 </div>
+
                 <AvailabilityGrid availability={trainer.availability} />
 
                 {Array.isArray(trainer.tags) && trainer.tags.length > 0 && (
@@ -660,7 +876,10 @@ const TrainerCard = memo(function TrainerCard({
                     <div className="mt-4 text-sm text-white font-medium">Ετικέτες</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {trainer.tags.map((tag) => (
-                        <span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-[11px]">
+                        <span
+                          key={tag}
+                          className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-[11px]"
+                        >
                           {tag}
                         </span>
                       ))}
@@ -676,12 +895,13 @@ const TrainerCard = memo(function TrainerCard({
   );
 });
 
-/* ------------------------------ Card08Lite for grid ------------------------------ */
+/* ------------------------------ Card08Lite ------------------------------ */
 function Card08Lite({
   title = "Modern Design Systems",
   subtitle = "Explore the fundamentals of contemporary UI design",
   image = null,
-  badge = { text: "New", variant: "orange" },
+  badge = { text: "New" },
+  isOnline = false,
   onDetails,
   onBookNow,
   IconComp,
@@ -695,16 +915,33 @@ function Card08Lite({
     setIsFlipped((v) => !v);
   };
 
+  const StatusIcon = isOnline ? Wifi : MapPin;
+  const SafeIcon = IconComp || DEFAULT_TRAINER_ICON;
+
+  const titleLength = (title || "").trim().length;
+  const titleSizeClass =
+    titleLength > 22
+      ? "text-[10px] sm:text-[12px] md:text-[14px]"
+      : titleLength > 16
+      ? "text-[11px] sm:text-[13px] md:text-[15px]"
+      : "text-[12px] sm:text-[15px] md:text-base";
+
   return (
     <div className="block w-full group" style={{ perspective: "1000px" }}>
       <div
-        className={`relative w-full h-[240px] sm:h-[320px] transition-transform duration-500 will-change-transform ${isFlipped ? "[transform:rotateY(180deg)]" : ""}`}
+        className={`relative w-full transition-transform duration-500 will-change-transform ${
+          isFlipped ? "[transform:rotateY(180deg)]" : ""
+        }`}
         onClick={handleClick}
-        style={{ transformStyle: "preserve-3d" }}
+        style={{
+          transformStyle: "preserve-3d",
+          minHeight: 220,
+          height: "clamp(220px, 58vw, 320px)",
+        }}
       >
         {/* Front */}
         <div
-          className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 shadow-xs"
+          className="absolute inset-0 w-full h-full rounded-[22px] overflow-hidden bg-zinc-950/95 border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
           style={{ backfaceVisibility: "hidden" }}
         >
           <div className="relative h-full overflow-hidden">
@@ -725,81 +962,85 @@ function Card08Lite({
               }}
             />
 
-            {/* Like button (top-left) */}
             <button
               onClick={(e) => {
                 e.preventDefault();
-                e.stopPropagation(); // prevent flip
+                e.stopPropagation();
                 onToggleLike?.();
               }}
-              className={`absolute top-2.5 left-2.5 h-9 w-9 grid place-items-center rounded-full border transition-all duration-200 hover:scale-110 ${
+              className={`absolute top-2 left-2 sm:top-3 sm:left-3 h-8 w-8 sm:h-9 sm:w-9 grid place-items-center rounded-full border transition-all duration-200 hover:scale-110 ${
                 liked
-                  ? "bg-red-500/90 text-white border-white/20"
-                  : "bg-black/60 text-white border-white/15 hover:bg-black/80 backdrop-blur-sm"
+                  ? "bg-red-500/90 text-white border-white/10"
+                  : "bg-black/55 text-white border-white/10 hover:bg-black/75 backdrop-blur-sm"
               }`}
               aria-label={liked ? "Αφαίρεση από αγαπημένα" : "Προσθήκη στα αγαπημένα"}
               title={liked ? "Αφαίρεση από αγαπημένα" : "Αγαπημένο"}
             >
-              {liked ? <Heart className="h-5 w-5 fill-current" /> : <Heart className="h-5 w-5" />}
+              {liked ? (
+                <Heart className="h-4 w-4 sm:h-5 sm:w-5 fill-current" />
+              ) : (
+                <Heart className="h-4 w-4 sm:h-5 sm:w-5" />
+              )}
             </button>
           </div>
 
-          {/* gradient must not block clicks */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-black/10 sm:from-black/90 sm:via-black/70 sm:to-black/10 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-black/5 pointer-events-none" />
 
-          {/* tiny status badge */}
-          <div className="absolute top-2.5 right-2.5">
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white text-zinc-800 shadow-sm border border-zinc-200 flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              {badge?.text || "New"}
+          <div className="absolute top-2 right-2 sm:top-3 sm:right-3">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-medium border backdrop-blur-sm ${
+                isOnline
+                  ? "bg-emerald-500/90 text-white border-emerald-300/30"
+                  : "bg-sky-500/90 text-white border-sky-300/30"
+              }`}
+            >
+              <StatusIcon className="w-3 h-3" />
+              {badge?.text || (isOnline ? "Online" : "Δια ζώσης")}
             </span>
           </div>
 
-          {/* bottom compact panel */}
-          <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-5">
+          <div className="absolute bottom-0 left-0 right-0 p-2.5 sm:p-4">
             <div
               className="
-                rounded-xl p-3 sm:p-4
-                border border-white/15
-                bg-white/5
-                shadow-[0_8px_30px_rgba(0,0,0,0.35)]
+                rounded-2xl p-2.5 sm:p-4
+                border border-white/10
+                bg-black/35
+                shadow-[0_8px_30px_rgba(0,0,0,0.4)]
                 supports-[backdrop-filter]:backdrop-blur-md
-                supports-[backdrop-filter]:bg-white/10
               "
               style={{ backdropFilter: "saturate(140%) blur(10px)" }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    {IconComp ? (
-                      <IconComp className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-200" />
-                    ) : (
-                      <svg className="w-4 h-4 text-zinc-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z"/>
-                      </svg>
-                    )}
-                    <h3 className="text-[13px] sm:text-lg font-semibold text-white leading-snug line-clamp-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start gap-1.5 sm:gap-2 min-w-0">
+                    <SafeIcon className="mt-0.5 w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-zinc-200 shrink-0" />
+
+                    <h3
+                      className={`min-w-0 flex-1 ${titleSizeClass} font-semibold text-white leading-tight break-words line-clamp-2`}
+                      title={title}
+                    >
                       {title}
                     </h3>
                   </div>
-                  <p className="text-[11px] sm:text-sm text-zinc-100/90 line-clamp-1 sm:line-clamp-2">
+
+                  <p
+                    className="mt-1 text-[9px] sm:text-[11px] md:text-[12px] text-zinc-200/90 leading-snug break-words line-clamp-2"
+                    title={subtitle}
+                  >
                     {subtitle}
                   </p>
                 </div>
 
                 <div
                   className="
-                    p-1.5 sm:p-2 rounded-full shrink-0
-                    border border-white/20
+                    p-1.5 rounded-full shrink-0
+                    border border-white/15
                     bg-white/10
-                    supports-[backdrop-filter]:bg-white/20
                     supports-[backdrop-filter]:backdrop-blur-md
                   "
                   style={{ backdropFilter: "saturate(140%) blur(10px)" }}
                 >
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17L17 7M17 7H7M17 7V17" />
                   </svg>
                 </div>
@@ -810,43 +1051,38 @@ function Card08Lite({
 
         {/* Back */}
         <div
-          className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 shadow-xs flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 sm:p-6"
+          className="absolute inset-0 w-full h-full rounded-[22px] overflow-hidden bg-zinc-950/95 border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.45)] flex flex-col items-center justify-center gap-3 p-4 sm:p-5"
           style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
         >
-          <div className="text-center space-y-2 sm:space-y-3 mb-1 sm:mb-2">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto bg-zinc-100 dark:bg-zinc-800 rounded-xl grid place-items-center">
-              {IconComp ? <IconComp className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-600 dark:text-zinc-300" /> : null}
+          <div className="text-center space-y-2 mb-1 min-w-0 w-full">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto bg-white/5 rounded-2xl grid place-items-center border border-white/10">
+              <SafeIcon className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-200" />
             </div>
-            <div className="space-y-1">
-              <h3 className="text-base sm:text-lg font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-1">{title}</h3>
-              <p className="text-[12px] sm:text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">{subtitle}</p>
-            </div>
+
+            <h3 className="text-sm sm:text-base font-semibold text-white line-clamp-2 break-words">{title}</h3>
+            <p className="text-[11px] sm:text-sm text-zinc-400 line-clamp-2 break-words">{subtitle}</p>
           </div>
 
-          <div className="space-y-2 w-full sm:space-y-3">
+          <div className="space-y-2 w-full">
             <button
-              onClick={(e) => { e.stopPropagation(); onDetails?.(); }}
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-[12px] sm:text-sm font-medium border transition-colors duration-200 flex items-center justify-center gap-2"
-              style={{ backgroundColor: "#f4f4f5", color: "#18181b", borderColor: "#d4d4d8" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#e4e4e7")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#f4f4f5")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDetails?.();
+              }}
+              className="w-full px-3 py-2.5 rounded-xl text-[12px] sm:text-sm font-medium border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-colors duration-200 flex items-center justify-center gap-2"
             >
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
+              <UserIcon className="w-4 h-4" />
               Λεπτομέρειες
             </button>
 
             <button
-              onClick={(e) => { e.stopPropagation(); onBookNow?.(); }}
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-[12px] sm:text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2 bg-black text-white"
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#27272a")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#18181b")}
-              style={{ backgroundColor: "#18181b" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onBookNow?.();
+              }}
+              className="w-full px-3 py-2.5 rounded-xl text-[12px] sm:text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2 bg-white text-black hover:bg-zinc-200"
             >
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-              </svg>
+              <CalendarIcon className="w-4 h-4" />
               Κράτηση
             </button>
           </div>
@@ -856,9 +1092,7 @@ function Card08Lite({
   );
 }
 
-
 /* --------------------------------- Page --------------------------------- */
-
 const PAGE_SIZE = 12;
 const MAX_EXTRA_PAGES_PER_LOAD = 3;
 const RESET_SCAN_CAP = 12;
@@ -876,16 +1110,14 @@ export default function ServicesMarketplacePage() {
   const { profile, loading } = useAuth();
   const navigate = useNavigate();
 
-  // role: prefer explicit trainer; otherwise any signed-in becomes "user"; else "guest"
   const role = useMemo(() => {
     if (profile?.role === "trainer") return "trainer";
     if (profile?.id) return "user";
     return "guest";
   }, [profile?.role, profile?.id]);
 
-  const MenuComponent = role === "trainer" ? TrainerMenu : role === "user" ? UserMenu : GlassmorphicNavbar; // guests see the Next-style navbar
+  const MenuComponent = role === "trainer" ? TrainerMenu : role === "user" ? UserMenu : GlassmorphicNavbar;
 
-  // auth gate helper for guest
   const [toasts, setToasts] = useState([]);
   const pushToast = useCallback((message) => {
     const id = Date.now() + Math.random();
@@ -906,10 +1138,11 @@ export default function ServicesMarketplacePage() {
     [profile?.id, navigate, pushToast]
   );
 
-  // data & pagination
   const [items, setItems] = useState([]);
   const itemsRef = useRef(items);
-  useEffect(() => { itemsRef.current = items; }, [items]);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -917,33 +1150,36 @@ export default function ServicesMarketplacePage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // filters / sorts
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState("grid");
   const [sortBy, setSortBy] = useState("newest");
-  const [catFilter, setCatFilter] = useState("all");
+
+  const [catFiltersState, setCatFiltersState] = useState([]);
+  const setCatFilters = useCallback((next) => {
+    const normalized = normalizeCategoryArray(next);
+    setCatFiltersState((prev) => (sameStringArrayAsSet(prev, normalized) ? prev : normalized));
+  }, []);
+  const catFilters = catFiltersState;
+
   const [onlyOnline, setOnlyOnline] = useState(false);
   const [excludeVacation, setExcludeVacation] = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
 
-  // likes
+  const smartSearch = useMemo(() => parseSmartSearch(searchTerm), [searchTerm]);
+
   const [likedTrainerIds, setLikedTrainerIds] = useState([]);
-
-  // booking popup
   const [bookingTrainer, setBookingTrainer] = useState(null);
+  const [guestBookingTrainer, setGuestBookingTrainer] = useState(null);
 
-  // infinite scroll
   const sentinelRef = useRef(null);
   const observerRef = useRef(null);
 
-  // refs to avoid stale closures
   const queryKeyRef = useRef(0);
   const pageRef = useRef(0);
   const hasMoreRef = useRef(true);
   const loadingRef = useRef(false);
 
-  // likes (bootstrap)
   useEffect(() => {
     (async () => {
       try {
@@ -951,6 +1187,7 @@ export default function ServicesMarketplacePage() {
           setLikedTrainerIds([]);
           return;
         }
+
         const { data, error } = await supabase.from("trainer_likes").select("trainer_id").eq("user_id", profile.id);
         if (!error) setLikedTrainerIds((data || []).map((r) => r.trainer_id));
       } catch {
@@ -959,19 +1196,28 @@ export default function ServicesMarketplacePage() {
     })();
   }, [profile?.id]);
 
-  const toggleLikeTrainer = useCallback(async (trainerId) => {
-    if (!profile?.id) return;
-    const already = likedTrainerIds.includes(trainerId);
-    if (already) {
-      const { error } = await supabase.from("trainer_likes").delete().eq("user_id", profile.id).eq("trainer_id", trainerId);
-      if (!error) setLikedTrainerIds((prev) => prev.filter((id) => id !== trainerId));
-    } else {
-      const { error } = await supabase.from("trainer_likes").insert([{ user_id: profile.id, trainer_id: trainerId }]);
-      if (!error) setLikedTrainerIds((prev) => [...prev, trainerId]);
-    }
-  }, [likedTrainerIds, profile?.id]);
+  const toggleLikeTrainer = useCallback(
+    async (trainerId) => {
+      if (!profile?.id) return;
 
-  // notify + toggle wrapper (gated)
+      const already = likedTrainerIds.includes(trainerId);
+
+      if (already) {
+        const { error } = await supabase
+          .from("trainer_likes")
+          .delete()
+          .eq("user_id", profile.id)
+          .eq("trainer_id", trainerId);
+
+        if (!error) setLikedTrainerIds((prev) => prev.filter((id) => id !== trainerId));
+      } else {
+        const { error } = await supabase.from("trainer_likes").insert([{ user_id: profile.id, trainer_id: trainerId }]);
+        if (!error) setLikedTrainerIds((prev) => [...prev, trainerId]);
+      }
+    },
+    [likedTrainerIds, profile?.id]
+  );
+
   const handleToggleLike = useCallback(
     (trainer) => {
       if (!requireAuth(`/trainer/${trainer.id}`)) return;
@@ -986,23 +1232,62 @@ export default function ServicesMarketplacePage() {
     [likedTrainerIds, toggleLikeTrainer, pushToast, requireAuth]
   );
 
-  // server-side friendly filters
+  const handleOpenBooking = useCallback(
+    (trainer) => {
+      if (!trainer) return;
+
+      if (role === "guest") {
+        setGuestBookingTrainer(trainer);
+        return;
+      }
+
+      setBookingTrainer(trainer);
+    },
+    [role]
+  );
+
+  useEffect(() => {
+    if (profile?.id && guestBookingTrainer) {
+      setGuestBookingTrainer(null);
+    }
+  }, [profile?.id, guestBookingTrainer]);
+
   const buildProfilesQuery = useCallback(() => {
     let q = supabase
       .from("profiles")
       .select(
-        "id, full_name, avatar_url, specialty, roles, location, is_online, experience_years, created_at, diploma_url",
+        "id, email, full_name, role, avatar_url, created_at, updated_at, bio, specialty, phone, location, experience_years, certifications, diploma_url, roles, is_online, has_seen_welcome",
         { count: "exact" }
       )
-      .eq("role", "trainer");
+      .eq("role", "trainer")
+      .not("diploma_url", "is", null)
+      .neq("diploma_url", "");
 
-    if (catFilter !== "all") q = q.eq("specialty", catFilter);
-    if (onlyOnline) q = q.eq("is_online", true);
+    const effectiveCats = normalizeCategoryArray([...catFilters, ...smartSearch.cats]);
 
-    const qTerm = searchTerm.trim();
-    if (qTerm) {
-      const s = qTerm.replace(/,/g, "");
-      q = q.or(`ilike(full_name,%${s}%),ilike(location,%${s}%)`);
+    if (effectiveCats.length === 1) {
+      q = q.eq("specialty", effectiveCats[0]);
+    } else if (effectiveCats.length > 1) {
+      q = q.in("specialty", effectiveCats);
+    }
+
+    const effectiveOnlyOnline = onlyOnline || smartSearch.onlyOnline;
+    const effectiveOnlyOffline = !effectiveOnlyOnline && smartSearch.onlyOffline;
+
+    if (effectiveOnlyOnline) q = q.eq("is_online", true);
+    if (effectiveOnlyOffline) q = q.eq("is_online", false);
+
+    const searchTerms = smartSearch.freeTextTerms
+      .map(sanitizeSearchToken)
+      .filter(Boolean);
+
+    if (searchTerms.length) {
+      const clauses = searchTerms.flatMap((term) => [
+        `full_name.ilike.%${term}%`,
+        `location.ilike.%${term}%`,
+        `specialty.ilike.%${term}%`,
+      ]);
+      q = q.or(clauses.join(","));
     }
 
     switch (sortBy) {
@@ -1020,11 +1305,12 @@ export default function ServicesMarketplacePage() {
     }
 
     return q;
-  }, [catFilter, onlyOnline, searchTerm, sortBy]);
+  }, [catFilters, onlyOnline, smartSearch, sortBy]);
 
-  // merge availability/holidays/reviews + pricing + duration
   const hydrateTrainers = useCallback(async (rows) => {
-    const ids = rows.map((r) => r.id);
+    const eligibleRows = (rows || []).filter((r) => hasUploadedDiploma(r?.diploma_url));
+    const ids = eligibleRows.map((r) => r.id);
+
     if (ids.length === 0) return [];
 
     const [
@@ -1046,26 +1332,50 @@ export default function ServicesMarketplacePage() {
         .order("created_at", { ascending: false }),
     ]);
 
-    const avByTrainer = (avs ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r); return m; }, {});
-    const holByTrainer = (hols ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r); return m; }, {});
-    const ratingsByTrainer = (reviews ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r.rating); return m; }, {});
-    const pricingByTrainer = (pricing ?? []).reduce((m, r) => { m[r.trainer_id] = r; return m; }, {});
-    const bookingsByTrainer = (bookings ?? []).reduce((m, r) => { (m[r.trainer_id] ||= []).push(r); return m; }, {});
+    const avByTrainer = (avs ?? []).reduce((m, r) => {
+      (m[r.trainer_id] ||= []).push(r);
+      return m;
+    }, {});
+
+    const holByTrainer = (hols ?? []).reduce((m, r) => {
+      (m[r.trainer_id] ||= []).push(r);
+      return m;
+    }, {});
+
+    const ratingsByTrainer = (reviews ?? []).reduce((m, r) => {
+      (m[r.trainer_id] ||= []).push(r.rating);
+      return m;
+    }, {});
+
+    const pricingByTrainer = (pricing ?? []).reduce((m, r) => {
+      m[r.trainer_id] = r;
+      return m;
+    }, {});
+
+    const bookingsByTrainer = (bookings ?? []).reduce((m, r) => {
+      (m[r.trainer_id] ||= []).push(r);
+      return m;
+    }, {});
 
     const computeDisplayPrice = (prObj, specialty, isOnline) => {
       if (!prObj) return { price: null, currency: "EUR" };
+
       let base = Number(prObj.base_price ?? 0);
       const specMap = prObj.specialty_pricing && typeof prObj.specialty_pricing === "object" ? prObj.specialty_pricing : {};
       const specOverride = Number(specMap?.[specialty]);
+
       if (Number.isFinite(specOverride) && specOverride > 0) base = specOverride;
+
       const discountPct = Number(prObj.online_discount ?? 0);
       if (isOnline && discountPct > 0) base = base * (1 - discountPct / 100);
+
       return { price: base > 0 ? base : null, currency: prObj.currency_code || "EUR" };
     };
 
-    return rows.map((t) => {
+    return eligibleRows.map((t) => {
       const trainerReviews = ratingsByTrainer[t.id] || [];
-      const avgRating = trainerReviews.length > 0 ? trainerReviews.reduce((s, r) => s + r, 0) / trainerReviews.length : 0;
+      const avgRating =
+        trainerReviews.length > 0 ? trainerReviews.reduce((s, r) => s + r, 0) / trainerReviews.length : 0;
 
       const pr = pricingByTrainer[t.id] || null;
       const { price: typicalPrice, currency: currencyCode } = computeDisplayPrice(pr, t.specialty, t.is_online);
@@ -1083,6 +1393,7 @@ export default function ServicesMarketplacePage() {
             return start != null && end != null && end > start ? end - start : null;
           })
           .filter((n) => Number.isFinite(n) && n > 0);
+
         typicalDurationMin = mode(slotDurations) ?? median(slotDurations) ?? null;
       }
 
@@ -1102,45 +1413,55 @@ export default function ServicesMarketplacePage() {
     });
   }, []);
 
-  // client filters
   const matchesCity = (trainerLocation, cityValue) => {
     if (!trainerLocation || cityValue === "all") return true;
+
     const city = GREEK_CITIES.find((c) => c.value === cityValue);
     if (!city) return false;
+
     const locationLower = String(trainerLocation).toLowerCase().trim();
     if (locationLower.includes(city.value.toLowerCase())) return true;
+
     return city.aliases.some(
       (alias) => locationLower.includes(alias.toLowerCase()) || alias.toLowerCase().includes(locationLower)
     );
   };
 
-  const applyClientFilters = useCallback((arr) => {
-    let out = [...arr];
+  const applyClientFilters = useCallback(
+    (arr) => {
+      let out = [...arr];
 
-    if (selectedCity !== "all") out = out.filter((t) => matchesCity(t.location, selectedCity));
+      out = out.filter((t) => hasUploadedDiploma(t?.diploma_url));
 
-    if (excludeVacation) {
-      const today = todayYMD();
-      out = out.filter((t) => !(t.holidays || []).some((h) => within(today, h.starts_on, h.ends_on)));
-    }
+      const effectiveCity = selectedCity !== "all" ? selectedCity : smartSearch.city;
+      if (effectiveCity !== "all") {
+        out = out.filter((t) => matchesCity(t.location, effectiveCity));
+      }
 
-    if (selectedDate) {
-      const base = new Date();
-      const target = selectedDate === "tomorrow" ? new Date(base.getTime() + 24 * 60 * 60 * 1000) : base;
-      const dayKey = selectedDate === "week" ? null : weekdayKeyFromDate(target);
-      out = out.filter((t) => {
-        const av = t.availability || [];
-        if (selectedDate === "week") return av.length > 0;
-        return av.some((s) => s.weekday === dayKey);
-      });
-    }
+      if (excludeVacation) {
+        const today = todayYMD();
+        out = out.filter((t) => !(t.holidays || []).some((h) => within(today, h.starts_on, h.ends_on)));
+      }
 
-    if (sortBy === "rating") out.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      if (selectedDate) {
+        const base = new Date();
+        const target = selectedDate === "tomorrow" ? new Date(base.getTime() + 24 * 60 * 60 * 1000) : base;
+        const dayKey = selectedDate === "week" ? null : weekdayKeyFromDate(target);
 
-    return out;
-  }, [excludeVacation, selectedCity, selectedDate, sortBy]);
+        out = out.filter((t) => {
+          const av = t.availability || [];
+          if (selectedDate === "week") return av.length > 0;
+          return av.some((s) => s.weekday === dayKey);
+        });
+      }
 
-  // loader
+      if (sortBy === "rating") out.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+
+      return out;
+    },
+    [excludeVacation, selectedCity, selectedDate, sortBy, smartSearch.city]
+  );
+
   const loadMore = useCallback(
     async (forcedKey = null, minToAdd = PAGE_SIZE, pageScanCap = MAX_EXTRA_PAGES_PER_LOAD) => {
       const key = forcedKey ?? queryKeyRef.current;
@@ -1163,11 +1484,15 @@ export default function ServicesMarketplacePage() {
 
           if (key !== queryKeyRef.current) break;
 
-          let q = buildProfilesQuery().range(from, to);
+          const q = buildProfilesQuery().range(from, to);
           const { data: rows, error } = await q;
 
           if (key !== queryKeyRef.current) break;
-          if (error) { setErrorMsg(error.message || "Σφάλμα φόρτωσης εκπαιδευτών."); break; }
+
+          if (error) {
+            setErrorMsg(error.message || "Σφάλμα φόρτωσης εκπαιδευτών.");
+            break;
+          }
 
           const pageHasMore = (rows?.length || 0) === PAGE_SIZE;
           if (!pageHasMore) hasMoreRef.current = false;
@@ -1204,7 +1529,6 @@ export default function ServicesMarketplacePage() {
     [applyClientFilters, buildProfilesQuery, hydrateTrainers]
   );
 
-  // Reset & first load
   useEffect(() => {
     queryKeyRef.current += 1;
     pageRef.current = 0;
@@ -1219,9 +1543,8 @@ export default function ServicesMarketplacePage() {
 
     const currentKey = queryKeyRef.current;
     void loadMore(currentKey, PAGE_SIZE, RESET_SCAN_CAP);
-  }, [searchTerm, sortBy, catFilter, onlyOnline, excludeVacation, selectedDate, selectedCity, loadMore]);
+  }, [searchTerm, sortBy, catFilters, onlyOnline, excludeVacation, selectedDate, selectedCity, loadMore]);
 
-  // IntersectionObserver
   useEffect(() => {
     if (!sentinelRef.current) return;
     if (observerRef.current) observerRef.current.disconnect();
@@ -1240,8 +1563,8 @@ export default function ServicesMarketplacePage() {
     return () => observerRef.current && observerRef.current.disconnect();
   }, [loadMore]);
 
-  // boot skeleton
   const bootLoading = (loading || initialLoading) && items.length === 0;
+
   if (bootLoading) {
     return (
       <div className="min-h-screen bg-black text-white relative overflow-hidden">
@@ -1252,9 +1575,8 @@ export default function ServicesMarketplacePage() {
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(45deg,transparent_48%,rgba(255,255,255,0.02)_49%,rgba(255,255,255,0.02)_51%,transparent_52%)] bg-[length:20px_20px] animate-slide-diagonal" />
         <AnimatedParticles />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pt-10">
-          {/* 2 columns on mobile for skeleton too */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-12 pt-10">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-6 items-stretch">
             {Array.from({ length: PAGE_SIZE }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -1266,7 +1588,6 @@ export default function ServicesMarketplacePage() {
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
-      {/* Background */}
       <div className="fixed inset-0 -z-50 bg-black">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.08),transparent_55%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -1274,7 +1595,6 @@ export default function ServicesMarketplacePage() {
       <div className="absolute inset-0 -z-10 bg-[linear-gradient(45deg,transparent_48%,rgba(255,255,255,0.02)_49%,rgba(255,255,255,0.02)_51%,transparent_52%)] bg-[length:20px_20px] animate-slide-diagonal" />
       <AnimatedParticles />
 
-      {/* spacing vars */}
       <style>{`
         :root { --side-w: 0px; --nav-h: 64px; }
         @media (min-width: 640px){ :root { --nav-h: 72px; } }
@@ -1287,39 +1607,31 @@ export default function ServicesMarketplacePage() {
           <div className="relative z-10">
             {MenuComponent ? <MenuComponent /> : null}
 
-            {/* EXTRA spacer below fixed guest navbar (desktop-heavy) */}
             {role === "guest" && (
               <div aria-hidden className="w-full">
-                {/* small push on mobile, BIG push on desktop */}
                 <div className="h-16 sm:h-20 md:h-28 lg:h-40 xl:h-56" />
               </div>
             )}
 
-            {/* Edge-to-edge on mobile */}
             <main className="mx-auto w-full px-0 sm:px-6 lg:px-12 xl:px-16 pt-0 sm:pt-6 lg:pt-10 pb-[80px] lg:pb-[100px]">
-              {/* Filters / Search */}
               <TrainerSearchNav
                 results={items.length}
-                guest={role === "guest"}
-                onChange={({ search, view, sort, cat, onlyOnline, excludeVacation, selectedDate, selectedCity }) => {
-                  setSearchTerm(search ?? "");
+                search={searchTerm}
+                setSearch={setSearchTerm}
+                sort={sortBy}
+                setSort={setSortBy}
+                cats={catFilters}
+                setCats={setCatFilters}
+                onlyOnline={onlyOnline}
+                setOnlyOnline={setOnlyOnline}
+                excludeVacation={excludeVacation}
+                setExcludeVacation={setExcludeVacation}
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                selectedCity={selectedCity}
+                setSelectedCity={setSelectedCity}
+                onChange={({ view }) => {
                   setViewMode(view ?? "grid");
-                  setSortBy(sort ?? "newest");
-                  setCatFilter(cat ?? "all");
-                  setOnlyOnline(!!onlyOnline);
-                  setExcludeVacation(!!excludeVacation);
-                  setSelectedDate(selectedDate ?? "");
-                  setSelectedCity(selectedCity ?? "all");
-                }}
-                initial={{
-                  search: searchTerm,
-                  view: viewMode,
-                  sort: sortBy,
-                  cat: catFilter,
-                  onlyOnline,
-                  excludeVacation,
-                  selectedDate,
-                  selectedCity,
                 }}
                 categories={TRAINER_CATEGORIES}
                 cities={GREEK_CITIES}
@@ -1338,41 +1650,35 @@ export default function ServicesMarketplacePage() {
                 </motion.div>
               )}
 
-              {/* Results */}
               {items.length === 0 ? (
                 <Empty search={searchTerm} />
               ) : viewMode === "grid" ? (
                 <>
-                  {/* results grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 items-stretch">
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-6 px-2 sm:px-0 items-stretch">
                     {items.map((t) => {
-                      const cat = TRAINER_CATEGORIES.find(c => c.value === t.specialty) || null;
-                      const IconComp = cat?.iconKey ? ICON_BY_KEY[cat.iconKey] : null;
+                      const cat = getTrainerCategory(t.specialty);
+                      const IconComp = cat?.iconKey ? ICON_BY_KEY[cat.iconKey] : DEFAULT_TRAINER_ICON;
 
                       return (
                         <div key={t.id} className="w-full">
                           <Card08Lite
                             title={t.full_name}
-                            subtitle={
-                              [
-                                t.location || "—",
-                                cat?.label || "Γενικός Εκπαιδευτής",
-                                (typeof t.typicalPrice === "number" && t.typicalPrice > 0)
-                                  ? `${formatCurrency(t.typicalPrice, t.currencyCode || "EUR")} / συνεδρία`
-                                  : null
-                              ].filter(Boolean).join(" • ")
-                            }
+                            subtitle={[
+                              t.location || "—",
+                              cat?.label || DEFAULT_CATEGORY_LABEL,
+                              typeof t.typicalPrice === "number" && t.typicalPrice > 0
+                                ? `${formatCurrency(t.typicalPrice, t.currencyCode || "EUR")} / συνεδρία`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" • ")}
                             image={t.avatar_url || null}
-                            badge={{ text: t.is_online ? "Online" : "Δια ζώσης", variant: "orange" }}
+                            badge={{ text: t.is_online ? "Online" : "Δια ζώσης" }}
+                            isOnline={!!t.is_online}
                             IconComp={IconComp}
                             onDetails={() => navigate(`/trainer/${t.id}`)}
                             onBookNow={() => {
-                              if (!profile?.id) {
-                                pushToast("Δημιούργησε λογαριασμό για να κλείσεις κράτηση.");
-                                navigate(`/signup?next=${encodeURIComponent(`/trainer/${t.id}?book=1`)}`);
-                                return;
-                              }
-                              setBookingTrainer(t);
+                              handleOpenBooking(t);
                             }}
                             liked={likedTrainerIds.includes(t.id)}
                             onToggleLike={() => handleToggleLike(t)}
@@ -1380,6 +1686,7 @@ export default function ServicesMarketplacePage() {
                         </div>
                       );
                     })}
+
                     {loadingPage &&
                       Array.from({ length: Math.min(6, PAGE_SIZE / 2) }).map((_, i) => (
                         <div key={`sk-${i}`} className="w-full">
@@ -1389,9 +1696,7 @@ export default function ServicesMarketplacePage() {
                   </div>
 
                   <div ref={sentinelRef} className="h-12" />
-                  {!hasMore && (
-                    <div className="text-center text-zinc-400 mt-6">Τέλος αποτελεσμάτων</div>
-                  )}
+                  {!hasMore && <div className="text-center text-zinc-400 mt-6">Τέλος αποτελεσμάτων</div>}
                 </>
               ) : (
                 <>
@@ -1405,16 +1710,12 @@ export default function ServicesMarketplacePage() {
                           liked={likedTrainerIds.includes(t.id)}
                           onToggleLike={() => handleToggleLike(t)}
                           onOpenBooking={(tr) => {
-                            if (!profile?.id) {
-                              pushToast("Συνδέσου ή κάνε εγγραφή για κράτηση.");
-                              navigate(`/signup?next=${encodeURIComponent(`/trainer/${tr.id}?book=1`)}`);
-                              return;
-                            }
-                            setBookingTrainer(tr);
+                            handleOpenBooking(tr);
                           }}
                         />
                       </div>
                     ))}
+
                     {loadingPage &&
                       Array.from({ length: Math.min(4, PAGE_SIZE / 3) }).map((_, i) => (
                         <div className="mb-6" key={`slist-${i}`}>
@@ -1422,13 +1723,14 @@ export default function ServicesMarketplacePage() {
                         </div>
                       ))}
                   </div>
+
                   <div ref={sentinelRef} className="h-12" />
                   {!hasMore && <div className="text-center text-zinc-400 mt-6">Τέλος αποτελεσμάτων</div>}
                 </>
               )}
 
               {hasMore && !loadingPage && (
-                <div className="mt-10 flex justify-center">
+                <div className="mt-10 flex justify-center px-2 sm:px-0">
                   <PremiumButton variant="secondary" onClick={() => loadMore(null, PAGE_SIZE, MAX_EXTRA_PAGES_PER_LOAD)}>
                     Φόρτωσε περισσότερα
                   </PremiumButton>
@@ -1439,10 +1741,8 @@ export default function ServicesMarketplacePage() {
         </div>
       </div>
 
-      {/* Toasts */}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Lazy external booking popup */}
       <AnimatePresence>
         {bookingTrainer && (
           <Suspense
@@ -1454,17 +1754,39 @@ export default function ServicesMarketplacePage() {
               </div>
             }
           >
-            <QuickBookModal
+            <QuickBookModal open trainer={bookingTrainer} onClose={() => setBookingTrainer(null)} />
+          </Suspense>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {guestBookingTrainer && role === "guest" && (
+          <Suspense
+            fallback={
+              <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 backdrop-blur-sm">
+                <div className="panel rounded-2xl px-6 py-4 border border-white/10 text-zinc-300">
+                  Φόρτωση…
+                </div>
+              </div>
+            }
+          >
+            <GuestBookingAuthModal
               open
-              trainer={bookingTrainer}
-              onClose={() => setBookingTrainer(null)}
+              trainer={guestBookingTrainer}
+              nextPath={`/trainer/${guestBookingTrainer.id}?book=1`}
+              onClose={() => setGuestBookingTrainer(null)}
+              onLogin={() =>
+                navigate(`/login?next=${encodeURIComponent(`/trainer/${guestBookingTrainer.id}?book=1`)}`)
+              }
+              onSignup={() =>
+                navigate(`/signup?next=${encodeURIComponent(`/trainer/${guestBookingTrainer.id}?book=1`)}`)
+              }
             />
           </Suspense>
         )}
       </AnimatePresence>
 
-      {/* Global styles */}
-      <style jsx global>{`
+      <style>{`
         .panel {
           background:
             radial-gradient(120% 120% at 50% 0%, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.6) 40%),
@@ -1475,10 +1797,17 @@ export default function ServicesMarketplacePage() {
             inset 0 1px 0 rgba(255,255,255,0.06),
             0 10px 30px rgba(0,0,0,0.6);
         }
-        @keyframes float { 0%,100%{transform:translateY(0) rotate(0)} 33%{transform:translateY(-10px) rotate(120deg)} 66%{transform:translateY(5px) rotate(240deg)} }
-        @keyframes slide-diagonal { 0%{transform:translateX(-100px) translateY(-100px)} 100%{transform:translateX(100px) translateY(100px)} }
-        .animate-float{animation:float 6s ease-in-out infinite}
-        .animate-slide-diagonal{animation:slide-diagonal 20s linear infinite}
+        @keyframes float {
+          0%,100% { transform: translateY(0) rotate(0) }
+          33% { transform: translateY(-10px) rotate(120deg) }
+          66% { transform: translateY(5px) rotate(240deg) }
+        }
+        @keyframes slide-diagonal {
+          0% { transform: translateX(-100px) translateY(-100px) }
+          100% { transform: translateX(100px) translateY(100px) }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite }
+        .animate-slide-diagonal { animation: slide-diagonal 20s linear infinite }
       `}</style>
     </div>
   );
@@ -1491,14 +1820,17 @@ function Empty({ search }) {
       <div className="w-24 h-24 mx-auto mb-8 rounded-2xl bg-white/5 border border-white/10 grid place-items-center">
         <Search className="h-12 w-12 text-zinc-600" />
       </div>
+
       <h3 className="text-3xl font-bold text-white mb-4">
         {search ? `Δεν βρέθηκαν αποτελέσματα για "${search}"` : "Δεν βρέθηκαν εκπαιδευτές"}
       </h3>
+
       <p className="text-zinc-400 mb-8 max-w-md mx-auto">
         {search
           ? "Δοκιμάστε διαφορετικούς όρους αναζήτησης ή αλλάξτε τα φίλτρα σας."
           : "Δοκιμάστε να αλλάξετε τα κριτήρια αναζήτησης ή τα φίλτρα σας."}
       </p>
+
       <PremiumButton onClick={() => window.location.reload()}>Επαναφόρτωση</PremiumButton>
     </motion.div>
   );

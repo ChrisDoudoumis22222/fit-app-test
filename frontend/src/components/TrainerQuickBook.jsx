@@ -1,6 +1,17 @@
 "use client"
 import React, { useEffect, useMemo, useState } from "react"
-import { Loader2, Calendar, Clock, Wifi, User, Mail, Euro, Check, RotateCw, X } from "lucide-react"
+import {
+  Loader2,
+  Calendar,
+  Clock,
+  Wifi,
+  User,
+  Mail,
+  Euro,
+  Check,
+  RotateCw,
+  X,
+} from "lucide-react"
 import { supabase } from "../supabaseClient"
 
 /* ---------------- tiny glass UI ---------------- */
@@ -8,14 +19,14 @@ const Glass = ({ className = "", children }) => (
   <div
     className={[
       "relative rounded-2xl border border-white/10",
-      "bg-[rgba(17,18,21,.65)] backdrop-blur-xl",
-      "shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_10px_30px_rgba(0,0,0,.45)]",
+      "bg-[rgba(17,18,21,.68)] backdrop-blur-xl",
+      "shadow-[inset_0_1px_0_rgba(255,255,255,.03),0_10px_30px_rgba(0,0,0,.45)]",
       className,
     ].join(" ")}
   >
     <div className="pointer-events-none absolute inset-0 rounded-2xl overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[.06] via-white/[.02] to-transparent opacity-40" />
-      <div className="absolute -top-1/2 left-0 right-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent opacity-50" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white/[.03] via-white/[.01] to-transparent opacity-40" />
+      <div className="absolute -top-1/2 left-0 right-0 h-1/2 bg-gradient-to-b from-white/8 to-transparent opacity-40" />
     </div>
     <div className="relative">{children}</div>
   </div>
@@ -24,21 +35,29 @@ const Glass = ({ className = "", children }) => (
 const Tile = ({ className = "", children }) => (
   <div
     className={[
-      "relative rounded-xl border border-white/10",
-      "bg-white/[.04] hover:bg-white/[.06] transition",
-      "shadow-[inset_0_1px_0_rgba(255,255,255,.05),0_6px_20px_rgba(0,0,0,.35)]",
+      "relative rounded-xl",
+      "bg-zinc-950/35",
+      "shadow-[inset_0_1px_0_rgba(255,255,255,.03),0_6px_20px_rgba(0,0,0,.35)]",
       className,
     ].join(" ")}
   >
-    <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-white/[.08] to-transparent opacity-30" />
+    <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-white/[.04] to-transparent opacity-20" />
     <div className="relative">{children}</div>
   </div>
 )
 
-const Spinner = () => (
-  <div className="flex items-center gap-2 text-white/80 text-sm">
-    <Loader2 className="h-4 w-4 animate-spin" /> Φόρτωση…
+const Spinner = ({ label = "Φόρτωση…" }) => (
+  <div className="flex items-center gap-2 text-white/75 text-sm">
+    <Loader2 className="h-4 w-4 animate-spin" />
+    {label}
   </div>
+)
+
+const FieldLabel = ({ icon: Icon, children }) => (
+  <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white/80">
+    {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+    <span>{children}</span>
+  </span>
 )
 
 /* ---------------- helpers ---------------- */
@@ -58,40 +77,39 @@ const strToMinutes = (v) => {
   return h * 60 + min
 }
 
-const subtractMany = (base, blocks) => {
-  const out = []
-  base.forEach((w) => {
-    let pieces = [{ s: Math.min(w.s, w.e), e: Math.max(w.s, w.e) }]
-    blocks.forEach((bl) => {
-      const b = { s: Math.min(bl.s, bl.e), e: Math.max(bl.s, bl.e) }
-      const next = []
-      pieces.forEach((p) => {
-        if (!overlaps(p.s, p.e, b.s, b.e)) { next.push(p); return }
-        if (p.s < b.s) next.push({ s: p.s, e: clamp(b.s, p.s, p.e) })
-        if (p.e > b.e) next.push({ s: clamp(b.e, p.s, p.e), e: p.e })
-      })
-      pieces = next
-    })
-    out.push(...pieces.filter((p) => p.e - p.s > 0))
+const safeDate = (iso) => {
+  if (!iso) return null
+  const d = new Date(`${iso}T12:00:00`)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+const formatShortDate = (iso) => {
+  const d = safeDate(iso)
+  if (!d) return iso || "—"
+  return d.toLocaleDateString("el-GR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   })
-  return out
 }
 
 /* ---------------- schedule from DB ---------------- */
 async function readScheduleFromDB(trainerId, isoDate, hints) {
   const d = new Date(isoDate)
-  const jsDow = d.getDay() // 0..6
+  const jsDow = d.getDay()
 
-  const engShort = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
-  const engLong  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
-  const grShort  = ["Κυρ","Δευ","Τρι","Τετ","Πεμ","Παρ","Σαβ"]
-  const grLong   = ["Κυριακή","Δευτέρα","Τρίτη","Τετάρτη","Πέμπτη","Παρασκευή","Σάββατο"]
+  const engShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const engLong = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+  const grShort = ["Κυρ", "Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ"]
+  const grLong = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"]
 
   const candidates = [
     String(jsDow),
     String(((jsDow + 6) % 7) + 1),
-    engShort[jsDow], engLong[jsDow],
-    grShort[jsDow], grLong[jsDow],
+    engShort[jsDow],
+    engLong[jsDow],
+    grShort[jsDow],
+    grLong[jsDow],
   ]
 
   let windows = []
@@ -105,7 +123,10 @@ async function readScheduleFromDB(trainerId, isoDate, hints) {
       .in("weekday", candidates)
 
     if (Array.isArray(data) && data.length) {
-      windows = data.map(r => ({ s: strToMinutes(r.start_time), e: strToMinutes(r.end_time) }))
+      windows = data.map((r) => ({
+        s: strToMinutes(r.start_time),
+        e: strToMinutes(r.end_time),
+      }))
       defaultOnline = !!data[0]?.is_online
     }
   } catch (_) {}
@@ -113,14 +134,18 @@ async function readScheduleFromDB(trainerId, isoDate, hints) {
   let dayBreaks = []
   try {
     const { data: brk } = await supabase
-      .from("trainer_breaks") // optional table
+      .from("trainer_breaks")
       .select("weekday,date,start_time,end_time")
       .eq("trainer_id", trainerId)
       .or(`date.eq.${isoDate},weekday.in.(${candidates.join(",")})`)
+
     if (Array.isArray(brk)) {
       dayBreaks = brk
-        .filter(r => (r.date ? r.date === isoDate : true))
-        .map(r => ({ s: strToMinutes(r.start_time), e: strToMinutes(r.end_time) }))
+        .filter((r) => (r.date ? r.date === isoDate : true))
+        .map((r) => ({
+          s: strToMinutes(r.start_time),
+          e: strToMinutes(r.end_time),
+        }))
     }
   } catch (_) {}
 
@@ -134,22 +159,26 @@ async function readScheduleFromDB(trainerId, isoDate, hints) {
           .select("work_start,work_end")
           .eq("id", trainerId)
           .maybeSingle()
+
         if (prof?.work_start && prof?.work_end) {
           windows = [{ s: strToMinutes(prof.work_start), e: strToMinutes(prof.work_end) }]
         }
       } catch (_) {}
+
       if (!windows.length) windows = [{ s: strToMinutes("08:00"), e: strToMinutes("22:00") }]
     }
   }
 
   let sessionMin = hints?.sessionMinutes || 60
   let stepMin = 15
+
   try {
     const { data: prof } = await supabase
       .from("profiles")
       .select("session_minutes, step_min, slot_minutes, default_online")
       .eq("id", trainerId)
       .maybeSingle()
+
     if (prof) {
       sessionMin = Number(prof.session_minutes ?? sessionMin) || sessionMin
       stepMin = Number(prof.step_min ?? prof.slot_minutes ?? stepMin) || stepMin
@@ -157,7 +186,14 @@ async function readScheduleFromDB(trainerId, isoDate, hints) {
     }
   } catch (_) {}
 
-  return { windows, breaks: dayBreaks, stepMin, sessionMin, bufferMin: 0, defaultOnline }
+  return {
+    windows,
+    breaks: dayBreaks,
+    stepMin,
+    sessionMin,
+    bufferMin: 0,
+    defaultOnline,
+  }
 }
 
 /* ---------------- bookings -> busy intervals ---------------- */
@@ -166,23 +202,32 @@ function bookingsToBusy(rows) {
     const s = String(r.status || "").toLowerCase()
     return !["declined", "cancelled", "canceled", "rejected"].includes(s)
   }
+
   return (rows || []).filter(keep).map((r) => {
     const s = strToMinutes(r.start_time)
-    let e = r.end_time ? strToMinutes(r.end_time) : (s + Number(r.duration_min || 0))
+    const e = r.end_time ? strToMinutes(r.end_time) : s + Number(r.duration_min || 0)
     return { s, e }
   })
 }
 
-/* ---------------- build slots ---------------- */
-function buildSlots(windows, busy, durationMin, stepMin) {
+/* ---------------- build renderable slots ---------------- */
+function buildRenderableSlots(baseWindows, breaks, busy, durationMin, stepMin) {
   const slots = []
-  windows.forEach((w) => {
+
+  baseWindows.forEach((w) => {
     for (let s = w.s; s + durationMin <= w.e; s += stepMin) {
       const e = s + durationMin
-      const clash = busy.some((b) => overlaps(s, e, b.s, b.e))
-      slots.push({ s, e, available: !clash })
+      const isRest = (breaks || []).some((b) => overlaps(s, e, b.s, b.e))
+      const isBusy = !isRest && (busy || []).some((b) => overlaps(s, e, b.s, b.e))
+
+      let status = "available"
+      if (isRest) status = "rest"
+      else if (isBusy) status = "busy"
+
+      slots.push({ s, e, status })
     }
   })
+
   return slots
 }
 
@@ -213,25 +258,38 @@ export default function TrainerQuickBook({
   const [okMsg, setOkMsg] = useState("")
   const [refreshTick, setRefreshTick] = useState(0)
 
-  useEffect(() => { if (selectedDate) setDate(selectedDate) }, [selectedDate])
+  useEffect(() => {
+    if (selectedDate) setDate(selectedDate)
+  }, [selectedDate])
 
   useEffect(() => {
     let alive = true
     if (!trainerId || !date) return
+
     ;(async () => {
-      const s = await readScheduleFromDB(trainerId, date, { sessionMinutes, workStart, workEnd })
+      const s = await readScheduleFromDB(trainerId, date, {
+        sessionMinutes,
+        workStart,
+        workEnd,
+      })
+
       if (!alive) return
       setSched(s)
       setUiSession(s.sessionMin || 60)
       setIsOnline(s.defaultOnline || false)
     })()
-    return () => { alive = false }
+
+    return () => {
+      alive = false
+    }
   }, [trainerId, date, sessionMinutes, workStart, workEnd])
 
   useEffect(() => {
     if (!trainerId || !date) return
     let alive = true
-    setLoadingDay(true); setErr(null)
+    setLoadingDay(true)
+    setErr(null)
+
     ;(async () => {
       const { data, error } = await supabase
         .from("trainer_bookings")
@@ -240,32 +298,92 @@ export default function TrainerQuickBook({
         .eq("date", date)
 
       if (!alive) return
-      if (error) { setDayRows([]); setErr(error.message || "Σφάλμα φόρτωσης") }
-      else setDayRows(data || [])
+
+      if (error) {
+        setDayRows([])
+        setErr(error.message || "Σφάλμα φόρτωσης")
+      } else {
+        setDayRows(data || [])
+      }
+
       setLoadingDay(false)
     })()
-    return () => { alive = false }
+
+    return () => {
+      alive = false
+    }
   }, [trainerId, date, refreshTick])
 
+  useEffect(() => {
+    setSelectedStart(null)
+  }, [date, uiSession])
+
   const busyIntervals = useMemo(() => bookingsToBusy(dayRows), [dayRows])
-  const workingWindows = useMemo(() => {
-    if (!sched) return []
-    return subtractMany(sched.windows || [], sched.breaks || [])
-  }, [sched])
 
   const slots = useMemo(() => {
     if (!sched) return []
-    return buildSlots(workingWindows, busyIntervals, uiSession, Math.max(5, sched.stepMin || 15))
-  }, [workingWindows, busyIntervals, uiSession, sched])
+    return buildRenderableSlots(
+      sched.windows || [],
+      sched.breaks || [],
+      busyIntervals,
+      uiSession,
+      Math.max(5, sched.stepMin || 15)
+    )
+  }, [sched, busyIntervals, uiSession])
 
-  const availableCount = useMemo(() => slots.filter((s) => s.available).length, [slots])
+  const availableCount = useMemo(
+    () => slots.filter((s) => s.status === "available").length,
+    [slots]
+  )
+
+  const busyCount = useMemo(
+    () => slots.filter((s) => s.status === "busy").length,
+    [slots]
+  )
+
+  const restCount = useMemo(
+    () => slots.filter((s) => s.status === "rest").length,
+    [slots]
+  )
+
+  const shortDate = useMemo(() => formatShortDate(date), [date])
+
+  const headerWeekday = useMemo(() => {
+    const d = safeDate(date)
+    if (!d) return "—"
+    return d.toLocaleDateString("el-GR", { weekday: "long" })
+  }, [date])
+
+  const headerDateLine = useMemo(() => {
+    const d = safeDate(date)
+    if (!d) return "—"
+    return d.toLocaleDateString("el-GR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    })
+  }, [date])
+
+  const niceWindows =
+    (sched?.windows || []).length
+      ? sched.windows.map((w) => `${minToHHMM(w.s)}–${minToHHMM(w.e)}`).join(", ")
+      : "—"
 
   const handleCreate = async () => {
-    setOkMsg(""); setErr(null)
+    setOkMsg("")
+    setErr(null)
+
     if (!trainerId) return setErr("Λείπει το trainerId.")
-    if (!email || !/\S+@\S+\.\S+/.test(email)) return setErr("Το email είναι υποχρεωτικό και πρέπει να είναι έγκυρο.")
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      return setErr("Το email είναι υποχρεωτικό και πρέπει να είναι έγκυρο.")
+    }
     if (selectedStart == null) return setErr("Επίλεξε ώρα.")
     if (!sched) return setErr("Δεν βρέθηκε διαθέσιμο ωράριο.")
+
+    const selectedSlot = slots.find((x) => x.s === selectedStart)
+    if (!selectedSlot || selectedSlot.status !== "available") {
+      return setErr("Η ώρα δεν είναι διαθέσιμη πλέον. Διάλεξε άλλη.")
+    }
 
     const endMin = selectedStart + uiSession
     if (busyIntervals.some((b) => overlaps(selectedStart, endMin, b.s, b.e))) {
@@ -273,20 +391,26 @@ export default function TrainerQuickBook({
     }
 
     setSaving(true)
+
     try {
       let user_id = null
       let resolvedName = null
+
       const { data: prof } = await supabase
         .from("profiles")
         .select("id, full_name")
         .eq("email", email)
         .maybeSingle()
-      if (prof) { user_id = prof.id; resolvedName = prof.full_name }
+
+      if (prof) {
+        user_id = prof.id
+        resolvedName = prof.full_name
+      }
 
       const start_time = minToHHMMSS(selectedStart)
-      const end_time   = minToHHMMSS(endMin)
-      const amountStr  = amount ? ` [€${Number(amount).toLocaleString("el-GR")}]` : ""
-      const finalNote  = `${amountStr}${amount ? " " : ""}${note || ""}`.trim()
+      const end_time = minToHHMMSS(endMin)
+      const amountStr = amount ? ` [€${Number(amount).toLocaleString("el-GR")}]` : ""
+      const finalNote = `${amountStr}${amount ? " " : ""}${note || ""}`.trim()
 
       const payload = {
         trainer_id: trainerId,
@@ -305,7 +429,17 @@ export default function TrainerQuickBook({
       const { error: insErr } = await supabase.from("trainer_bookings").insert(payload)
       if (insErr) throw insErr
 
-      setDayRows((r) => [...r, { id: Math.random(), start_time, end_time, duration_min: uiSession, status: "accepted" }])
+      setDayRows((r) => [
+        ...r,
+        {
+          id: Math.random(),
+          start_time,
+          end_time,
+          duration_min: uiSession,
+          status: "accepted",
+        },
+      ])
+
       setSelectedStart(null)
       setOkMsg("Η κράτηση καταχωρήθηκε ✅")
       onCreated && onCreated(payload)
@@ -316,205 +450,377 @@ export default function TrainerQuickBook({
     }
   }
 
-  const weekdayLongGR = new Date(date).toLocaleDateString("el-GR", { weekday: "long" })
-  const headerTitle = `Γρήγορη Κράτηση – ${weekdayLongGR} ${new Date(date).toLocaleDateString("el-GR", { day: "2-digit", month: "long", year: "numeric" })}`
-  const niceWindows =
-    (sched?.windows || []).length
-      ? (sched.windows).map((w) => `${minToHHMM(w.s)}–${minToHHMM(w.e)}`).join(", ")
-      : "—"
-
   return (
-    <Glass className="p-3 sm:p-4">
-      {/* sticky header */}
-      <div className="sticky -top-3 -mx-3 sm:-mx-4 p-3 sm:p-4 mb-2 backdrop-blur-xl bg-black/30 rounded-t-2xl border-b border-white/10 flex items-center justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-white/90">
-            <div className="p-1.5 rounded-lg bg-white/10 border border-white/10">
-              <Calendar className="h-4 w-4 text-white" />
-            </div>
-            <h3 className="font-semibold truncate">{headerTitle}</h3>
-          </div>
-          <p className="text-xs text-white/60 mt-1">Ωράριο: <span className="text-white/75">{niceWindows}</span></p>
-        </div>
-        <button
-          className="shrink-0 inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-white/10 border border-white/10 text-white/80 hover:bg-white/15"
-          title="Ανανέωση διαθέσιμων"
-          onClick={() => setRefreshTick((t) => t + 1)}
-        >
-          <RotateCw className="h-3.5 w-3.5" /> Ανανέωση
-        </button>
-      </div>
+    <Glass className="overflow-hidden">
+      <style>{`
+        .quickbook-date {
+          color-scheme: dark;
+          -webkit-appearance: none;
+          appearance: none;
+        }
 
-      {/* Controls row */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <label className="block col-span-2">
-          <span className="text-[13px] text-white/80">Ημερομηνία</span>
-          <input
-            type="date"
-            className="mt-1 w-full h-11 rounded-lg bg-white/[.06] border border-white/10 px-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-white/20"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </label>
-        <label className="block">
-          <span className="text-[13px] text-white/80">Τύπος</span>
+        .quickbook-date::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          cursor: pointer;
+          width: 44px;
+          height: 100%;
+        }
+
+        .quickbook-date::-webkit-datetime-edit,
+        .quickbook-date::-webkit-datetime-edit-text,
+        .quickbook-date::-webkit-datetime-edit-month-field,
+        .quickbook-date::-webkit-datetime-edit-day-field,
+        .quickbook-date::-webkit-datetime-edit-year-field {
+          color: rgba(255,255,255,.9);
+        }
+
+        .quickbook-hours-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,255,255,.16) rgba(255,255,255,.04);
+        }
+
+        .quickbook-hours-scroll::-webkit-scrollbar {
+          width: 10px;
+        }
+
+        .quickbook-hours-scroll::-webkit-scrollbar-track {
+          background: rgba(255,255,255,.03);
+          border-radius: 999px;
+        }
+
+        .quickbook-hours-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, rgba(255,255,255,.16), rgba(255,255,255,.1));
+          border-radius: 999px;
+          border: 2px solid rgba(17,18,21,.55);
+        }
+
+        .quickbook-hours-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(to bottom, rgba(255,255,255,.22), rgba(255,255,255,.14));
+        }
+      `}</style>
+
+      {/* header */}
+      <div className="border-b border-white/8 px-3 py-3 bg-white/[.01]">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-zinc-900/70 border border-white/[.06]">
+              <Calendar className="h-4 w-4 text-white/65" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h3 className="text-[15px] font-semibold text-white/88 leading-tight">
+                Διαθεσιμότητα ημέρας
+              </h3>
+
+              <div className="mt-1 text-white/58 leading-snug">
+                <div className="text-sm">{headerWeekday}</div>
+                <div className="text-sm">{headerDateLine}</div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-white/[.06] bg-zinc-900/60 px-2.5 py-1 text-[11px] text-white/58">
+                  Ωράριο: {niceWindows}
+                </span>
+
+                <span className="inline-flex items-center rounded-full border border-emerald-400/12 bg-emerald-500/[.06] px-2.5 py-1 text-[11px] text-emerald-200/88">
+                  {loadingDay || !sched ? "…" : `${availableCount} διαθέσιμες`}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <button
             type="button"
-            onClick={() => setIsOnline((v) => !v)}
-            className={[
-              "mt-1 w-full h-11 rounded-lg border px-3 text-base inline-flex items-center justify-center gap-2 focus:outline-none",
-              isOnline
-                ? "bg-blue-500/15 border-blue-400/30 text-blue-100"
-                : "bg-white/[.06] border-white/10 text-white/90 hover:bg-white/[.1]",
-            ].join(" ")}
+            title="Ανανέωση διαθέσιμων"
+            onClick={() => setRefreshTick((t) => t + 1)}
+            className="h-10 w-full sm:w-auto sm:self-start inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900/65 border border-white/[.06] px-4 text-sm text-white/68 hover:bg-zinc-900/85 transition"
           >
-            <Wifi className="h-5 w-5" /> {isOnline ? "Διαδικτυακά" : "Δια ζώσης"}
+            <RotateCw className="h-4 w-4 text-white/52" />
+            Ανανέωση
           </button>
-        </label>
-      </div>
-
-      {/* Duration segmented */}
-      <div className="mb-3">
-        <span className="text-[13px] text-white/80">Διάρκεια</span>
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {[30, 45, 60, 75, 90].map((m) => (
-            <button
-              key={m}
-              onClick={() => setUiSession(m)}
-              className={[
-                "h-9 px-3 rounded-full text-sm border",
-                uiSession === m
-                  ? "bg-white/[.18] border-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.25),0_2px_8px_rgba(0,0,0,.35)]"
-                  : "bg-white/[.06] border-white/10 text-white/90 hover:bg-white/[.1]",
-              ].join(" ")}
-            >
-              {m}′
-            </button>
-          ))}
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-3 text-xs text-white/70 mb-1.5">
-        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-400/80" /> Διαθέσιμο</span>
-        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-zinc-600/70" /> Κατειλημμένο</span>
-      </div>
+      <div className="p-3 space-y-4">
+        {/* controls */}
+        <Tile className="p-3">
+          <div className="space-y-4">
+            <div>
+              <FieldLabel icon={Calendar}>Ημερομηνία</FieldLabel>
 
-      {/* Slots */}
-      <Tile className="p-3 mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Clock className="h-4 w-4 text-white/70" />
-          <p className="text-sm text-white/90">
-            Ώρες ({uiSession}′) — {loadingDay || !sched ? "…" : `${availableCount} διαθέσιμες`}
-          </p>
-        </div>
+              <div className="relative mt-1.5">
+                <input
+                  type="date"
+                  className="quickbook-date w-full h-11 rounded-xl bg-zinc-900/65 border border-white/[.06] px-3 pr-12 text-base text-white/90 focus:outline-none focus:ring-2 focus:ring-white/10"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+                <Calendar className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/45" />
+              </div>
 
-        {!sched ? (
-          <Spinner />
-        ) : (
-          <div className="max-h-[44vh] overflow-y-auto pr-1">
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-              {loadingDay ? (
-                <div className="col-span-full"><Spinner /></div>
-              ) : (workingWindows || []).length === 0 ? (
-                <div className="col-span-full text-white/70 text-sm">Ρεπό / χωρίς ωράριο για αυτή τη μέρα.</div>
-              ) : (
-                slots.map(({ s, e, available }) => {
-                  const isSel = selectedStart === s
-                  let cls = "h-10 rounded-full text-sm border transition px-3 text-center"
-                  if (!available) cls += " bg-zinc-900/50 border-white/10 text-white/35 cursor-not-allowed line-through"
-                  else if (isSel) cls += " bg-emerald-500/20 border-emerald-400/30 text-emerald-100 shadow-[0_0_0_1px_rgba(16,185,129,.25)_inset]"
-                  else cls += " bg-white/[.06] hover:bg-white/[.1] border-white/10 text-white"
-                  return (
-                    <button
-                      key={`${s}-${e}`}
-                      disabled={!available || saving}
-                      onClick={() => setSelectedStart(s)}
-                      className={cls}
-                      title={`${minToHHMM(s)} – ${minToHHMM(e)}`}
-                    >
-                      {minToHHMM(s)}
-                    </button>
-                  )
-                })
-              )}
+              <p className="mt-1.5 text-xs text-white/45">{shortDate}</p>
+            </div>
+
+            <div>
+              <FieldLabel icon={Wifi}>Τύπος</FieldLabel>
+
+              <div className="mt-1.5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOnline(false)}
+                  className={[
+                    "h-11 rounded-xl border px-3 text-sm inline-flex items-center justify-center gap-2 transition",
+                    !isOnline
+                      ? "bg-white text-black border-white shadow-[0_6px_18px_rgba(255,255,255,.08)]"
+                      : "bg-zinc-900/65 border-white/[.06] text-white/68 hover:bg-zinc-900/85",
+                  ].join(" ")}
+                >
+                  <User className="h-4 w-4" />
+                  Δια ζώσης
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsOnline(true)}
+                  className={[
+                    "h-11 rounded-xl border px-3 text-sm inline-flex items-center justify-center gap-2 transition",
+                    isOnline
+                      ? "bg-white text-black border-white shadow-[0_6px_18px_rgba(255,255,255,.08)]"
+                      : "bg-zinc-900/65 border-white/[.06] text-white/68 hover:bg-zinc-900/85",
+                  ].join(" ")}
+                >
+                  <Wifi className="h-4 w-4" />
+                  Online
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel icon={Clock}>Διάρκεια</FieldLabel>
+
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {[30, 45, 60, 75, 90].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setUiSession(m)}
+                    className={[
+                      "h-10 rounded-full text-sm border transition",
+                      uiSession === m
+                        ? "bg-white text-black border-white shadow-[0_6px_18px_rgba(255,255,255,.08)]"
+                        : "bg-zinc-900/65 border-white/[.06] text-white/68 hover:bg-zinc-900/85",
+                    ].join(" ")}
+                  >
+                    {m}′
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
+        </Tile>
+
+        {/* hours */}
+        <Tile className="p-3">
+          <div className="mb-3 rounded-xl border border-white/[.06] bg-zinc-950/35 px-3 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-white/52 shrink-0" />
+                  <p className="text-base font-semibold text-white/88">
+                    Ώρες ({uiSession}′)
+                  </p>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/12 bg-emerald-500/[.06] px-2.5 py-1 text-[11px] text-emerald-200/88">
+                    {availableCount} διαθέσιμες
+                  </span>
+
+                  <span className="inline-flex items-center rounded-full border border-amber-400/12 bg-amber-500/[.06] px-2.5 py-1 text-[11px] text-amber-200/88">
+                    {busyCount} κατειλημμένες
+                  </span>
+
+                  <span className="inline-flex items-center rounded-full border border-white/[.06] bg-zinc-900/60 px-2.5 py-1 text-[11px] text-white/52">
+                    {restCount} διάλειμμα / ρεπό
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs text-white/58">
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                  Διαθέσιμες
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400/80" />
+                  Κατειλημμένες
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-zinc-500/80" />
+                  Διάλειμμα / Ρεπό
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {!sched ? (
+            <Spinner />
+          ) : (sched.windows || []).length === 0 ? (
+            <div className="rounded-xl border border-white/[.06] bg-zinc-950/35 px-3 py-4 text-sm text-white/50">
+              Ρεπό / χωρίς ωράριο για αυτή τη μέρα.
+            </div>
+          ) : (
+            <div className="rounded-xl border border-white/[.06] bg-zinc-950/25 p-2 sm:p-3">
+              <div className="quickbook-hours-scroll max-h-[42vh] overflow-y-auto pr-1 sm:pr-2">
+                {loadingDay ? (
+                  <Spinner label="Φόρτωση διαθεσιμότητας…" />
+                ) : (
+                  <div
+                    className="grid gap-2"
+                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(72px, 1fr))" }}
+                  >
+                    {slots.map(({ s, e, status }) => {
+                      const isSel = selectedStart === s
+                      const disabled = saving || status !== "available"
+
+                      let cls =
+                        "h-11 rounded-2xl text-sm border transition px-2.5 text-center font-medium"
+
+                      if (status === "rest") {
+                        cls +=
+                          " bg-zinc-800/55 border-white/[.05] text-white/28 cursor-not-allowed"
+                      } else if (status === "busy") {
+                        cls +=
+                          " bg-amber-500/[.08] border-amber-400/[.12] text-amber-200/80 cursor-not-allowed"
+                      } else if (isSel) {
+                        cls +=
+                          " bg-white text-black border-white shadow-[0_8px_18px_rgba(255,255,255,.08)]"
+                      } else {
+                        cls +=
+                          " bg-emerald-500/[.06] border-emerald-400/[.10] text-emerald-100/88 hover:bg-emerald-500/[.09]"
+                      }
+
+                      const title =
+                        status === "available"
+                          ? `${minToHHMM(s)} – ${minToHHMM(e)} • διαθέσιμο`
+                          : status === "busy"
+                          ? `${minToHHMM(s)} – ${minToHHMM(e)} • κατειλημμένο`
+                          : `${minToHHMM(s)} – ${minToHHMM(e)} • διάλειμμα / ρεπό`
+
+                      return (
+                        <button
+                          key={`${s}-${e}-${status}`}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            if (status === "available") setSelectedStart(s)
+                          }}
+                          className={cls}
+                          title={title}
+                        >
+                          {minToHHMM(s)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Tile>
+
+        {/* form */}
+        <Tile className="p-3">
+          <div className="space-y-3">
+            <label className="block">
+              <FieldLabel icon={Mail}>Email πελάτη (υποχρεωτικό)</FieldLabel>
+              <input
+                type="email"
+                required
+                placeholder="client@example.com"
+                className="mt-1.5 w-full h-11 rounded-xl bg-zinc-900/65 border border-white/[.06] px-3 text-base text-white/90 placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/10"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+
+            <label className="block">
+              <FieldLabel icon={User}>Όνομα/username (προαιρετικό)</FieldLabel>
+              <input
+                type="text"
+                placeholder="π.χ. chris.k"
+                className="mt-1.5 w-full h-11 rounded-xl bg-zinc-900/65 border border-white/[.06] px-3 text-base text-white/90 placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/10"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </label>
+
+            <label className="block">
+              <FieldLabel icon={Euro}>Ποσό πληρωμής (προαιρετικό)</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="π.χ. 40"
+                className="mt-1.5 w-full h-11 rounded-xl bg-zinc-900/65 border border-white/[.06] px-3 text-base text-white/90 placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/10"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </label>
+
+            <label className="block">
+              <FieldLabel>Σημείωση (προαιρετικό)</FieldLabel>
+              <textarea
+                rows={3}
+                placeholder="Οποιαδήποτε λεπτομέρεια"
+                className="mt-1.5 w-full rounded-xl bg-zinc-900/65 border border-white/[.06] px-3 py-2.5 text-base text-white/90 placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/10"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </label>
+          </div>
+        </Tile>
+
+        {/* status */}
+        {err && (
+          <div className="rounded-xl border border-red-400/10 bg-red-500/[.06] px-3 py-2 text-sm text-red-300">
+            {err}
+          </div>
         )}
-      </Tile>
 
-      {/* Form — bigger labels & fields */}
-      <Tile className="p-4 mb-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="block">
-            <span className="text-[13px] text-white/85 inline-flex items-center gap-1"><Mail className="h-4 w-4" /> Email πελάτη (υποχρεωτικό)</span>
-            <input
-              type="email"
-              required
-              placeholder="client@example.com"
-              className="mt-1 w-full h-11 rounded-lg bg-white/[.06] border border-white/10 px-3 text-base text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
+        {okMsg && (
+          <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-500/[.06] px-3 py-2 text-sm text-emerald-300">
+            <Check className="h-4 w-4" />
+            {okMsg}
+            <button
+              type="button"
+              className="ml-1 text-white/35 hover:text-white/70"
+              onClick={() => setOkMsg("")}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
-          <label className="block">
-            <span className="text-[13px] text-white/85 inline-flex items-center gap-1"><User className="h-4 w-4" /> Όνομα/username (προαιρετικό)</span>
-            <input
-              type="text"
-              placeholder="π.χ. chris.k"
-              className="mt-1 w-full h-11 rounded-lg bg-white/[.06] border border-white/10 px-3 text-base text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </label>
+        {/* action */}
+        <div className="flex flex-col gap-3">
+          <div className="text-sm text-white/62 break-words">
+            {selectedStart != null
+              ? `Επιλεγμένο: ${minToHHMM(selectedStart)} – ${minToHHMM(
+                  (selectedStart || 0) + uiSession
+                )}`
+              : "Καμία ώρα επιλεγμένη"}
+          </div>
 
-          <label className="block">
-            <span className="text-[13px] text-white/85 inline-flex items-center gap-1"><Euro className="h-4 w-4" /> Ποσό πληρωμής (προαιρετικό)</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="π.χ. 40"
-              className="mt-1 w-full h-11 rounded-lg bg-white/[.06] border border-white/10 px-3 text-base text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </label>
-
-          <label className="block sm:col-span-2">
-            <span className="text-[13px] text-white/85">Σημείωση (προαιρετικό)</span>
-            <textarea
-              rows={3}
-              placeholder="Οποιαδήποτε λεπτομέρεια"
-              className="mt-1 w-full rounded-lg bg-white/[.06] border border-white/10 px-3 py-2 text-base text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </label>
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={saving}
+            className="w-full h-11 rounded-xl bg-zinc-900/80 text-white hover:bg-zinc-800 disabled:opacity-60 text-[15px] font-medium border border-white/[.06] transition"
+          >
+            {saving ? "Αποθήκευση..." : "Καταχώριση"}
+          </button>
         </div>
-      </Tile>
-
-      {/* status / action */}
-      {err && <div className="mb-2 text-sm text-red-300">{err}</div>}
-      {okMsg && (
-        <div className="mb-2 text-sm text-emerald-300 inline-flex items-center gap-2">
-          <Check className="h-4 w-4" /> {okMsg}
-          <button className="ml-2 text-white/50 hover:text-white" onClick={() => setOkMsg("")}><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-white/70 truncate">
-          {selectedStart != null ? `Επιλεγμένο: ${minToHHMM(selectedStart)} – ${minToHHMM((selectedStart || 0) + uiSession)}` : "Καμία ώρα επιλεγμένη"}
-        </div>
-        <button
-          onClick={handleCreate}
-          disabled={saving}
-          className="h-11 px-5 rounded-xl bg-white text-black hover:bg-zinc-200 disabled:opacity-60 text-[15px] font-medium border border-white/10"
-        >
-          {saving ? "Αποθήκευση..." : "Καταχώριση"}
-        </button>
       </div>
     </Glass>
   )
