@@ -1,0 +1,2218 @@
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+
+import { supabase } from "../supabaseClient";
+import { useAuth } from "../AuthProvider";
+import AuthLoginForm from "../components/auth/AuthLoginForm";
+import {
+  Mail,
+  Lock,
+  User as LucideUser,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Loader2,
+  ArrowRight,
+  MapPin,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+  X,
+} from "lucide-react";
+
+import {
+  FaDumbbell,
+  FaUsers,
+  FaAppleAlt,
+  FaLaptop,
+  FaRunning,
+  FaMusic,
+  FaHeartbeat,
+  FaUserShield,
+  FaUser,
+} from "react-icons/fa";
+import {
+  MdFitnessCenter,
+  MdSelfImprovement,
+  MdHealthAndSafety,
+  MdPsychology,
+} from "react-icons/md";
+import {
+  GiMuscleUp,
+  GiSwordsPower,
+  GiWeightLiftingUp,
+  GiBoxingGlove,
+} from "react-icons/gi";
+import { TbYoga, TbStethoscope } from "react-icons/tb";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+
+/* ------------------ CONFIG ------------------ */
+const LOGO_SRC =
+  "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
+
+const OAUTH_PENDING_KEY = "pv_google_oauth_pending";
+const OAUTH_INTENT_KEY = "pv_google_oauth_intent";
+
+const LOCATION_OPTIONS = [
+  "Όλες οι πόλεις",
+  "Αθήνα",
+  "Θεσσαλονίκη",
+  "Πάτρα",
+  "Ηράκλειο",
+  "Λάρισα",
+  "Βόλος",
+  "Ιωάννινα",
+  "Καβάλα",
+  "Σέρρες",
+  "Χανιά",
+  "Αχαρνές",
+];
+
+/* ------------------ HELPERS ------------------ */
+function withTimeout(promise, ms, label = "operation") {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+function safeSetStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (_) {}
+}
+
+function safeSessionSet(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch (_) {}
+}
+
+function safeSessionGet(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch (_) {
+    return null;
+  }
+}
+
+function safeSessionRemove(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch (_) {}
+}
+
+function setOAuthIntent(intent) {
+  safeSessionSet(OAUTH_INTENT_KEY, JSON.stringify(intent || null));
+}
+
+function getOAuthIntent() {
+  try {
+    const raw = safeSessionGet(OAUTH_INTENT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearOAuthIntent() {
+  safeSessionRemove(OAUTH_INTENT_KEY);
+}
+
+function hasOAuthParams() {
+  if (typeof window === "undefined") return false;
+
+  const search = new URLSearchParams(window.location.search);
+  const hash = window.location.hash || "";
+
+  return (
+    search.has("code") ||
+    search.has("state") ||
+    hash.includes("access_token") ||
+    hash.includes("refresh_token")
+  );
+}
+
+function hasHashErrorParams() {
+  if (typeof window === "undefined") return false;
+  const hash = window.location.hash || "";
+
+  return (
+    hash.includes("error=") ||
+    hash.includes("error_code=") ||
+    hash.includes("error_description=")
+  );
+}
+
+function getTokensFromHash() {
+  if (typeof window === "undefined") {
+    return { access_token: null, refresh_token: null };
+  }
+
+  const hash = (window.location.hash || "").replace(/^#/, "");
+  const params = new URLSearchParams(hash);
+
+  return {
+    access_token: params.get("access_token"),
+    refresh_token: params.get("refresh_token"),
+  };
+}
+
+function cleanupOAuthUrl() {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("code");
+  url.searchParams.delete("error");
+  url.searchParams.delete("error_description");
+  url.searchParams.delete("error_code");
+  url.searchParams.delete("state");
+  url.hash = "";
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}`);
+}
+
+function mapAuthErrorToGreek(err) {
+  const raw = String(err?.message || "");
+  const msg = raw.toLowerCase();
+  const status = err?.status ?? err?.statusCode ?? err?.code;
+
+  if (msg.includes("invalid login credentials")) {
+    return {
+      kind: "invalid_creds",
+      title: "Λάθος στοιχεία σύνδεσης",
+      message:
+        "Το email ή ο κωδικός δεν είναι σωστά. Δοκίμασε ξανά ή κάνε επαναφορά κωδικού.",
+    };
+  }
+
+  if (
+    msg.includes("email not confirmed") ||
+    msg.includes("not confirmed") ||
+    msg.includes("otp_expired") ||
+    msg.includes("email link is invalid or has expired")
+  ) {
+    return {
+      kind: "email_not_confirmed",
+      title: "Το link του email έληξε ή δεν είναι έγκυρο",
+      message:
+        "Το link επιβεβαίωσης ή σύνδεσης έχει λήξει. Ζήτησε νέο email και δοκίμασε ξανά.",
+    };
+  }
+
+  if (
+    status === 429 ||
+    msg.includes("too many requests") ||
+    msg.includes("rate limit") ||
+    msg.includes("try again later")
+  ) {
+    return {
+      kind: "rate_limited",
+      title: "Πολλές προσπάθειες",
+      message:
+        "Έγιναν πολλές προσπάθειες σε λίγο χρόνο. Περίμενε λίγο και δοκίμασε ξανά.",
+    };
+  }
+
+  if (msg.includes("timed out") || msg.includes("timeout")) {
+    return {
+      kind: "timeout",
+      title: "Καθυστέρηση σύνδεσης",
+      message:
+        "Η σύνδεση καθυστέρησε. Έλεγξε το internet σου και δοκίμασε ξανά.",
+    };
+  }
+
+  if (
+    msg.includes("popup closed") ||
+    msg.includes("access_denied") ||
+    msg.includes("oauth") ||
+    msg.includes("provider")
+  ) {
+    return {
+      kind: "oauth",
+      title: "Η σύνδεση με Google δεν ολοκληρώθηκε",
+      message: "Η διαδικασία με τη Google δεν ολοκληρώθηκε. Δοκίμασε ξανά.",
+    };
+  }
+
+  return {
+    kind: "generic",
+    title: "Κάτι πήγε στραβά",
+    message:
+      raw && raw.length < 180
+        ? raw
+        : "Παρουσιάστηκε πρόβλημα. Δοκίμασε ξανά σε λίγο.",
+  };
+}
+
+/* ------------------ ICON MAP ------------------ */
+const ICON_BY_KEY = {
+  dumbbell: FaDumbbell,
+  users: FaUsers,
+  pilates: MdSelfImprovement,
+  yoga: TbYoga,
+  apple: FaAppleAlt,
+  laptop: FaLaptop,
+  strength: GiWeightLiftingUp,
+  calisthenics: GiMuscleUp,
+  crossfit: MdFitnessCenter,
+  boxing: GiBoxingGlove,
+  martial: GiSwordsPower,
+  dance: FaMusic,
+  running: FaRunning,
+  physio: TbStethoscope,
+  rehab: MdHealthAndSafety,
+  wellness: FaHeartbeat,
+  psychology: MdPsychology,
+};
+
+/* ------------------ TRAINER CATEGORIES ------------------ */
+const TRAINER_CATEGORIES = [
+  {
+    value: "personal_trainer",
+    label: "Προσωπικός Εκπαιδευτής",
+    iconKey: "dumbbell",
+    specialties: [
+      "Απώλεια λίπους",
+      "Μυϊκή ενδυνάμωση",
+      "Προπόνηση με βάρη",
+      "Σωματική μεταμόρφωση",
+      "Προετοιμασία αγώνων/διαγωνισμών",
+      "Προπόνηση αρχαρίων",
+      "Προπόνηση τρίτης ηλικίας",
+      "Προπόνηση εγκύων",
+    ],
+  },
+  {
+    value: "group_fitness_instructor",
+    label: "Εκπαιδευτής Ομαδικών Προγραμμάτων",
+    iconKey: "users",
+    specialties: [
+      "HIIT υψηλής έντασης",
+      "Bootcamp",
+      "Λειτουργική προπόνηση (Functional)",
+      "TRX",
+      "Κυκλική προπόνηση (Circuit)",
+      "Αερόβια προπόνηση (Cardio)",
+      "Ομαδικά γυναικών",
+    ],
+  },
+  {
+    value: "pilates_instructor",
+    label: "Εκπαιδευτής Pilates",
+    iconKey: "pilates",
+    specialties: [
+      "Mat Pilates",
+      "Reformer Pilates",
+      "Προγεννητικό & Μεταγεννητικό",
+      "Στάση σώματος / Ενδυνάμωση Core",
+      "Pilates για αποκατάσταση",
+    ],
+  },
+  {
+    value: "yoga_instructor",
+    label: "Εκπαιδευτής Yoga",
+    iconKey: "yoga",
+    specialties: [
+      "Hatha Yoga",
+      "Vinyasa Flow",
+      "Power Yoga",
+      "Yin Yoga",
+      "Prenatal Yoga",
+      "Mindfulness & Αναπνοές",
+    ],
+  },
+  {
+    value: "nutritionist",
+    label: "Διατροφολόγος",
+    iconKey: "apple",
+    specialties: [
+      "Απώλεια βάρους",
+      "Αύξηση μυϊκής μάζας",
+      "Vegan / Χορτοφαγική διατροφή",
+      "Διατροφική υποστήριξη αθλητών",
+      "Προγράμματα διατροφής με delivery",
+      "Εντερική υγεία & δυσανεξίες",
+    ],
+  },
+  {
+    value: "online_coach",
+    label: "Online Προπονητής",
+    iconKey: "laptop",
+    specialties: [
+      "Απομακρυσμένο 1-on-1 coaching",
+      "Προγράμματα PDF / Video",
+      "Συνδυασμός Διατροφής + Προπόνησης",
+      "Ζωντανά μαθήματα μέσω Zoom",
+      "Coaching υπευθυνότητας (accountability)",
+    ],
+  },
+  {
+    value: "strength_conditioning",
+    label: "Προπονητής Δύναμης & Φυσικής Κατάστασης",
+    iconKey: "strength",
+    specialties: [
+      "Ανάπτυξη αθλητών",
+      "Αθλητικές επιδόσεις",
+      "Ολυμπιακές άρσεις",
+      "Πλειομετρικές ασκήσεις",
+      "Ανθεκτικότητα σε τραυματισμούς",
+    ],
+  },
+  {
+    value: "calisthenics",
+    label: "Εκπαιδευτής Calisthenics",
+    iconKey: "calisthenics",
+    specialties: [
+      "Στατική δύναμη",
+      "Δυναμικές δεξιότητες (Muscle-up, Planche)",
+      "Ευκινησία & Έλεγχος",
+      "Street workout",
+      "Προπόνηση σε κρίκους",
+    ],
+  },
+  {
+    value: "crossfit_coach",
+    label: "Προπονητής CrossFit",
+    iconKey: "crossfit",
+    specialties: [
+      "Καθημερινός προγραμματισμός (WODs)",
+      "Ολυμπιακές άρσεις",
+      "Προετοιμασία για αγώνες",
+      "Γυμναστικές δεξιότητες",
+      "Metcons",
+    ],
+  },
+  {
+    value: "boxing_kickboxing",
+    label: "Προπονητής Πυγμαχίας / Kickboxing",
+    iconKey: "boxing",
+    specialties: [
+      "Cardio boxing",
+      "Sparring",
+      "Ασκήσεις με σάκο",
+      "Βελτίωση τεχνικής",
+      "Παιδιά / Αρχάριοι",
+    ],
+  },
+  {
+    value: "martial_arts",
+    label: "Εκπαιδευτής Πολεμικών Τεχνών",
+    iconKey: "martial",
+    specialties: [
+      "Brazilian Jiu-Jitsu (BJJ)",
+      "Muay Thai",
+      "Καράτε",
+      "Krav Maga",
+      "Αυτοάμυνα",
+      "Taekwondo",
+      "Προετοιμασία MMA",
+    ],
+  },
+  {
+    value: "dance_fitness",
+    label: "Εκπαιδευτής Χορευτικής Γυμναστικής",
+    iconKey: "dance",
+    specialties: [
+      "Zumba",
+      "Latin dance fitness",
+      "Afrobeat / Hip hop cardio",
+      "Τόνωση γυναικών",
+      "Χορός για ηλικιωμένους",
+    ],
+  },
+  {
+    value: "running_coach",
+    label: "Προπονητής Τρεξίματος",
+    iconKey: "running",
+    specialties: [
+      "Μαραθώνιος / Ημιμαραθώνιος",
+      "Προπόνηση sprint",
+      "Διόρθωση τεχνικής τρεξίματος",
+      "Προπόνηση αντοχής",
+      "Τρέξιμο για αρχάριους",
+    ],
+  },
+  {
+    value: "physiotherapist",
+    label: "Φυσικοθεραπευτής",
+    iconKey: "physio",
+    specialties: [
+      "Αποκατάσταση τραυματισμών",
+      "Manual therapy",
+      "Κινησιοθεραπεία",
+      "Χρόνιοι πόνοι",
+      "Αθλητική αποκατάσταση",
+    ],
+  },
+  {
+    value: "rehab_prevention",
+    label: "Ειδικός Αποκατάστασης / Πρόληψης Τραυματισμών",
+    iconKey: "rehab",
+    specialties: [
+      "Εργονομική ενδυνάμωση",
+      "Διόρθωση κινητικών προτύπων",
+      "Ισορροπία & σταθερότητα",
+      "Επανένταξη μετά από χειρουργείο",
+    ],
+  },
+  {
+    value: "wellness_life_coach",
+    label: "Προπονητής Ευεξίας & Ζωής",
+    iconKey: "wellness",
+    specialties: [
+      "Διαχείριση άγχους",
+      "Coaching συνηθειών & χρόνου",
+      "Ψυχική ανθεκτικότητα",
+      "Αποκατάσταση από burnout",
+      "Ολιστικός καθορισμός στόχων",
+    ],
+  },
+  {
+    value: "performance_psych",
+    label: "Προπονητής Απόδοσης / Αθλητικός Ψυχολόγος",
+    iconKey: "psychology",
+    specialties: [
+      "Εκπαίδευση συγκέντρωσης",
+      "Ψυχολογία ημέρας αγώνα",
+      "Τεχνικές οπτικοποίησης",
+      "Αγωνιστικό mindset",
+      "Κατάσταση ροής (flow state) coaching",
+    ],
+  },
+];
+
+/* ------------------ COMPONENT ------------------ */
+export default function AuthPage() {
+  const {
+    refreshProfile,
+    session: authSession,
+    profile: authProfile,
+    profileLoaded,
+    loading: authLoading,
+  } = useAuth();
+
+const navigate = useNavigate();
+const location = useLocation();
+
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    full_name: "",
+    role: "user",
+    category: "",
+    specialities: [],
+    location: "Όλες οι πόλεις",
+  });
+
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+
+  const [toasts, setToasts] = useState([]);
+  const [modal, setModal] = useState(null);
+
+  const toastTimersRef = useRef(new Map());
+  const mountedRef = useRef(true);
+
+  const oauthFinalizeInFlightRef = useRef(false);
+  const oauthHandledRef = useRef(false);
+  const oauthHandledUserIdRef = useRef(null);
+
+  const submitLockRef = useRef(false);
+  const googleLockRef = useRef(false);
+  const autoRedirectKeyRef = useRef("");
+
+  const closeToast = useCallback((id) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const pushToast = useCallback(
+    (t) => {
+      const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const type = t.type || "info";
+
+      const durationMs =
+        typeof t.durationMs === "number"
+          ? t.durationMs
+          : type === "error"
+          ? 0
+          : type === "success"
+          ? 6000
+          : 8000;
+
+      const toast = {
+        id,
+        type,
+        title: t.title || "",
+        message: t.message || "",
+        durationMs,
+      };
+
+      setToasts((prev) => {
+        const next = [toast, ...prev];
+        if (next.length > 2) {
+          const removed = next.slice(2);
+          removed.forEach((oldToast) => {
+            const oldTimer = toastTimersRef.current.get(oldToast.id);
+            if (oldTimer) {
+              clearTimeout(oldTimer);
+              toastTimersRef.current.delete(oldToast.id);
+            }
+          });
+        }
+        return next.slice(0, 2);
+      });
+
+      if (durationMs > 0) {
+        const timer = window.setTimeout(() => closeToast(id), durationMs);
+        toastTimersRef.current.set(id, timer);
+      }
+    },
+    [closeToast]
+  );
+
+  const openModal = useCallback((m) => {
+    setModal({
+      title: m.title || "",
+      message: m.message || "",
+      icon: m.icon || "info",
+      actions: Array.isArray(m.actions) ? m.actions : [{ label: "ΟΚ" }],
+    });
+  }, []);
+
+  const closeModal = useCallback(() => setModal(null), []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      toastTimersRef.current.forEach((timer) => clearTimeout(timer));
+      toastTimersRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasHashErrorParams() && !hasOAuthParams()) {
+      cleanupOAuthUrl();
+      safeSessionRemove(OAUTH_PENDING_KEY);
+      clearOAuthIntent();
+    }
+  }, []);
+
+  useEffect(() => {
+    pushToast(
+      mode === "signup"
+        ? {
+            type: "info",
+            title: "Εγγραφή",
+            message: "Συμπλήρωσε τα στοιχεία σου και προχώρα.",
+            durationMs: 8000,
+          }
+        : {
+            type: "info",
+            title: "Σύνδεση",
+            message: "Συνδέσου για να συνεχίσεις.",
+            durationMs: 8000,
+          }
+    );
+  }, [mode, pushToast]);
+
+  const setField = useCallback(
+    (key) => (e) => {
+      const value = e?.target?.value ?? e;
+      setForm((prev) => ({ ...prev, [key]: value }));
+    },
+    []
+  );
+
+  const toggleSpeciality = useCallback((name) => {
+    setForm((prev) => {
+      const exists = prev.specialities.includes(name);
+      return {
+        ...prev,
+        specialities: exists
+          ? prev.specialities.filter((s) => s !== name)
+          : [...prev.specialities, name],
+      };
+    });
+  }, []);
+
+  const validate = useCallback(() => {
+    if (!form.email.trim() || !form.password.trim()) {
+      return "Το email και ο κωδικός είναι υποχρεωτικά.";
+    }
+
+    if (mode === "signup" && !form.full_name.trim()) {
+      return "Συμπλήρωσε ονοματεπώνυμο.";
+    }
+
+    if (mode === "signup" && form.password.length < 6) {
+      return "Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.";
+    }
+
+    if (mode === "signup" && form.role === "trainer" && !form.category) {
+      return "Διάλεξε κατηγορία επαγγελματία.";
+    }
+
+    if (mode === "signup" && !LOCATION_OPTIONS.includes(form.location)) {
+      return "Επίλεξε μία πόλη από τις διαθέσιμες επιλογές.";
+    }
+
+    return null;
+  }, [form, mode]);
+
+  const persistSession = useCallback(async () => {
+    const { data, error } = await withTimeout(
+      supabase.auth.getSession(),
+      8000,
+      "getSession"
+    );
+
+    if (error) throw error;
+
+    const sess = data?.session ?? null;
+    safeSetStorage("pv_session", sess);
+    return sess;
+  }, []);
+
+  const getPostLoginRoute = useCallback((authUser, profile) => {
+    const role =
+      profile?.role ||
+      authUser?.user_metadata?.role ||
+      authUser?.app_metadata?.role ||
+      "user";
+
+    const onboardingCompleted = profile?.onboarding_completed === true;
+
+    if (!onboardingCompleted) {
+      return role === "trainer" ? "/trainer-onboarding" : "/user-onboarding";
+    }
+
+    return role === "trainer" ? "/trainer" : "/user";
+  }, []);
+
+  const getOAuthRedirectUrl = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  }, []);
+
+  const ensureUserProfile = useCallback(async (authUser, intent = null) => {
+    if (!authUser?.id) return null;
+
+    const isGoogleIntent = Boolean(intent?.type?.startsWith("google"));
+    const roleFromIntent = intent?.role || null;
+
+    const resolvedRole =
+      roleFromIntent ||
+      authUser.user_metadata?.role ||
+      authUser.app_metadata?.role ||
+      "user";
+
+    const resolvedFullName =
+      intent?.full_name ||
+      authUser.user_metadata?.full_name ||
+      authUser.user_metadata?.name ||
+      authUser.user_metadata?.user_name ||
+      authUser.email?.split("@")[0] ||
+      "";
+
+    const resolvedAvatar =
+      authUser.user_metadata?.avatar_url ||
+      authUser.user_metadata?.picture ||
+      null;
+
+    const resolvedSpecialty =
+      resolvedRole === "trainer"
+        ? intent?.category || authUser.user_metadata?.specialty || null
+        : null;
+
+    const resolvedRoles =
+      resolvedRole === "trainer"
+        ? Array.isArray(intent?.specialities)
+          ? intent.specialities
+          : Array.isArray(authUser.user_metadata?.roles)
+          ? authUser.user_metadata.roles
+          : []
+        : [];
+
+    const resolvedLocation =
+      intent?.location ||
+      authUser.user_metadata?.location ||
+      "Όλες οι πόλεις";
+
+    const onboardingStartStep =
+      resolvedRole === "trainer"
+        ? isGoogleIntent
+          ? 1
+          : 2
+        : 1;
+
+    const resolvedSignupProvider = isGoogleIntent ? "google" : "email";
+
+    let existingProfile = null;
+
+    try {
+      const { data, error } = await withTimeout(
+        supabase.from("profiles").select("*").eq("id", authUser.id).maybeSingle(),
+        8000,
+        "ensure profile lookup"
+      );
+
+      if (error) throw error;
+      existingProfile = data || null;
+    } catch (err) {
+      console.error("ensureUserProfile lookup error:", err);
+    }
+
+    if (existingProfile) {
+      const patch = {};
+
+      if (
+        (!existingProfile.full_name ||
+          existingProfile.full_name === existingProfile.email) &&
+        resolvedFullName
+      ) {
+        patch.full_name = resolvedFullName;
+      }
+
+      if (!existingProfile.avatar_url && resolvedAvatar) {
+        patch.avatar_url = resolvedAvatar;
+      }
+
+      if (existingProfile.role !== resolvedRole && resolvedRole) {
+        patch.role = resolvedRole;
+      }
+
+      if (
+        resolvedRole === "trainer" &&
+        !existingProfile.specialty &&
+        resolvedSpecialty
+      ) {
+        patch.specialty = resolvedSpecialty;
+      }
+
+      if (
+        resolvedRole === "trainer" &&
+        (!Array.isArray(existingProfile.roles) ||
+          existingProfile.roles.length === 0) &&
+        resolvedRoles.length > 0
+      ) {
+        patch.roles = resolvedRoles;
+      }
+
+      if (!existingProfile.location && resolvedLocation) {
+        patch.location = resolvedLocation;
+      }
+
+      if (!existingProfile.signup_provider && resolvedSignupProvider) {
+        patch.signup_provider = resolvedSignupProvider;
+      }
+
+      if (
+        resolvedRole === "trainer" &&
+        (!Number.isFinite(existingProfile.onboarding_step) ||
+          existingProfile.onboarding_step < onboardingStartStep)
+      ) {
+        patch.onboarding_step = onboardingStartStep;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        try {
+          const { data, error } = await withTimeout(
+            supabase
+              .from("profiles")
+              .update(patch)
+              .eq("id", authUser.id)
+              .select()
+              .maybeSingle(),
+            8000,
+            "ensure profile patch"
+          );
+
+          if (error) {
+            console.error("ensureUserProfile patch error:", error);
+            existingProfile = { ...existingProfile, ...patch };
+          } else if (data) {
+            existingProfile = data;
+          } else {
+            existingProfile = { ...existingProfile, ...patch };
+          }
+        } catch (err) {
+          console.error("ensureUserProfile patch throw:", err);
+          existingProfile = { ...existingProfile, ...patch };
+        }
+      }
+
+      safeSetStorage("pv_profile", existingProfile);
+      return existingProfile;
+    }
+
+    const payload = {
+      id: authUser.id,
+      email:
+        authUser.email ||
+        authUser.user_metadata?.email ||
+        authUser.identities?.[0]?.identity_data?.email ||
+        null,
+      full_name: resolvedFullName,
+      avatar_url: resolvedAvatar,
+      role: resolvedRole,
+      specialty: resolvedSpecialty,
+      roles: resolvedRoles,
+      location: resolvedLocation,
+      has_seen_welcome: false,
+      onboarding_completed: false,
+      onboarding_step: onboardingStartStep,
+      signup_provider: resolvedSignupProvider,
+    };
+
+    try {
+      const { data, error } = await withTimeout(
+        supabase.from("profiles").insert(payload).select().maybeSingle(),
+        8000,
+        "ensure profile insert"
+      );
+
+      if (error) throw error;
+
+      const finalProfile = data || payload;
+      safeSetStorage("pv_profile", finalProfile);
+      return finalProfile;
+    } catch (err) {
+      const msg = String(err?.message || "").toLowerCase();
+      const code = err?.code;
+
+      const looksLikeDuplicate =
+        code === "23505" ||
+        msg.includes("duplicate key") ||
+        msg.includes("already exists") ||
+        msg.includes("profiles_pkey") ||
+        msg.includes("profiles_email_key");
+
+      if (!looksLikeDuplicate) {
+        throw err;
+      }
+
+      const { data: fallbackProfile, error: fallbackErr } = await withTimeout(
+        supabase.from("profiles").select("*").eq("id", authUser.id).maybeSingle(),
+        8000,
+        "ensure profile fallback lookup"
+      );
+
+      if (fallbackErr) throw fallbackErr;
+      if (!fallbackProfile) throw err;
+
+      safeSetStorage("pv_profile", fallbackProfile);
+      return fallbackProfile;
+    }
+  }, []);
+
+  const safeEnsureUserProfile = useCallback(
+    async (authUser, intent = null) => {
+      try {
+        return await ensureUserProfile(authUser, intent);
+      } catch (err) {
+        console.error("safeEnsureUserProfile error:", err);
+        return null;
+      }
+    },
+    [ensureUserProfile]
+  );
+
+  const redirectAuthenticatedUser = useCallback(
+    async (session, { intent = null, successToast = null } = {}) => {
+      const userId = session?.user?.id || null;
+      if (!userId) return;
+
+      const ensuredProfile = await safeEnsureUserProfile(session.user, intent);
+      const refreshedProfile = await refreshProfile().catch(() => null);
+      const finalProfile = refreshedProfile || ensuredProfile || null;
+
+      if (successToast) {
+        pushToast(successToast);
+      }
+
+      const nextRoute = getPostLoginRoute(session.user, finalProfile);
+      navigate(nextRoute, { replace: true });
+    },
+    [getPostLoginRoute, navigate, pushToast, refreshProfile, safeEnsureUserProfile]
+  );
+
+  const finalizeOAuthLogin = useCallback(
+    async (session) => {
+      const userId = session?.user?.id || null;
+      if (!userId) return;
+
+      if (oauthFinalizeInFlightRef.current) return;
+      if (
+        oauthHandledRef.current &&
+        oauthHandledUserIdRef.current === userId
+      ) {
+        return;
+      }
+
+      oauthFinalizeInFlightRef.current = true;
+      setGoogleSubmitting(true);
+
+      try {
+        const intent = getOAuthIntent();
+
+        await safeEnsureUserProfile(session.user, intent);
+        await refreshProfile().catch(console.error);
+
+        oauthHandledRef.current = true;
+        oauthHandledUserIdRef.current = userId;
+
+        safeSessionRemove(OAUTH_PENDING_KEY);
+        clearOAuthIntent();
+        cleanupOAuthUrl();
+
+        await redirectAuthenticatedUser(session, {
+          intent,
+          successToast: {
+            type: "success",
+            title:
+              intent?.type === "google_signup_user"
+                ? "Ο λογαριασμός δημιουργήθηκε"
+                : "Έτοιμο",
+            message:
+              intent?.type === "google_signup_user"
+                ? "Η εγγραφή με Google ολοκληρώθηκε."
+                : "Η σύνδεση με Google ολοκληρώθηκε.",
+            durationMs: 6000,
+          },
+        });
+      } catch (err) {
+        console.error("OAuth finalize error:", err);
+
+        oauthHandledRef.current = false;
+        oauthHandledUserIdRef.current = null;
+        safeSessionRemove(OAUTH_PENDING_KEY);
+        clearOAuthIntent();
+        cleanupOAuthUrl();
+
+        const mapped = mapAuthErrorToGreek(err);
+        if (mountedRef.current) {
+          setError(mapped.message);
+
+          openModal({
+            icon: "error",
+            title: mapped.title,
+            message: mapped.message,
+            actions: [{ label: "ΟΚ", onClick: closeModal }],
+          });
+
+          pushToast({
+            type: "error",
+            title: mapped.title,
+            message: mapped.message,
+            durationMs: 0,
+          });
+        }
+      } finally {
+        googleLockRef.current = false;
+        oauthFinalizeInFlightRef.current = false;
+
+        if (mountedRef.current) {
+          setGoogleSubmitting(false);
+        }
+      }
+    },
+    [
+      closeModal,
+      openModal,
+      pushToast,
+      redirectAuthenticatedUser,
+      refreshProfile,
+      safeEnsureUserProfile,
+    ]
+  );
+
+  useEffect(() => {
+    const shouldHandleOAuth =
+      safeSessionGet(OAUTH_PENDING_KEY) === "1" || hasOAuthParams();
+
+    if (!shouldHandleOAuth) return;
+
+    let active = true;
+
+    const bootOAuth = async () => {
+      try {
+        let session = null;
+
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          8000,
+          "oauth getSession"
+        );
+
+        if (!active || !mountedRef.current) return;
+        if (error) throw error;
+
+        session = data?.session || null;
+
+        if (!session?.user) {
+          const { access_token, refresh_token } = getTokensFromHash();
+
+          if (access_token && refresh_token) {
+            const { data: setData, error: setSessionError } = await withTimeout(
+              supabase.auth.setSession({
+                access_token,
+                refresh_token,
+              }),
+              8000,
+              "oauth setSession from hash"
+            );
+
+            if (!active || !mountedRef.current) return;
+            if (setSessionError) throw setSessionError;
+
+            session = setData?.session || null;
+          }
+        }
+
+        if (session?.user) {
+          await finalizeOAuthLogin(session);
+        } else {
+          safeSessionRemove(OAUTH_PENDING_KEY);
+          clearOAuthIntent();
+          cleanupOAuthUrl();
+          setGoogleSubmitting(false);
+        }
+      } catch (err) {
+        if (!active || !mountedRef.current) return;
+
+        console.error("OAuth boot error:", err);
+        safeSessionRemove(OAUTH_PENDING_KEY);
+        clearOAuthIntent();
+        cleanupOAuthUrl();
+
+        const mapped = mapAuthErrorToGreek(err);
+        setError(mapped.message);
+
+        openModal({
+          icon: "error",
+          title: mapped.title,
+          message: mapped.message,
+          actions: [{ label: "ΟΚ", onClick: closeModal }],
+        });
+
+        pushToast({
+          type: "error",
+          title: mapped.title,
+          message: mapped.message,
+          durationMs: 0,
+        });
+
+        setGoogleSubmitting(false);
+      }
+    };
+
+    void bootOAuth();
+
+    return () => {
+      active = false;
+    };
+  }, [closeModal, finalizeOAuthLogin, openModal, pushToast]);
+
+  useEffect(() => {
+    let active = true;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active || !mountedRef.current) return;
+
+      if (event === "SIGNED_IN" && session?.user) {
+        const oauthPending = safeSessionGet(OAUTH_PENDING_KEY) === "1";
+        if (oauthPending) {
+          void finalizeOAuthLogin(session);
+        }
+      }
+
+      if (event === "SIGNED_OUT") {
+        safeSessionRemove(OAUTH_PENDING_KEY);
+        clearOAuthIntent();
+        oauthHandledRef.current = false;
+        oauthHandledUserIdRef.current = null;
+        autoRedirectKeyRef.current = "";
+        setGoogleSubmitting(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription?.unsubscribe();
+    };
+  }, [finalizeOAuthLogin]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (submitting || googleSubmitting) return;
+    if (safeSessionGet(OAUTH_PENDING_KEY) === "1") return;
+    if (hasOAuthParams()) return;
+    if (!profileLoaded) return;
+
+    const user = authSession?.user || null;
+    if (!user?.id) return;
+
+    const key = [
+      user.id,
+      authProfile?.role || user.user_metadata?.role || user.app_metadata?.role || "user",
+      authProfile?.onboarding_completed === true ? "done" : "todo",
+      profileLoaded ? "loaded" : "pending",
+    ].join(":");
+
+    if (autoRedirectKeyRef.current === key) return;
+    autoRedirectKeyRef.current = key;
+
+    const nextRoute = getPostLoginRoute(user, authProfile || null);
+    navigate(nextRoute, { replace: true });
+  }, [
+    authLoading,
+    authProfile,
+    authSession,
+    getPostLoginRoute,
+    googleSubmitting,
+    navigate,
+    profileLoaded,
+    submitting,
+  ]);
+
+  const startGoogleOAuth = useCallback(
+    async (intent) => {
+      if (googleLockRef.current || googleSubmitting || submitting) return;
+
+      setError("");
+      googleLockRef.current = true;
+      setGoogleSubmitting(true);
+
+      try {
+        safeSessionSet(OAUTH_PENDING_KEY, "1");
+        setOAuthIntent(intent);
+
+        pushToast({
+          type: "info",
+          title:
+            intent?.type === "google_signup_user" ? "Google εγγραφή…" : "Google…",
+          message:
+            intent?.type === "google_signup_user"
+              ? "Σε μεταφέρουμε στη Google για εγγραφή."
+              : "Σε μεταφέρουμε στη Google για ασφαλή σύνδεση.",
+          durationMs: 8000,
+        });
+
+        const { error: oauthErr } = await withTimeout(
+          supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: getOAuthRedirectUrl(),
+              queryParams: { prompt: "select_account" },
+            },
+          }),
+          15000,
+          "google oauth"
+        );
+
+        if (oauthErr) throw oauthErr;
+      } catch (err) {
+        console.error("Google auth error:", err);
+
+        safeSessionRemove(OAUTH_PENDING_KEY);
+        clearOAuthIntent();
+        cleanupOAuthUrl();
+        googleLockRef.current = false;
+
+        const mapped = mapAuthErrorToGreek(err);
+        setError(mapped.message);
+
+        openModal({
+          icon: "error",
+          title: mapped.title,
+          message: mapped.message,
+          actions: [{ label: "ΟΚ", onClick: closeModal }],
+        });
+
+        pushToast({
+          type: "error",
+          title: mapped.title,
+          message: mapped.message,
+          durationMs: 0,
+        });
+
+        setGoogleSubmitting(false);
+      }
+    },
+    [closeModal, getOAuthRedirectUrl, googleSubmitting, openModal, pushToast, submitting]
+  );
+
+  const handleGoogleLogin = async () => {
+    await startGoogleOAuth({ type: "google_login" });
+  };
+
+  const handleGoogleSignupUser = async () => {
+    await startGoogleOAuth({
+      type: "google_signup_user",
+      role: "user",
+      full_name: form.full_name?.trim() || "",
+      location: form.location || "Όλες οι πόλεις",
+    });
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+
+    if (submitLockRef.current || submitting || googleSubmitting) return;
+
+    setError("");
+    submitLockRef.current = true;
+    setSubmitting(true);
+
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+
+      openModal({
+        icon: "error",
+        title: "Χρειάζονται στοιχεία",
+        message: validationError,
+        actions: [{ label: "ΟΚ", onClick: closeModal }],
+      });
+
+      submitLockRef.current = false;
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      cleanupOAuthUrl();
+      safeSessionRemove(OAUTH_PENDING_KEY);
+      clearOAuthIntent();
+
+      if (mode === "login") {
+        pushToast({
+          type: "info",
+          title: "Σύνδεση…",
+          message: "Γίνεται έλεγχος στοιχείων.",
+          durationMs: 8000,
+        });
+
+        const { data, error: loginErr } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email: form.email.trim(),
+            password: form.password,
+          }),
+          10000,
+          "login"
+        );
+
+        if (loginErr) throw loginErr;
+
+        const sess = data?.session || (await persistSession());
+        await redirectAuthenticatedUser(sess, {
+          successToast: {
+            type: "success",
+            title: "Έτοιμο",
+            message: "Συνδέθηκες επιτυχώς.",
+            durationMs: 6000,
+          },
+        });
+      } else {
+        pushToast({
+          type: "info",
+          title: "Εγγραφή…",
+          message: "Δημιουργούμε τον λογαριασμό σου.",
+          durationMs: 8000,
+        });
+
+        const signupIntent = {
+          type: "email_signup",
+          role: form.role,
+          full_name: form.full_name.trim(),
+          location: form.location || "Όλες οι πόλεις",
+          category: form.role === "trainer" ? form.category : null,
+          specialities: form.role === "trainer" ? form.specialities : [],
+        };
+
+        const { data, error: signErr } = await withTimeout(
+          supabase.auth.signUp({
+            email: form.email.trim(),
+            password: form.password,
+            options: {
+              data: {
+                full_name: form.full_name.trim(),
+                role: form.role,
+                specialty: form.role === "trainer" ? form.category : null,
+                roles: form.role === "trainer" ? form.specialities : [],
+                location: form.location || null,
+              },
+            },
+          }),
+          12000,
+          "signup"
+        );
+
+        if (signErr) {
+          const signMsg = String(signErr?.message || "").toLowerCase();
+
+          if (
+            signErr.status === 400 &&
+            /registered|exists|used|already/i.test(signMsg)
+          ) {
+            const msg =
+              "Υπάρχει ήδη λογαριασμός με αυτό το email. Παρακαλώ συνδέσου.";
+            setError(msg);
+
+            openModal({
+              icon: "error",
+              title: "Υπάρχει ήδη λογαριασμός",
+              message: msg,
+              actions: [
+                {
+                  label: "Πήγαινε στη σύνδεση",
+                  onClick: () => {
+                    closeModal();
+                    setMode("login");
+                  },
+                },
+                { label: "ΟΚ", onClick: closeModal },
+              ],
+            });
+
+            return;
+          }
+
+          throw signErr;
+        }
+
+        let activeSession = data?.session || null;
+
+        if (!activeSession) {
+          const { data: loginData, error: autoLoginErr } = await withTimeout(
+            supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password,
+            }),
+            10000,
+            "auto login after signup"
+          );
+
+          if (!autoLoginErr && loginData?.session) {
+            activeSession = loginData.session;
+          }
+        }
+
+        if (activeSession?.user) {
+          await redirectAuthenticatedUser(activeSession, {
+            intent: signupIntent,
+            successToast: {
+              type: "success",
+              title: "Ο λογαριασμός δημιουργήθηκε",
+              message: "Έγινε και αυτόματη σύνδεση.",
+              durationMs: 7000,
+            },
+          });
+          return;
+        }
+
+        openModal({
+          icon: "success",
+          title: "Σχεδόν τελείωσες",
+          message:
+            "Ο λογαριασμός δημιουργήθηκε, αλλά χρειάζεται επιβεβαίωση email πριν γίνει σύνδεση. Άνοιξε το inbox ή το spam και επιβεβαίωσέ το.",
+          actions: [
+            {
+              label: "Πήγαινε στη σύνδεση",
+              onClick: () => {
+                closeModal();
+                setMode("login");
+              },
+            },
+            { label: "ΟΚ", onClick: closeModal },
+          ],
+        });
+
+        pushToast({
+          type: "success",
+          title: "Ο λογαριασμός δημιουργήθηκε",
+          message:
+            "Αν δεν έγινε αυτόματη σύνδεση, έλεγξε αν χρειάζεται email confirmation.",
+          durationMs: 7000,
+        });
+      }
+    } catch (err) {
+      console.error("Auth error:", err);
+
+      const mapped = mapAuthErrorToGreek(err);
+      setError(mapped.message);
+
+      if (mapped.kind === "invalid_creds") {
+        openModal({
+          icon: "error",
+          title: mapped.title,
+          message: mapped.message,
+          actions: [
+            {
+              label: "Επαναφορά κωδικού",
+              onClick: () => {
+                closeModal();
+                navigate("/forgot-password");
+              },
+            },
+            { label: "ΟΚ", onClick: closeModal },
+          ],
+        });
+      } else {
+        openModal({
+          icon: mapped.kind === "email_not_confirmed" ? "info" : "error",
+          title: mapped.title,
+          message: mapped.message,
+          actions: [{ label: "ΟΚ", onClick: closeModal }],
+        });
+      }
+
+      pushToast({
+        type: "error",
+        title: mapped.title,
+        message: mapped.message,
+        durationMs: 0,
+      });
+    } finally {
+      submitLockRef.current = false;
+      if (mountedRef.current) {
+        setSubmitting(false);
+      }
+    }
+  };
+
+  const selectedCategory =
+    TRAINER_CATEGORIES.find((c) => c.value === form.category) ?? null;
+
+  const disableMainActions = submitting || googleSubmitting;
+  const showGoogleSignupUserButton = mode === "signup" && form.role === "user";
+
+  return (
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-zinc-900 px-4 py-10">
+      <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-black" />
+      <StaticBlobs />
+
+      <ToastViewport toasts={toasts} onClose={closeToast} />
+      <ModalPopup modal={modal} onClose={closeModal} />
+
+      <LayoutGroup>
+        <motion.form
+          layout
+          onSubmit={submit}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", damping: 20, stiffness: 150 }}
+          className="relative z-10 w-full max-w-md px-7 py-9 space-y-7 rounded-3xl
+                     bg-black/40 backdrop-blur-xl border border-zinc-700/50 text-gray-200
+                     shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
+        >
+          <motion.div
+            className="text-center space-y-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <img
+              src={LOGO_SRC}
+              alt="Peak Velocity"
+              className="mx-auto h-16 w-16 rounded-xl bg-white p-1 object-contain"
+            />
+            <div className="text-[30px] font-bold text-white">
+              Peak<span className="font-light text-zinc-300">Velocity</span>
+            </div>
+            <p className="text-zinc-400 text-[15px]">
+              Σύνδεση & εγγραφή — σε λίγα βήματα.
+            </p>
+          </motion.div>
+
+          <TogglePill mode={mode} setMode={setMode} />
+
+          {mode === "login" ? (
+            <AuthLoginForm
+              form={form}
+              error={error}
+              showPw={showPw}
+              setShowPw={setShowPw}
+              setField={setField}
+              submitting={submitting}
+              googleSubmitting={googleSubmitting}
+              onGoogleLogin={handleGoogleLogin}
+              onForgotPassword={() =>
+                openModal({
+                  icon: "info",
+                  title: "Επαναφορά κωδικού",
+                  message:
+                    "Θες να κάνεις επαναφορά κωδικού; Θα σε πάμε στη σελίδα επαναφοράς.",
+                  actions: [
+                    { label: "Άκυρο", onClick: closeModal },
+                    {
+                      label: "Συνέχεια",
+                      onClick: () => {
+                        closeModal();
+                        navigate("/forgot-password");
+                      },
+                    },
+                  ],
+                })
+              }
+            />
+          ) : (
+            <>
+              {showGoogleSignupUserButton ? (
+                <div className="space-y-3">
+                  <GoogleButton
+                    loading={googleSubmitting}
+                    onClick={handleGoogleSignupUser}
+                    text="Εγγραφή με Google"
+                  />
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-zinc-700/70" />
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-black/40 px-3 text-xs tracking-wide uppercase text-zinc-500">
+                        ή
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-5">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key="signup-fields"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="space-y-4 overflow-hidden"
+                  >
+                    <Input
+                      icon={LucideUser}
+                      placeholder="Ονοματεπώνυμο"
+                      value={form.full_name}
+                      onChange={setField("full_name")}
+                    />
+
+                    <LocationPicker
+                      value={form.location}
+                      onChange={(next) => {
+                        setForm((prev) => ({ ...prev, location: next }));
+                        pushToast({
+                          type: "info",
+                          title: "Πόλη επιλέχθηκε",
+                          message: next,
+                          durationMs: 5000,
+                        });
+                      }}
+                    />
+
+                    <Select
+                      icon={ShieldCheck}
+                      leftIcon={form.role === "trainer" ? FaUserShield : FaUser}
+                      value={form.role}
+                      onChange={(e) => {
+                        const nextRole = e.target.value;
+
+                        setForm((prev) => ({
+                          ...prev,
+                          role: nextRole,
+                          category: nextRole === "trainer" ? prev.category : "",
+                          specialities:
+                            nextRole === "trainer" ? prev.specialities : [],
+                        }));
+
+                        pushToast(
+                          nextRole === "trainer"
+                            ? {
+                                type: "info",
+                                title: "Ρόλος: Εκπαιδευτής",
+                                message:
+                                  "Μετά την εγγραφή θα συνεχίσεις στο trainer onboarding.",
+                                durationMs: 8000,
+                              }
+                            : {
+                                type: "info",
+                                title: "Ρόλος: Χρήστης",
+                                message:
+                                  "Μετά την εγγραφή θα συνεχίσεις στο user onboarding.",
+                                durationMs: 8000,
+                              }
+                        );
+                      }}
+                      options={[
+                        { label: "Χρήστης", value: "user" },
+                        { label: "Εκπαιδευτής/Προπονητής", value: "trainer" },
+                      ]}
+                    />
+
+                    {form.role === "trainer" && (
+                      <>
+                        <CategorySelect
+                          value={form.category}
+                          onChange={(e) => {
+                            setField("category")(e);
+                            const next = TRAINER_CATEGORIES.find(
+                              (c) => c.value === e.target.value
+                            );
+                            if (next) {
+                              pushToast({
+                                type: "success",
+                                title: "Κατηγορία επιλέχθηκε",
+                                message: next.label,
+                                durationMs: 6000,
+                              });
+                            }
+                          }}
+                        />
+
+                        {form.category && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[15px] text-zinc-300 font-medium">
+                                Ειδικότητες
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openModal({
+                                    icon: "info",
+                                    title: "Γιατί ζητάμε ειδικότητες;",
+                                    message:
+                                      "Οι ειδικότητες βοηθούν τους χρήστες να σε βρίσκουν ακριβώς για αυτό που χρειάζονται. Επίλεξε όσες σε περιγράφουν πραγματικά.",
+                                    actions: [{ label: "ΟΚ", onClick: closeModal }],
+                                  })
+                                }
+                                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                              >
+                                Τι είναι αυτό;
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 max-h-44 overflow-y-auto pr-1">
+                              {selectedCategory?.specialties?.map((sp) => (
+                                <label
+                                  key={sp}
+                                  className="flex items-center gap-2 text-base text-zinc-300 hover:text-white transition-colors"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="accent-zinc-500 rounded"
+                                    checked={form.specialities.includes(sp)}
+                                    onChange={() => {
+                                      const removing = form.specialities.includes(sp);
+                                      toggleSpeciality(sp);
+
+                                      pushToast({
+                                        type: "info",
+                                        title: "Ενημέρωση ειδικοτήτων",
+                                        message: removing
+                                          ? `Αφαιρέθηκε: ${sp}`
+                                          : `Προστέθηκε: ${sp}`,
+                                        durationMs: 7000,
+                                      });
+                                    }}
+                                  />
+                                  <span>{sp}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+
+                <Input
+                  icon={Mail}
+                  type="email"
+                  placeholder="Email"
+                  value={form.email}
+                  onChange={setField("email")}
+                  required
+                />
+
+                <Input
+                  icon={Lock}
+                  type={showPw ? "text" : "password"}
+                  placeholder="Κωδικός"
+                  value={form.password}
+                  onChange={setField("password")}
+                  required
+                  append={
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      className="text-slate-400 hover:text-white transition-colors"
+                      aria-label={showPw ? "Απόκρυψη κωδικού" : "Εμφάνιση κωδικού"}
+                    >
+                      {showPw ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  }
+                />
+
+                {!!error && (
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                    {error}
+                  </div>
+                )}
+              </div>
+
+              <SubmitButton disabled={disableMainActions} mode={mode} />
+            </>
+          )}
+
+          <p className="text-center text-[15px] text-zinc-500 pt-2">
+            {mode === "login" ? "Δεν έχεις λογαριασμό;" : "Έχεις ήδη λογαριασμό;"}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setMode(mode === "login" ? "signup" : "login");
+              }}
+              className="text-zinc-300 hover:text-white font-medium transition-colors"
+            >
+              {mode === "login" ? "Εγγραφή" : "Σύνδεση"}
+            </button>
+          </p>
+        </motion.form>
+      </LayoutGroup>
+    </div>
+  );
+}
+
+/* ------------------ UI bits ------------------ */
+const StaticBlobs = () => (
+  <>
+    <div className="absolute left-1/4 -top-40 w-96 aspect-square rounded-full bg-gradient-to-r from-zinc-600/10 to-gray-700/10 blur-2xl" />
+    <div className="absolute -right-40 bottom-10 w-[30rem] aspect-square rounded-full bg-gradient-to-r from-gray-700/10 to-zinc-800/10 blur-2xl" />
+  </>
+);
+
+function TogglePill({ mode, setMode }) {
+  return (
+    <div className="flex justify-center pb-2">
+      <div className="relative p-1 rounded-2xl bg-black/30 backdrop-blur-sm border border-zinc-700 w-64 flex">
+        <motion.span
+          layout
+          className="absolute inset-y-1 rounded-xl bg-zinc-800 shadow-inner"
+          style={{
+            width: "calc(50% - 4px)",
+            left: mode === "login" ? "4px" : "calc(50% + 4px - 4px)",
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        />
+        {["login", "signup"].map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setMode(key)}
+            className={`relative flex-1 py-2 text-base rounded-xl z-10 transition-colors ${
+              mode === key ? "text-white font-semibold" : "text-gray-300"
+            }`}
+          >
+            {key === "login" ? "Σύνδεση" : "Εγγραφή"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* signup-only google button */
+function GoogleButton({ loading, onClick, text }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      whileHover={!loading ? { y: -1 } : {}}
+      whileTap={!loading ? { scale: 0.98 } : {}}
+      transition={{ duration: 0.15 }}
+      className={`w-full py-4 rounded-xl font-semibold text-base
+        transition-all duration-300 flex items-center justify-center gap-3 border
+        ${
+          loading
+            ? "bg-white/70 text-zinc-700 border-white/70 opacity-80 cursor-not-allowed"
+            : "bg-white text-zinc-900 border-white hover:bg-zinc-100 shadow-lg"
+        }`}
+    >
+      {loading ? (
+        <Loader2 className="animate-spin w-5 h-5" />
+      ) : (
+        <>
+          <GoogleIcon />
+          <span>{text}</span>
+        </>
+      )}
+    </motion.button>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+      <path
+        fill="#FFC107"
+        d="M43.611 20.083H42V20H24v8h11.303C33.654 32.657 29.239 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+      />
+      <path
+        fill="#FF3D00"
+        d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
+      />
+      <path
+        fill="#4CAF50"
+        d="M24 44c5.166 0 9.86-1.977 13.409-5.193l-6.19-5.238C29.145 35.091 26.715 36 24 36c-5.218 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+      />
+      <path
+        fill="#1976D2"
+        d="M43.611 20.083H42V20H24v8h11.303a12.051 12.051 0 0 1-4.084 5.569l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+      />
+    </svg>
+  );
+}
+
+function SubmitButton({ disabled, mode }) {
+  return (
+    <motion.button
+      type="submit"
+      disabled={disabled}
+      whileHover={!disabled ? { y: -1 } : {}}
+      whileTap={!disabled ? { scale: 0.98 } : {}}
+      transition={{ duration: 0.15 }}
+      className={`w-full py-4 rounded-xl font-semibold text-white text-base
+        transition-all duration-300 flex items-center justify-center gap-2
+        ${
+          disabled
+            ? "bg-zinc-700 opacity-70 cursor-not-allowed"
+            : "bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-600 hover:to-zinc-700 shadow-lg"
+        }`}
+    >
+      {disabled ? (
+        <Loader2 className="animate-spin w-5 h-5" />
+      ) : (
+        <>
+          {mode === "login" ? "Σύνδεση" : "Δημιουργία λογαριασμού"}
+          <ArrowRight className="w-5 h-5" />
+        </>
+      )}
+    </motion.button>
+  );
+}
+
+function Input({ icon: Icon, append, ...props }) {
+  return (
+    <div className="relative group">
+      <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <input
+        {...props}
+        className="w-full pl-10 pr-11 py-4 rounded-xl text-base
+          bg-black/30 border border-zinc-700 text-gray-200 placeholder-zinc-500
+          focus:outline-none focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500
+          transition-all"
+      />
+      {append && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">{append}</div>
+      )}
+    </div>
+  );
+}
+
+function Select({ icon: DefaultIcon, leftIcon: LeftIcon, options = [], ...props }) {
+  const IconToUse = LeftIcon || DefaultIcon;
+
+  return (
+    <div className="relative group">
+      {IconToUse && (
+        <IconToUse className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      )}
+      <select
+        {...props}
+        className="w-full pl-10 pr-8 py-4 rounded-xl text-base
+          bg-black/30 border border-zinc-700 text-gray-200
+          focus:outline-none focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500
+          transition-all appearance-none"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value} className="bg-zinc-800 text-white">
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+        <svg
+          className="w-4 h-4 text-zinc-500"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function CategorySelect({ value, onChange }) {
+  const cat = TRAINER_CATEGORIES.find((c) => c.value === value);
+  const LeftIcon = cat?.iconKey ? ICON_BY_KEY[cat.iconKey] : ShieldCheck;
+
+  return (
+    <div className="relative group">
+      <LeftIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <select
+        value={value}
+        onChange={onChange}
+        className="w-full pl-10 pr-8 py-4 rounded-xl text-base
+          bg-black/30 border border-zinc-700 text-gray-200
+          focus:outline-none focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500
+          transition-all appearance-none"
+      >
+        <option value="" className="bg-zinc-800 text-white">
+          — Επίλεξε κατηγορία επαγγελματία —
+        </option>
+        {TRAINER_CATEGORIES.map((category) => (
+          <option
+            key={category.value}
+            value={category.value}
+            className="bg-zinc-800 text-white"
+          >
+            {category.label}
+          </option>
+        ))}
+      </select>
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+        <svg
+          className="w-4 h-4 text-zinc-500"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function LocationPicker({ value, onChange }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-zinc-300">
+        <MapPin className="w-4 h-4 text-zinc-500" />
+        <span>Πόλη</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {LOCATION_OPTIONS.map((city) => {
+          const active = value === city;
+
+          return (
+            <button
+              key={city}
+              type="button"
+              onClick={() => onChange(city)}
+              className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm transition-all
+                ${
+                  active
+                    ? "bg-white text-black border-white font-semibold"
+                    : "bg-black/30 text-zinc-300 border-zinc-700 hover:border-zinc-500 hover:text-white"
+                }`}
+            >
+              <MapPin
+                className={`w-4 h-4 ${active ? "text-black" : "text-zinc-500"}`}
+              />
+              <span className="truncate">{city}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------ POPUPS ------------------ */
+function ToastViewport({ toasts, onClose }) {
+  return (
+    <div className="fixed z-[60] top-5 right-5 left-5 sm:left-auto sm:w-[380px] pointer-events-none">
+      <div className="flex flex-col gap-2">
+        <AnimatePresence initial={false}>
+          {toasts.map((t) => (
+            <ToastCard key={t.id} toast={t} onClose={() => onClose(t.id)} />
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function ToastCard({ toast, onClose }) {
+  const Icon =
+    toast.type === "success"
+      ? CheckCircle2
+      : toast.type === "error"
+      ? AlertTriangle
+      : Info;
+
+  const ring =
+    toast.type === "success"
+      ? "border-emerald-500/25"
+      : toast.type === "error"
+      ? "border-red-500/25"
+      : "border-zinc-500/25";
+
+  const bg =
+    toast.type === "success"
+      ? "bg-emerald-500/10"
+      : toast.type === "error"
+      ? "bg-red-500/10"
+      : "bg-zinc-500/10";
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.98 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
+      className={`pointer-events-auto rounded-2xl border ${ring} ${bg}
+                  backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.45)]
+                  px-4 py-3`}
+    >
+      <div className="flex gap-3 items-start">
+        <div className="mt-0.5">
+          <Icon className="w-5 h-5 text-zinc-200" />
+        </div>
+        <div className="flex-1">
+          {toast.title ? (
+            <div className="text-sm font-semibold text-white leading-tight">
+              {toast.title}
+            </div>
+          ) : null}
+          <div className="text-sm text-zinc-200/85 leading-snug">
+            {toast.message}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-zinc-400 hover:text-white transition-colors"
+          aria-label="Κλείσιμο"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function ModalPopup({ modal, onClose }) {
+  return (
+    <AnimatePresence>
+      {modal ? (
+        <motion.div
+          className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.button
+            type="button"
+            aria-label="Κλείσιμο"
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+
+          <motion.div
+            initial={{ y: 14, opacity: 0, scale: 0.98 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 14, opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 240, damping: 22 }}
+            className="relative w-full max-w-md rounded-3xl border border-zinc-700/50
+                       bg-black/55 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.7)]
+                       p-6 text-zinc-100"
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-4 text-zinc-400 hover:text-white transition-colors"
+              aria-label="Κλείσιμο"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                {modal.icon === "success" ? (
+                  <CheckCircle2 className="w-6 h-6" />
+                ) : modal.icon === "error" ? (
+                  <AlertTriangle className="w-6 h-6" />
+                ) : (
+                  <Info className="w-6 h-6" />
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="text-lg font-semibold text-white leading-tight">
+                  {modal.title}
+                </div>
+                <div className="mt-1 text-sm text-zinc-200/85 leading-relaxed">
+                  {modal.message}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col sm:flex-row gap-2 sm:justify-end">
+              {modal.actions?.map((a, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={a.onClick || onClose}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all
+                    ${
+                      idx === modal.actions.length - 1
+                        ? "bg-zinc-100 text-black hover:bg-white"
+                        : "bg-white/5 text-zinc-200 hover:bg-white/10 border border-zinc-700/60"
+                    }`}
+                >
+                  {a.label || "ΟΚ"}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}

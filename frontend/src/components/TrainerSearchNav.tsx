@@ -21,6 +21,9 @@ import {
   Clock,
 } from "lucide-react";
 
+/* Shared categories + locations */
+import { LOCATION_OPTIONS, TRAINER_CATEGORIES } from "../categoriesAndLocations";
+
 /* Icons for categories */
 import {
   FaDumbbell,
@@ -69,7 +72,6 @@ function toUiSortKey(v: any): SortUiKey {
 
   if (!s) return "newest";
 
-  // treat created_at as "newest"
   if (
     s === "newest" ||
     s === "recent" ||
@@ -106,7 +108,6 @@ function toUiSortKey(v: any): SortUiKey {
     return "rating";
   }
 
-  // fallback
   return "newest";
 }
 
@@ -534,7 +535,6 @@ type Props = {
   search?: string;
   setSearch?: (v: string) => void;
 
-  /** parent may send "newest" OR "created_at" (we normalize) */
   sort?: string;
   setSort?: (v: string) => void;
 
@@ -562,19 +562,17 @@ type Props = {
   categories?: CategoryItem[];
   cities?: CityItem[];
 
-  onChange?: (
-    v: {
-      search: string;
-      sort: string; // outgoing sort string (e.g. "created_at" for newest)
-      cats: string[];
-      onlyOnline: boolean;
-      excludeVacation: boolean;
-      selectedDate: DatePreset;
-      selectedCity: string;
-      view: "grid";
-      cat: string;
-    }
-  ) => void;
+  onChange?: (v: {
+    search: string;
+    sort: string;
+    cats: string[];
+    onlyOnline: boolean;
+    excludeVacation: boolean;
+    selectedDate: DatePreset;
+    selectedCity: string;
+    view: "grid";
+    cat: string;
+  }) => void;
 
   onSearchTokensChange?: (tokens: string[]) => void;
 
@@ -687,7 +685,6 @@ export default function TrainerSearchNav({
   useEffect(() => {
     const currentDraft = draftRef.current;
 
-    // if user has pending edits, don't overwrite them
     if (!areFiltersEqual(currentDraft, applied)) return;
 
     setDraft(applied);
@@ -785,8 +782,6 @@ export default function TrainerSearchNav({
   const applyFilters = useCallback(() => {
     const safeCats = normalizeCats(draft.cats);
     const legacyCat = legacyCatFromCats(safeCats);
-
-    // outgoing sort (fix: newest => created_at)
     const outSort = toOutgoingSort(draft.sort);
 
     if (cSetSearch) cSetSearch(draft.search);
@@ -836,10 +831,6 @@ export default function TrainerSearchNav({
     setShowFilters,
   ]);
 
-  /**
-   * Sort-only commit (and DOES NOT apply other draft filters).
-   * FIX: newest sends "created_at" out.
-   */
   const applySortOnly = useCallback(
     (nextUiSort: SortUiKey) => {
       const outSort = toOutgoingSort(nextUiSort);
@@ -849,7 +840,6 @@ export default function TrainerSearchNav({
       if (cSetSort) cSetSort(outSort);
       else uSetSortUi(nextUiSort);
 
-      // notify parent without changing other filters
       const legacyCat = legacyCatFromCats(applied.cats);
       onChange?.({
         ...applied,
@@ -862,11 +852,6 @@ export default function TrainerSearchNav({
     [applied, cSetSort, onChange]
   );
 
-  /**
-   * One-time auto-fix:
-   * If we're on "newest" and results are 0 with no filters,
-   * force outgoing sort to "created_at" (so trainers don't vanish).
-   */
   const didAutoFixRef = useRef(false);
   useEffect(() => {
     if (didAutoFixRef.current) return;
@@ -922,87 +907,44 @@ export default function TrainerSearchNav({
     };
   }, [isMobile, isFiltersOpen, setShowFilters]);
 
-  /* ---------- Data lists ---------- */
-  const CAT_LIST: CategoryItem[] = useMemo(
+  /* ---------- Shared data lists ---------- */
+  const SHARED_CATEGORY_LIST: CategoryItem[] = useMemo(
+    () => [
+      { value: "all", label: "Όλες οι ειδικότητες", iconKey: "tag" },
+      ...TRAINER_CATEGORIES.map((item: any) => ({
+        value: item.value,
+        label: item.label,
+        iconKey: item.iconKey,
+      })),
+    ],
+    []
+  );
+
+  const SHARED_CITY_LIST: CityItem[] = useMemo(
     () =>
-      categories?.length
-        ? categories
-        : [
-            { value: "all", label: "Όλες οι ειδικότητες", iconKey: "tag" },
-            { value: "personal_trainer", label: "Προσωπικός Εκπαιδευτής", iconKey: "dumbbell" },
-            { value: "group_fitness_instructor", label: "Εκπαιδευτής Ομαδικών", iconKey: "users" },
-            { value: "pilates_instructor", label: "Pilates", iconKey: "pilates" },
-            { value: "yoga_instructor", label: "Yoga", iconKey: "yoga" },
-            { value: "nutritionist", label: "Διατροφή", iconKey: "apple" },
-            { value: "online_coach", label: "Online", iconKey: "laptop" },
-            { value: "strength_conditioning", label: "Strength", iconKey: "strength" },
-            { value: "calisthenics", label: "Calisthenics", iconKey: "calisthenics" },
-            { value: "crossfit_coach", label: "CrossFit", iconKey: "crossfit" },
-            { value: "boxing_kickboxing", label: "Boxing", iconKey: "boxing" },
-            { value: "martial_arts", label: "Πολεμικές Τέχνες", iconKey: "martial" },
-            { value: "dance_fitness", label: "Dance Fitness", iconKey: "dance" },
-            { value: "running_coach", label: "Running", iconKey: "running" },
-            { value: "physiotherapist", label: "Φυσικοθεραπευτής", iconKey: "physio" },
-            { value: "rehab_prevention", label: "Αποκατάσταση", iconKey: "rehab" },
-            { value: "wellness_life_coach", label: "Ευεξία", iconKey: "wellness" },
-            { value: "performance_psych", label: "Αθλητική Ψυχ.", iconKey: "psychology" },
-          ],
-    [categories]
+      LOCATION_OPTIONS.map((label: string, index: number) => ({
+        value: index === 0 || label === "Όλες οι πόλεις" ? "all" : label,
+        label,
+      })),
+    []
+  );
+
+  const CAT_LIST: CategoryItem[] = useMemo(
+    () => (categories?.length ? categories : SHARED_CATEGORY_LIST),
+    [categories, SHARED_CATEGORY_LIST]
   );
 
   const CITY_LIST: CityItem[] = useMemo(
-    () =>
-      cities?.length
-        ? cities
-        : [
-            { value: "all", label: "Όλες οι πόλεις" },
-            { value: "Αθήνα", label: "Αθήνα" },
-            { value: "Θεσσαλονίκη", label: "Θεσσαλονίκη" },
-            { value: "Πάτρα", label: "Πάτρα" },
-            { value: "Ηράκλειο", label: "Ηράκλειο" },
-            { value: "Λάρισα", label: "Λάρισα" },
-            { value: "Βόλος", label: "Βόλος" },
-            { value: "Ιωάννινα", label: "Ιωάννινα" },
-            { value: "Καβάλα", label: "Καβάλα" },
-            { value: "Σέρρες", label: "Σέρρες" },
-            { value: "Χανιά", label: "Χανιά" },
-            { value: "Αγρίνιο", label: "Αγρίνιο" },
-          ],
-    [cities]
+    () => (cities?.length ? cities : SHARED_CITY_LIST),
+    [cities, SHARED_CITY_LIST]
   );
 
-  /* ---------- Sort chips ---------- */
-  const SortChips = (
-    <div>
-      <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-        <ArrowDownAZ className="h-5 w-5" /> Ταξινόμηση
-      </h3>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar">
-        {[
-          { key: "newest" as SortUiKey, label: "Νεότεροι", Icon: Clock },
-          { key: "name" as SortUiKey, label: "Όνομα A–Z", Icon: ArrowDownAZ },
-          { key: "experience" as SortUiKey, label: "Εμπειρία", Icon: TagIcon },
-          { key: "rating" as SortUiKey, label: "Αξιολόγηση", Icon: Star },
-        ].map(({ key, label, Icon }) => (
-          <FilterButton
-            key={key}
-            active={applied.sort === key}
-            onClick={() => applySortOnly(key)}
-            Icon={Icon}
-            label={label}
-            className="px-3 py-2 text-xs"
-          />
-        ))}
-      </div>
-    </div>
-  );
 
   /* ---------- Reusable filters body ---------- */
   const FiltersBody = (
     <>
-      {SortChips}
-
+    
       <div>
         <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
           <TagIcon className="h-5 w-5" /> Τύπος Προπόνησης
@@ -1165,16 +1107,8 @@ export default function TrainerSearchNav({
         title="Αναζήτηση Εκπαιδευτών"
         subtitle="Φιλτράρισε και βρες τον καλύτερο για σένα"
         icon={<SearchIcon className="h-6 w-6" />}
-        action={
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-emerald-200 text-xs sm:text-sm font-medium">Ζωντανά αποτελέσματα</span>
-            </div>
-          </div>
-        }
+
       >
-        {/* Top row */}
         <div className="flex items-stretch gap-2 sm:gap-4 mb-3">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
@@ -1247,7 +1181,6 @@ export default function TrainerSearchNav({
           </button>
         </div>
 
-        {/* Search chips */}
         <div className="mb-4">
           {searchTokens.length > 0 ? (
             <>
@@ -1262,8 +1195,7 @@ export default function TrainerSearchNav({
               </div>
 
               <div className="mt-2 text-xs text-zinc-400">
-                Πολλαπλή αναζήτηση ενεργή —{" "}
-                <span className="text-zinc-200">{searchTokens.length}</span>{" "}
+                Πολλαπλή αναζήτηση ενεργή — <span className="text-zinc-200">{searchTokens.length}</span>{" "}
                 {searchTokens.length === 1 ? "όρος" : "όροι"} (πάτα Enter/κόμμα για να προσθέσεις)
               </div>
             </>
@@ -1275,7 +1207,6 @@ export default function TrainerSearchNav({
           )}
         </div>
 
-        {/* Pending changes */}
         {hasPendingChanges && !isFiltersOpen && (
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3">
             <div className="text-xs sm:text-sm text-amber-100/90">Υπάρχουν αλλαγές που δεν έχουν εφαρμοστεί ακόμα.</div>
@@ -1301,14 +1232,12 @@ export default function TrainerSearchNav({
           </div>
         )}
 
-        {/* Results line */}
         <div className="text-zinc-300 mb-6">
           <span className="text-white font-bold">{results}</span>{" "}
           {results === 1 ? "εκπαιδευτής" : "εκπαιδευτές"} βρέθηκαν —{" "}
           <span className="opacity-80">Επιλέξτε τον κατάλληλο για εσάς</span>
         </div>
 
-        {/* Desktop filters panel */}
         <AnimatePresence>
           {!isMobile && isFiltersOpen && (
             <motion.div
@@ -1354,7 +1283,6 @@ export default function TrainerSearchNav({
         </AnimatePresence>
       </PremiumCard>
 
-      {/* Mobile bottom sheet */}
       {isMobile && (
         <MobileFiltersSheet
           open={isFiltersOpen}

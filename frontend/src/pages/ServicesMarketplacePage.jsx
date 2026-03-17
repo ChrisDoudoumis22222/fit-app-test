@@ -1168,6 +1168,29 @@ export default function ServicesMarketplacePage() {
 
   const smartSearch = useMemo(() => parseSmartSearch(searchTerm), [searchTerm]);
 
+  const effectiveCity = useMemo(
+    () => (selectedCity !== "all" ? selectedCity : smartSearch.city),
+    [selectedCity, smartSearch.city]
+  );
+
+  const hasClientSideNarrowing = useMemo(
+    () => effectiveCity !== "all" || excludeVacation || Boolean(selectedDate),
+    [effectiveCity, excludeVacation, selectedDate]
+  );
+
+  const [lastResolvedResults, setLastResolvedResults] = useState(0);
+
+  useEffect(() => {
+    if (!initialLoading && !loadingPage) {
+      setLastResolvedResults(items.length);
+    }
+  }, [items.length, initialLoading, loadingPage]);
+
+  const navResults =
+    (initialLoading || loadingPage) && items.length === 0
+      ? lastResolvedResults
+      : items.length;
+
   const [likedTrainerIds, setLikedTrainerIds] = useState([]);
   const [bookingTrainer, setBookingTrainer] = useState(null);
   const [guestBookingTrainer, setGuestBookingTrainer] = useState(null);
@@ -1433,7 +1456,6 @@ export default function ServicesMarketplacePage() {
 
       out = out.filter((t) => hasUploadedDiploma(t?.diploma_url));
 
-      const effectiveCity = selectedCity !== "all" ? selectedCity : smartSearch.city;
       if (effectiveCity !== "all") {
         out = out.filter((t) => matchesCity(t.location, effectiveCity));
       }
@@ -1445,7 +1467,11 @@ export default function ServicesMarketplacePage() {
 
       if (selectedDate) {
         const base = new Date();
-        const target = selectedDate === "tomorrow" ? new Date(base.getTime() + 24 * 60 * 60 * 1000) : base;
+        const target =
+          selectedDate === "tomorrow"
+            ? new Date(base.getTime() + 24 * 60 * 60 * 1000)
+            : base;
+
         const dayKey = selectedDate === "week" ? null : weekdayKeyFromDate(target);
 
         out = out.filter((t) => {
@@ -1455,17 +1481,25 @@ export default function ServicesMarketplacePage() {
         });
       }
 
-      if (sortBy === "rating") out.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      if (sortBy === "rating") {
+        out.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      }
 
       return out;
     },
-    [excludeVacation, selectedCity, selectedDate, sortBy, smartSearch.city]
+    [effectiveCity, excludeVacation, selectedDate, sortBy]
   );
 
   const loadMore = useCallback(
-    async (forcedKey = null, minToAdd = PAGE_SIZE, pageScanCap = MAX_EXTRA_PAGES_PER_LOAD) => {
+    async (
+      forcedKey = null,
+      minToAdd = PAGE_SIZE,
+      pageScanCap = MAX_EXTRA_PAGES_PER_LOAD
+    ) => {
       const key = forcedKey ?? queryKeyRef.current;
-      if (loadingRef.current || !hasMoreRef.current) return;
+
+      if (loadingRef.current) return;
+      if (!hasMoreRef.current && forcedKey == null) return;
 
       loadingRef.current = true;
       setLoadingPage(true);
@@ -1478,14 +1512,17 @@ export default function ServicesMarketplacePage() {
 
         const existingIds = new Set(itemsRef.current.map((t) => t.id));
 
-        while (added < minToAdd && (hasMoreRef.current || pagesScanned === 0) && pagesScanned <= pageScanCap) {
+        while (
+          added < minToAdd &&
+          (hasMoreRef.current || pagesScanned === 0) &&
+          pagesScanned < pageScanCap
+        ) {
           const from = (pageRef.current + pagesScanned) * PAGE_SIZE;
           const to = from + PAGE_SIZE - 1;
 
           if (key !== queryKeyRef.current) break;
 
-          const q = buildProfilesQuery().range(from, to);
-          const { data: rows, error } = await q;
+          const { data: rows, error } = await buildProfilesQuery().range(from, to);
 
           if (key !== queryKeyRef.current) break;
 
@@ -1494,8 +1531,12 @@ export default function ServicesMarketplacePage() {
             break;
           }
 
+          pagesScanned += 1;
+
           const pageHasMore = (rows?.length || 0) === PAGE_SIZE;
-          if (!pageHasMore) hasMoreRef.current = false;
+          if (!pageHasMore) {
+            hasMoreRef.current = false;
+          }
 
           const hydrated = await hydrateTrainers(rows || []);
           const filteredBatch = applyClientFilters(hydrated);
@@ -1507,7 +1548,6 @@ export default function ServicesMarketplacePage() {
           added += uniqueToAdd.length;
 
           if (!pageHasMore) break;
-          pagesScanned += 1;
         }
 
         if (key === queryKeyRef.current) {
@@ -1517,7 +1557,9 @@ export default function ServicesMarketplacePage() {
           setHasMore(hasMoreRef.current);
         }
       } catch {
-        if (key === queryKeyRef.current) setErrorMsg("Κάτι πήγε στραβά κατά τη φόρτωση.");
+        if (key === queryKeyRef.current) {
+          setErrorMsg("Κάτι πήγε στραβά κατά τη φόρτωση.");
+        }
       } finally {
         if (key === queryKeyRef.current) {
           loadingRef.current = false;
@@ -1542,8 +1584,27 @@ export default function ServicesMarketplacePage() {
     setInitialLoading(true);
 
     const currentKey = queryKeyRef.current;
-    void loadMore(currentKey, PAGE_SIZE, RESET_SCAN_CAP);
-  }, [searchTerm, sortBy, catFilters, onlyOnline, excludeVacation, selectedDate, selectedCity, loadMore]);
+
+    const initialMinToAdd = hasClientSideNarrowing
+      ? Number.MAX_SAFE_INTEGER
+      : PAGE_SIZE;
+
+    const initialScanCap = hasClientSideNarrowing
+      ? Number.MAX_SAFE_INTEGER
+      : RESET_SCAN_CAP;
+
+    void loadMore(currentKey, initialMinToAdd, initialScanCap);
+  }, [
+    searchTerm,
+    sortBy,
+    catFilters,
+    onlyOnline,
+    excludeVacation,
+    selectedDate,
+    selectedCity,
+    hasClientSideNarrowing,
+    loadMore,
+  ]);
 
   useEffect(() => {
     if (!sentinelRef.current) return;
@@ -1615,7 +1676,7 @@ export default function ServicesMarketplacePage() {
 
             <main className="mx-auto w-full px-0 sm:px-6 lg:px-12 xl:px-16 pt-0 sm:pt-6 lg:pt-10 pb-[80px] lg:pb-[100px]">
               <TrainerSearchNav
-                results={items.length}
+                results={navResults}
                 search={searchTerm}
                 setSearch={setSearchTerm}
                 sort={sortBy}

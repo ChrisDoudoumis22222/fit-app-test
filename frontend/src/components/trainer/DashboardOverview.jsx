@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import TrainerNotificationsFeed from "./notifications/TrainerNotificationsFeed";
 
 /* ------------------------------ safe fallback ----------------------------- */
 
@@ -44,10 +45,6 @@ function toNum(value, fallback = 0) {
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function pad2(n) {
-  return String(n).padStart(2, "0");
 }
 
 function combineDateAndTime(dateValue, timeValue) {
@@ -238,7 +235,6 @@ function normalizePerformanceData(input) {
   const src = input && typeof input === "object" ? input : {};
 
   const todayStatsSrc = src.todayStats || src.stats || src.summary || {};
-
   const groupedSrc = src.grouped || src.bookings || src.groupedBookings || {};
 
   return {
@@ -337,8 +333,8 @@ const TrainerPerformanceStats = memo(function TrainerPerformanceStats({
         trend: loading
           ? "..."
           : data.todayStats.sessionsToday > 0
-            ? `+${data.todayStats.sessionsToday}`
-            : "0",
+          ? `+${data.todayStats.sessionsToday}`
+          : "0",
         color: "from-blue-600/20 to-blue-700/20",
         borderColor: "border-blue-500/30",
       },
@@ -350,8 +346,8 @@ const TrainerPerformanceStats = memo(function TrainerPerformanceStats({
         trend: loading
           ? "..."
           : data.todayStats.monthlyProgress >= 80
-            ? "Πολύ κοντά"
-            : "Σε εξέλιξη",
+          ? "Πολύ κοντά"
+          : "Σε εξέλιξη",
         color: "from-purple-600/20 to-purple-700/20",
         borderColor: "border-purple-500/30",
       },
@@ -607,12 +603,12 @@ const GroupedBookingsCard = memo(function GroupedBookingsCard({
     );
   };
 
-  return (
-    <div
-      id="bookings-summary"
-      className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-black/40 backdrop-blur-xl border border-zinc-700/50 p-4 sm:p-6 lg:p-8"
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/10 via-transparent to-transparent" />
+return (
+  <div
+    id="bookings-summary"
+    className="relative w-full p-0"
+  >
+      
 
       <div className="relative space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
@@ -620,9 +616,7 @@ const GroupedBookingsCard = memo(function GroupedBookingsCard({
             <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-zinc-100">
               Σύνοψη Κρατήσεων
             </h3>
-            <p className="text-zinc-400 text-sm">
-              Δες τα όλα με μία ματία
-            </p>
+            <p className="text-zinc-400 text-sm">Δες τα όλα με μία ματία</p>
           </div>
 
           <button
@@ -668,6 +662,7 @@ const GroupedBookingsCard = memo(function GroupedBookingsCard({
 /* -------------------------------- export --------------------------------- */
 
 function DashboardOverview({
+  trainerId,
   performanceData,
   loading,
   error,
@@ -690,10 +685,33 @@ function DashboardOverview({
     [navigate]
   );
 
+  const handlePostClick = useCallback((post) => {
+    if (typeof window === "undefined") return;
+
+    window.dispatchEvent(
+      new CustomEvent("trainer-notification:open-post", {
+        detail: post,
+      })
+    );
+  }, []);
+
   const errorText = getErrorText(error);
 
   return (
     <div className="space-y-6 sm:space-y-8">
+      {!!trainerId && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+        >
+<TrainerNotificationsFeed
+  trainerId={trainerId}
+  onPostClick={handlePostClick}
+/>
+        </motion.div>
+      )}
+
       <TrainerPerformanceStats
         performanceData={data}
         loading={loading}

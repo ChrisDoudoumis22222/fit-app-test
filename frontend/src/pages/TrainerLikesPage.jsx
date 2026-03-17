@@ -40,7 +40,7 @@ function PremiumButton({
   ...props
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-semibold leading-none " +
+    "inline-flex w-full items-center justify-center gap-2 font-semibold leading-none " +
     "transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-white/10 " +
     "disabled:opacity-60 disabled:pointer-events-none rounded-xl";
   const variants = {
@@ -56,11 +56,11 @@ function PremiumButton({
       "text-white backdrop-blur-md bg-white/10 hover:bg-white/15 border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.3)]",
   };
   const sizes = {
-    sm: "h-9 text-xs px-3",
+    sm: "h-11 text-sm px-3",
     default: "h-10 text-sm px-4",
     lg: "h-11 text-base px-5",
   };
-  // eslint-disable-next-line react/button-has-type
+
   return (
     <button
       {...props}
@@ -105,6 +105,7 @@ function LargeAvatarCover({ url, alt }) {
     () => (url && String(url).trim() ? url : DEFAULT_TRAINER_AVATAR),
     [url]
   );
+
   return (
     <img
       src={initialSrc}
@@ -138,7 +139,7 @@ LargeAvatarCover.defaultProps = {
   alt: "trainer",
 };
 
-/* ------------------------------ Toasts (glass) ------------------------------ */
+/* ------------------------------ Toasts ------------------------------ */
 function ToastStack({ toasts, onDismiss }) {
   return (
     <div className="fixed inset-x-0 bottom-4 z-[200] flex justify-center px-4 pointer-events-none">
@@ -154,9 +155,10 @@ function ToastStack({ toasts, onDismiss }) {
               className={`
                 pointer-events-auto rounded-2xl px-4 py-3 shadow-xl border
                 backdrop-blur-md
-                ${t.variant === "danger"
-                  ? "bg-red-600/60 border-red-300/40 text-white"
-                  : "bg-white/10 border-white/20 text-white"
+                ${
+                  t.variant === "danger"
+                    ? "bg-red-600/60 border-red-300/40 text-white"
+                    : "bg-white/10 border-white/20 text-white"
                 }
               `}
               role="status"
@@ -173,15 +175,17 @@ function ToastStack({ toasts, onDismiss }) {
                       variant="glass"
                       size="sm"
                       onClick={() => t.onAction(t.id)}
-                      className="min-w-[88px]"
+                      className="!w-auto min-w-[88px]"
                     >
                       {t.actionLabel}
                     </PremiumButton>
                   ) : null}
+
                   <PremiumButton
                     variant="glass"
                     size="sm"
                     onClick={() => onDismiss(t.id)}
+                    className="!w-auto"
                   >
                     Κλείσιμο
                   </PremiumButton>
@@ -214,6 +218,7 @@ function RatingStars({ rating }) {
       {[...Array(5)].map((_, i) => {
         const isFilled = i < Math.floor(rating);
         const isHalf = i === Math.floor(rating) && rating % 1 >= 0.5;
+
         if (isHalf) {
           return (
             <div key={String(i)} className="relative h-4 w-4">
@@ -224,6 +229,7 @@ function RatingStars({ rating }) {
             </div>
           );
         }
+
         return (
           <Star
             key={String(i)}
@@ -295,7 +301,7 @@ function TrainerTile({
       </div>
 
       {/* Info panel */}
-      <div className="p-4">
+      <div className="px-4 pt-4 pb-3">
         <div className="flex items-center gap-2 justify-between">
           <h3 className="text-white font-semibold text-[15px] sm:text-base leading-tight line-clamp-1">
             {name}
@@ -311,6 +317,7 @@ function TrainerTile({
           ) : (
             <div />
           )}
+
           <div className="flex items-center gap-1">
             <RatingStars rating={rating} />
             <span className="text-[11px] text-zinc-400 ml-0.5">
@@ -318,19 +325,27 @@ function TrainerTile({
             </span>
           </div>
         </div>
-
-        {/* Buttons become stacked on mobile, side-by-side on >=sm */}
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <PremiumButton variant="secondary" size="sm" onClick={onView}>
-            <UserIcon className="h-4 w-4" />
-            Προβολή
-          </PremiumButton>
-          <PremiumButton size="sm" onClick={onBook}>
-            <CalendarIcon className="h-4 w-4" />
-            Κράτηση τώρα
-          </PremiumButton>
-        </div>
       </div>
+
+      {/* Full-bleed buttons */}
+      <PremiumButton
+        size="sm"
+        className="rounded-none border-t border-white/10 shadow-none"
+        onClick={onBook}
+      >
+        <CalendarIcon className="h-4 w-4" />
+        Κράτηση τώρα
+      </PremiumButton>
+
+      <PremiumButton
+        variant="secondary"
+        size="sm"
+        className="rounded-none border-x-0 border-b-0 border-t border-white/10 shadow-none"
+        onClick={onView}
+      >
+        <UserIcon className="h-4 w-4" />
+        Προβολή
+      </PremiumButton>
     </div>
   );
 }
@@ -366,13 +381,21 @@ function Empty() {
       <div className="w-24 h-24 mx-auto mb-8 rounded-2xl bg-white/5 border border-white/10 grid place-items-center">
         <Loader2 className="h-10 w-10 text-zinc-600 animate-spin" />
       </div>
+
       <h3 className="text-3xl font-bold text-white mb-3">
         Δεν έχεις αγαπημένους προπονητές ακόμα
       </h3>
+
       <p className="text-zinc-400 mb-8 max-w-md mx-auto">
         Επισκέψου το Marketplace και πρόσθεσε προπονητές στα αγαπημένα σου.
       </p>
-      <PremiumButton onClick={() => (window.location.href = "/services")}>
+
+      <PremiumButton
+        onClick={() => {
+          window.location.href = "/services";
+        }}
+        className="!w-auto"
+      >
         Αναζήτηση Προπονητών
       </PremiumButton>
     </motion.div>
@@ -391,26 +414,28 @@ export default function TrainerLikesPage() {
   const [loadingLikes, setLoadingLikes] = useState(true);
   const [errText, setErrText] = useState("");
 
-  // booking modal state (FIX)
   const [bookingTrainer, setBookingTrainer] = useState(null);
 
-  // toasts
   const [toasts, setToasts] = useState([]);
-  const dismissToast = useCallback(
-    (id) => setToasts((t) => t.filter((x) => x.id !== id)),
-    []
-  );
+
+  const dismissToast = useCallback((id) => {
+    setToasts((t) => t.filter((x) => x.id !== id));
+  }, []);
+
   const addToast = useCallback((payload) => {
     const id = Date.now() + Math.random();
     const toast = { id, variant: "default", ...payload };
     setToasts((t) => [...t, toast]);
+
     if (!toast.persistent) {
       window.setTimeout(() => {
         setToasts((t) => t.filter((x) => x.id !== id));
       }, toast.durationMs || 2200);
     }
+
     return id;
   }, []);
+
   const addUndoToast = useCallback(
     ({ message, onUndo }) => {
       const id = addToast({
@@ -423,6 +448,7 @@ export default function TrainerLikesPage() {
         },
         persistent: true,
       });
+
       window.setTimeout(() => dismissToast(id), 10000);
     },
     [addToast, dismissToast]
@@ -430,6 +456,7 @@ export default function TrainerLikesPage() {
 
   const loadLikes = useCallback(async () => {
     if (!uid) return;
+
     setLoadingLikes(true);
     setErrText("");
 
@@ -448,6 +475,7 @@ export default function TrainerLikesPage() {
 
     const rows = (likeRows || []).filter((r) => r.trainer_id);
     const trainerIds = Array.from(new Set(rows.map((r) => r.trainer_id)));
+
     if (trainerIds.length === 0) {
       setLikes([]);
       setLoadingLikes(false);
@@ -456,9 +484,7 @@ export default function TrainerLikesPage() {
 
     const { data: trainers, error: profErr } = await supabase
       .from("profiles")
-      .select(
-        "id, full_name, avatar_url, role, location, is_online, diploma_url"
-      )
+      .select("id, full_name, avatar_url, role, location, is_online, diploma_url")
       .in("id", trainerIds)
       .eq("role", "trainer");
 
@@ -497,18 +523,29 @@ export default function TrainerLikesPage() {
 
   useEffect(() => {
     if (!uid) return;
+
     loadLikes();
 
     const channel = supabase
       .channel(`rt-trainer_likes-user-${uid}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "trainer_likes", filter: `user_id=eq.${uid}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "trainer_likes",
+          filter: `user_id=eq.${uid}`,
+        },
         () => loadLikes()
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "trainer_likes", filter: `user_id=eq.${uid}` },
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "trainer_likes",
+          filter: `user_id=eq.${uid}`,
+        },
         () => loadLikes()
       )
       .subscribe();
@@ -522,11 +559,10 @@ export default function TrainerLikesPage() {
     };
   }, [uid, loadLikes]);
 
-  // Unlike with Undo
   const unlike = useCallback(
     async (likeId, trainerObj) => {
       if (!likeId || !uid) return;
-      // optimistic remove
+
       setLikes((prev) => prev.filter((r) => r.id !== likeId));
 
       const { error } = await supabase
@@ -536,7 +572,6 @@ export default function TrainerLikesPage() {
 
       if (error) {
         setErrText(`Σφάλμα αφαίρεσης αγαπημένου: ${error.message}`);
-        // revert if deletion failed
         setLikes((prev) => [{ id: likeId, trainer: trainerObj }, ...prev]);
         return;
       }
@@ -562,10 +597,10 @@ export default function TrainerLikesPage() {
     [uid, addUndoToast]
   );
 
-  /* ------------------------------ page chrome ------------------------------ */
   useEffect(() => {
     document.documentElement.classList.add("bg-black");
     document.body.classList.add("bg-black");
+
     return () => {
       document.documentElement.classList.remove("bg-black");
       document.body.classList.remove("bg-black");
@@ -601,17 +636,18 @@ export default function TrainerLikesPage() {
       {MenuComponent ? <MenuComponent /> : null}
 
       <div className="min-h-screen text-gray-100 pl-[calc(var(--side-w)+4px)] lg:pt-0">
-        <div className="lg:pt-0 pt-14">
+        <div>
           <main className="mx-auto max-w-7xl w-full p-4 sm:p-6 pb-24 space-y-6">
             <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
               <div>
-                <h1 className="text-[28px] sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  Αγαπημένοι Προπονητές
-                </h1>
+<h1 className="text-[24px] sm:text-4xl font-extrabold tracking-tight text-white leading-tight whitespace-nowrap">
+  Αγαπημένοι Προπονητές
+</h1>
                 <p className="text-zinc-400 mt-1 text-sm sm:text-base">
                   Οι επαγγελματίες που ξεχώρισες.
                 </p>
               </div>
+
               <div className="flex items-center gap-6">
                 <div className="text-center">
                   <div className="text-xl sm:text-2xl font-bold text-white">{likes.length}</div>
@@ -630,8 +666,11 @@ export default function TrainerLikesPage() {
             {loadingLikes ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <div key={i} className="h-80 rounded-2xl border border-white/10 bg-white/5 animate-pulse" />
+                  <div
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={i}
+                    className="h-80 rounded-2xl border border-white/10 bg-white/5 animate-pulse"
+                  />
                 ))}
               </div>
             ) : likes.length === 0 ? (
@@ -667,10 +706,8 @@ export default function TrainerLikesPage() {
         </div>
       </div>
 
-      {/* Toasts (glass + responsive) */}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Book-now modal */}
       <AnimatePresence>
         {bookingTrainer && (
           <Suspense

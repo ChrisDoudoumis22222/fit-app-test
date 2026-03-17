@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { MapPin, Play, Settings, Shield } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
@@ -11,19 +11,65 @@ import EditProfileForm from "../components/EditProfileForm";
 import ChangePasswordForm from "../components/ChangePasswordForm";
 
 import AthleticBackground from "../components/user/AthleticBackground";
-import PremiumNavigation, { fromHash } from "../components/user/PremiumNavigation";
+import UserDashboardTabs from "../components/user/UserDashboardTabs";
 import UserPerformanceStats from "../components/user/UserPerformanceStats";
 import AvatarArea from "../components/user/AvatarArea";
 import DashSection from "../components/user/DashSection";
 import GoalsCard from "../components/user/GoalsCard";
 import RecentBookingsCard from "../components/user/RecentBookingsCard";
-import QuickActionButton from "../components/user/QuickActionButton";
+import ProfileSettingsSection from "../components/user/ProfileSettingsSection";
+import SecuritySettingsSection from "../components/user/SecuritySettingsSection";
+
+function fromHash(hash) {
+  const value = String(hash || "")
+    .replace("#", "")
+    .trim()
+    .toLowerCase();
+
+  if (value === "profile") return "profile";
+  if (value === "avatar") return "avatar";
+  if (value === "security" || value === "password") return "security";
+  return "dashboard";
+}
+
+function DashboardDateTime({ location }) {
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <>
+      <p className="text-base text-zinc-400 lg:text-lg">
+        {currentTime.toLocaleDateString("el-GR", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })}{" "}
+        •{" "}
+        {currentTime.toLocaleTimeString("el-GR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </p>
+
+      {location && (
+        <p className="mt-1 flex items-center gap-2 text-sm text-zinc-500">
+          <MapPin className="h-4 w-4" />
+          {location}
+        </p>
+      )}
+    </>
+  );
+}
 
 export default function EnhancedDashboard() {
   const { profile, profileLoaded } = useAuth();
   const location = useLocation();
 
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [avatar, setAvatar] = useState("");
   const [section, setSection] = useState(fromHash(location.hash));
   const [initialLoading, setInitialLoading] = useState(true);
@@ -41,10 +87,9 @@ export default function EnhancedDashboard() {
   const [goals, setGoals] = useState([]);
   const hasFetchedRef = useRef(false);
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const hasProfileImage = useMemo(() => {
+    return Boolean(String(avatar || profile?.avatar_url || "").trim());
+  }, [avatar, profile?.avatar_url]);
 
   useEffect(() => {
     setAvatar(profile?.avatar_url || "");
@@ -192,10 +237,6 @@ export default function EnhancedDashboard() {
     window.location.hash = newSection;
   }, []);
 
-  const handleBookTraining = useCallback(() => {
-    window.location.href = "/services";
-  }, []);
-
   if (!profileLoaded || initialLoading) {
     return (
       <>
@@ -209,8 +250,12 @@ export default function EnhancedDashboard() {
                 <div className="absolute inset-2 animate-spin rounded-full border-2 border-zinc-800/30 border-t-zinc-600" />
               </div>
               <div className="text-center">
-                <p className="text-lg font-semibold text-zinc-300">Φόρτωση Dashboard</p>
-                <p className="text-sm text-zinc-500">Προετοιμασία των δεδομένων σας...</p>
+                <p className="text-lg font-semibold text-zinc-300">
+                  Φόρτωση Dashboard
+                </p>
+                <p className="text-sm text-zinc-500">
+                  Προετοιμασία των δεδομένων σας...
+                </p>
               </div>
             </div>
           </div>
@@ -220,64 +265,30 @@ export default function EnhancedDashboard() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-zinc-900 to-black text-gray-100">
       <AthleticBackground />
       <UserMenu />
 
-      <main className="relative z-10 pl-[var(--side-w)]">
+      <main className="relative z-10 pl-0 lg:pl-[var(--side-w)]">
         <div className="mx-auto max-w-8xl space-y-6 px-4 py-6 sm:px-6 lg:space-y-10 lg:px-8 lg:py-10">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center"
+            className="flex flex-col items-start gap-4"
           >
             <div>
               <h1 className="mb-2 text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
                 Καλώς ήρθες, {profile?.full_name || "Αθλητή"}
               </h1>
 
-              <p className="text-base text-zinc-400 lg:text-lg">
-                {currentTime.toLocaleDateString("el-GR", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}{" "}
-                •{" "}
-                {currentTime.toLocaleTimeString("el-GR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-
-              {profile?.location && (
-                <p className="mt-1 flex items-center gap-2 text-sm text-zinc-500">
-                  <MapPin className="h-4 w-4" />
-                  {profile.location}
-                </p>
-              )}
-            </div>
-
-            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:gap-4">
-              <QuickActionButton
-                icon={Play}
-                label="Νέα Κράτηση"
-                primary
-                onClick={handleBookTraining}
-                fluid
-              />
-              <QuickActionButton
-                icon={Settings}
-                label="Ρυθμίσεις"
-                onClick={() => handleSectionChange("profile")}
-                fluid
-              />
+              <DashboardDateTime location={profile?.location} />
             </div>
           </motion.div>
 
-          <PremiumNavigation
+          <UserDashboardTabs
             currentSection={section}
             onSectionChange={handleSectionChange}
+            hasProfileImage={hasProfileImage}
           />
 
           <div className="space-y-8">
@@ -309,13 +320,9 @@ export default function EnhancedDashboard() {
             </DashSection>
 
             <DashSection id="profile" show={section === "profile"}>
-              <WideFormShell
-                icon={Settings}
-                title="Επεξεργασία Προφίλ"
-                description="Διαχειρίσου τα προσωπικά σου στοιχεία."
-              >
+              <ProfileSettingsSection>
                 <EditProfileForm />
-              </WideFormShell>
+              </ProfileSettingsSection>
             </DashSection>
 
             <DashSection id="avatar" show={section === "avatar"}>
@@ -323,236 +330,13 @@ export default function EnhancedDashboard() {
             </DashSection>
 
             <DashSection id="security" show={section === "security"}>
-              <WideFormShell
-                icon={Shield}
-                title="Ρυθμίσεις Ασφαλείας"
-                description="Άλλαξε τον κωδικό σου και κράτα ασφαλή τον λογαριασμό σου."
-                variant="security"
-              >
+              <SecuritySettingsSection>
                 <ChangePasswordForm />
-              </WideFormShell>
+              </SecuritySettingsSection>
             </DashSection>
           </div>
         </div>
       </main>
     </div>
-  );
-}
-
-function WideFormShell({
-  icon: Icon,
-  title,
-  description,
-  children,
-  variant = "default",
-}) {
-  const isSecurity = variant === "security";
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28 }}
-      className="mx-auto w-full max-w-[1540px]"
-    >
-      <div
-        className={[
-          "wide-form-shell relative overflow-hidden rounded-[32px]",
-          "bg-gradient-to-b from-zinc-900/80 via-black/70 to-black/50",
-          "shadow-[0_32px_100px_rgba(0,0,0,.64)] ring-1 ring-zinc-800/70",
-          isSecurity ? "is-security" : "",
-        ].join(" ")}
-      >
-        <style>{`
-          .wide-form-shell form {
-            display: grid;
-            gap: 16px;
-            width: 100%;
-          }
-
-          .wide-form-shell label {
-            display: block;
-            margin-bottom: 8px;
-            color: rgb(228 228 231);
-            font-size: 0.92rem;
-            font-weight: 600;
-            letter-spacing: -0.01em;
-          }
-
-          .wide-form-shell input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
-          .wide-form-shell textarea,
-          .wide-form-shell select {
-            width: 100%;
-            min-height: 58px;
-            border-radius: 18px;
-            border: 1px solid rgba(63, 63, 70, 0.95);
-            background: linear-gradient(180deg, rgba(20,20,24,0.98), rgba(10,10,12,0.98));
-            color: white;
-            padding: 15px 16px;
-            outline: none;
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.02),
-              0 10px 24px rgba(0,0,0,0.18);
-            transition:
-              border-color .2s ease,
-              box-shadow .2s ease,
-              background .2s ease,
-              transform .2s ease;
-          }
-
-          .wide-form-shell input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])::placeholder,
-          .wide-form-shell textarea::placeholder {
-            color: rgba(161, 161, 170, 0.9);
-          }
-
-          .wide-form-shell input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus,
-          .wide-form-shell textarea:focus,
-          .wide-form-shell select:focus {
-            border-color: rgba(113, 113, 122, 1);
-            background: linear-gradient(180deg, rgba(26,26,30,0.99), rgba(12,12,14,0.99));
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.03),
-              0 0 0 4px rgba(63,63,70,0.18),
-              0 14px 28px rgba(0,0,0,0.24);
-          }
-
-          .wide-form-shell button[type="submit"] {
-            width: 100%;
-            min-height: 58px;
-            border: 1px solid rgba(255,255,255,0.04);
-            border-radius: 18px;
-            padding: 15px 18px;
-            background: linear-gradient(180deg, rgba(255,255,255,1), rgba(237,237,237,1));
-            color: rgb(9 9 11);
-            font-weight: 800;
-            letter-spacing: -0.01em;
-            box-shadow:
-              0 14px 28px rgba(0,0,0,0.20),
-              inset 0 1px 0 rgba(255,255,255,0.7);
-            transition:
-              transform .18s ease,
-              box-shadow .18s ease,
-              background .18s ease,
-              opacity .18s ease;
-          }
-
-          .wide-form-shell button[type="submit"]:hover:not(:disabled) {
-            background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(226,226,226,1));
-            transform: translateY(-1px);
-            box-shadow:
-              0 18px 32px rgba(0,0,0,0.24),
-              inset 0 1px 0 rgba(255,255,255,0.72);
-          }
-
-          .wide-form-shell button[type="submit"]:active:not(:disabled) {
-            transform: translateY(0);
-          }
-
-          .wide-form-shell button[type="submit"]:disabled {
-            border-color: rgba(63, 63, 70, 0.95);
-            background: linear-gradient(180deg, rgba(39,39,42,0.95), rgba(24,24,27,0.95));
-            color: rgba(161,161,170,0.95);
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.02),
-              0 8px 18px rgba(0,0,0,0.18);
-            cursor: not-allowed;
-            transform: none;
-          }
-
-          .wide-form-shell .error,
-          .wide-form-shell .text-red-500,
-          .wide-form-shell .text-red-400,
-          .wide-form-shell .text-rose-400,
-          .wide-form-shell .text-rose-500 {
-            color: rgb(251 113 133) !important;
-          }
-
-          .wide-form-shell .success,
-          .wide-form-shell .text-green-500,
-          .wide-form-shell .text-green-400,
-          .wide-form-shell .text-emerald-400,
-          .wide-form-shell .text-emerald-500 {
-            color: rgb(74 222 128) !important;
-          }
-
-          .wide-form-shell.is-security form {
-            gap: 18px;
-          }
-
-          .wide-form-shell.is-security .relative input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
-            padding-left: 52px;
-            padding-right: 52px;
-          }
-
-          .wide-form-shell.is-security .relative button:not([type="submit"]) {
-            color: rgb(161 161 170);
-          }
-
-          .wide-form-shell.is-security .relative button:not([type="submit"]):hover {
-            color: rgb(255 255 255);
-          }
-
-          @media (min-width: 1024px) {
-            .wide-form-shell form {
-              gap: 18px;
-            }
-
-            .wide-form-shell input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
-            .wide-form-shell textarea,
-            .wide-form-shell select,
-            .wide-form-shell button[type="submit"] {
-              min-height: 60px;
-            }
-          }
-
-          @media (max-width: 640px) {
-            .wide-form-shell input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
-            .wide-form-shell textarea,
-            .wide-form-shell select,
-            .wide-form-shell button[type="submit"] {
-              min-height: 54px;
-              border-radius: 16px;
-              padding-top: 13px;
-              padding-bottom: 13px;
-              padding-left: 14px;
-              padding-right: 14px;
-            }
-
-            .wide-form-shell.is-security .relative input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
-              padding-left: 46px;
-              padding-right: 46px;
-            }
-          }
-        `}</style>
-
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-700/60 to-transparent" />
-        <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-zinc-400/[0.05] blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 -left-28 h-80 w-80 rounded-full bg-zinc-700/[0.04] blur-3xl" />
-
-        <div className="relative px-6 pt-6 sm:px-8 sm:pt-8 lg:px-10 xl:px-12">
-          <div className="flex items-start gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-zinc-900/80 text-zinc-200 ring-1 ring-zinc-800/70 shadow-[0_10px_24px_rgba(0,0,0,.25)]">
-              <Icon className="h-5 w-5" />
-            </div>
-
-            <div className="min-w-0">
-              <h3 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-                {title}
-              </h3>
-              <p className="mt-1 text-sm text-zinc-400 sm:text-base">
-                {description}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative px-6 pb-6 pt-6 sm:px-8 sm:pb-8 lg:px-10 xl:px-12 lg:pt-7 lg:pb-10">
-          <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-zinc-800/55 sm:inset-x-8 lg:inset-x-10 xl:inset-x-12" />
-          <div className="pt-5 sm:pt-6">
-            {children}
-          </div>
-        </div>
-      </div>
-    </motion.div>
   );
 }

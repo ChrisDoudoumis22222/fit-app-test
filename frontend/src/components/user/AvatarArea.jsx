@@ -10,8 +10,8 @@ import {
   AlertTriangle,
   X,
   Camera,
+  ExternalLink,
   Image as ImageIcon,
-  Sparkles,
 } from "lucide-react";
 
 const ONLINE_DEFAULT_AVATAR =
@@ -172,17 +172,17 @@ function ConfirmModal({
         type="button"
         aria-label="Κλείσιμο"
         onClick={onClose}
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         disabled={loading}
       />
 
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-zinc-950/95 ring-1 ring-zinc-800/80 shadow-[0_40px_120px_rgba(0,0,0,.78)]"
+        className="relative w-full max-w-sm rounded-3xl bg-zinc-950/90 shadow-[0_40px_120px_rgba(0,0,0,.75)] ring-1 ring-white/10"
       >
-        <div className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-zinc-400/[0.05] blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-600/[0.04] blur-3xl" />
+        <div className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-white/[0.04] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-white/[0.03] blur-3xl" />
 
         <div className="relative p-5">
           <div className="flex items-start justify-between gap-3">
@@ -194,7 +194,7 @@ function ConfirmModal({
               <div className="min-w-0">
                 <p className="font-semibold tracking-tight text-white">{title}</p>
                 {description ? (
-                  <p className="mt-1 text-sm text-zinc-400">{description}</p>
+                  <p className="mt-1 text-sm text-white/55">{description}</p>
                 ) : null}
               </div>
             </div>
@@ -202,7 +202,7 @@ function ConfirmModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl p-2 text-zinc-500 hover:bg-zinc-800/70 hover:text-white"
+              className="shrink-0 rounded-xl p-2 text-white/45 hover:bg-white/10 hover:text-white"
               aria-label="Κλείσιμο"
               disabled={loading}
             >
@@ -215,7 +215,7 @@ function ConfirmModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="w-full rounded-2xl bg-zinc-800/80 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-700/80 disabled:opacity-60"
+              className="w-full rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15 disabled:opacity-60"
             >
               {cancelText}
             </button>
@@ -234,6 +234,10 @@ function ConfirmModal({
               {confirmText}
             </button>
           </div>
+
+          <p className="mt-3 text-[12px] text-white/35">
+            Η ενέργεια αυτή αφαιρεί την εικόνα από το προφίλ σου. Μπορείς να ανεβάσεις νέα όποτε θέλεις.
+          </p>
         </div>
       </div>
     </div>
@@ -290,15 +294,15 @@ function TipsModal({ open, mode = "file", onClose, onContinue }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="relative w-full max-w-md overflow-hidden rounded-3xl bg-zinc-950/95 p-5 ring-1 ring-zinc-800/80 shadow-[0_40px_120px_rgba(0,0,0,.78)]"
+            className="relative w-full max-w-md overflow-hidden rounded-3xl bg-zinc-950/95 p-5 shadow-[0_40px_120px_rgba(0,0,0,.78)] ring-1 ring-white/10"
           >
-            <div className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-zinc-400/[0.05] blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-600/[0.04] blur-3xl" />
+            <div className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-white/[0.04] blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-white/[0.03] blur-3xl" />
 
             <div className="relative">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-zinc-800/80 text-zinc-200">
+                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/10 text-zinc-100">
                     {mode === "camera" ? (
                       <Camera className="h-5 w-5" />
                     ) : (
@@ -308,14 +312,14 @@ function TipsModal({ open, mode = "file", onClose, onContinue }) {
 
                   <div>
                     <p className="font-semibold text-white">Πριν συνεχίσεις</p>
-                    <p className="mt-1 text-sm text-zinc-400">4 μικρά tips.</p>
+                    <p className="mt-1 text-sm text-white/55">4 μικρά tips για καλύτερο αποτέλεσμα.</p>
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-xl p-2 text-zinc-500 hover:bg-zinc-800/70 hover:text-white"
+                  className="rounded-xl p-2 text-white/45 hover:bg-white/10 hover:text-white"
                   aria-label="Κλείσιμο"
                 >
                   <X className="h-5 w-5" />
@@ -323,17 +327,17 @@ function TipsModal({ open, mode = "file", onClose, onContinue }) {
               </div>
 
               <div className="mt-4 space-y-2">
-                <div className="rounded-2xl bg-zinc-900/70 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800/70">
+                <div className="rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-white/85 ring-1 ring-white/10">
                   • Καθαρή τετράγωνη εικόνα
                 </div>
-                <div className="rounded-2xl bg-zinc-900/70 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800/70">
+                <div className="rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-white/85 ring-1 ring-white/10">
                   • Κέντρο σε πρόσωπο ή λογότυπο
                 </div>
-                <div className="rounded-2xl bg-zinc-900/70 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800/70">
+                <div className="rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-white/85 ring-1 ring-white/10">
                   • PNG / JPG / WEBP
                 </div>
-                <div className="rounded-2xl bg-zinc-900/70 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800/70">
-                  • Αυτόματη συμπίεση
+                <div className="rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-white/85 ring-1 ring-white/10">
+                  • Αυτόματη συμπίεση πριν το upload
                 </div>
               </div>
 
@@ -341,7 +345,7 @@ function TipsModal({ open, mode = "file", onClose, onContinue }) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full rounded-2xl bg-zinc-800/80 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-700/80"
+                  className="w-full rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15"
                 >
                   Άκυρο
                 </button>
@@ -370,7 +374,7 @@ export default function AvatarArea({
   className = "",
   bucket = "avatars",
   title = "Φωτογραφία Προφίλ",
-  subtitle = "Ανέβασε ή άλλαξε φωτογραφία προφίλ.",
+  subtitle = "Ανέβασε καθαρή φωτογραφία ή τράβα μία τώρα — γίνεται συμπίεση πριν το upload.",
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -386,14 +390,14 @@ export default function AvatarArea({
 
   const avatarUrl = profile?.avatar_url || avatar || "";
 
-  const providedPlaceholder = useMemo(() => {
+  const placeholderResolved = useMemo(() => {
     if (typeof placeholder === "string" && placeholder.trim()) {
       return placeholder.trim();
     }
-    return "";
+    return ONLINE_DEFAULT_AVATAR;
   }, [placeholder]);
 
-  const currentUrl = avatarUrl || ONLINE_DEFAULT_AVATAR;
+  const currentUrl = avatarUrl || placeholderResolved;
 
   useEffect(() => {
     setImgSrc(currentUrl);
@@ -413,26 +417,25 @@ export default function AvatarArea({
 
   const hasCustomAvatar = useMemo(() => {
     if (!avatarUrl) return false;
-    if (avatarUrl === providedPlaceholder) return false;
+    if (avatarUrl === placeholderResolved) return false;
     if (/ui-avatars\.com\/api/i.test(avatarUrl)) return false;
     return true;
-  }, [avatarUrl, providedPlaceholder]);
+  }, [avatarUrl, placeholderResolved]);
 
-  const statusLabel = uploading ? "Ανέβασμα…" : hasCustomAvatar ? "Έτοιμο" : "Default";
-
+  const statusLabel = uploading ? "Ανέβασμα…" : hasCustomAvatar ? "Έτοιμο" : "Μη έτοιμο";
   const statusDotClass = uploading
     ? "bg-amber-400/90"
     : hasCustomAvatar
     ? "bg-emerald-400/80"
-    : "bg-zinc-500/80";
+    : "bg-red-400/80";
 
   const onImgError = useCallback(() => {
     setImgSrc((prev) => {
-      if (providedPlaceholder && prev !== providedPlaceholder) return providedPlaceholder;
+      if (prev !== placeholderResolved) return placeholderResolved;
       if (prev !== ONLINE_DEFAULT_AVATAR) return ONLINE_DEFAULT_AVATAR;
       return FALLBACK_DATA_URI;
     });
-  }, [providedPlaceholder]);
+  }, [placeholderResolved]);
 
   const openTips = useCallback(
     (mode) => {
@@ -547,7 +550,9 @@ export default function AvatarArea({
 
         flash(
           "success",
-          hitTarget ? `Έγινε! ${fmtBytes(blob.size)}` : `Έγινε! ${fmtBytes(blob.size)}`
+          hitTarget
+            ? `Έγινε! Συμπίεση σε ${fmtBytes(blob.size)}.`
+            : `Έγινε! ${fmtBytes(blob.size)}.`
         );
       } catch (err) {
         console.error("Σφάλμα φωτογραφίας προφίλ →", err);
@@ -608,13 +613,13 @@ export default function AvatarArea({
 
       if (dbErr) throw dbErr;
 
-      setImgSrc(ONLINE_DEFAULT_AVATAR);
+      setImgSrc(placeholderResolved);
 
       if (typeof onUpload === "function") {
-        onUpload(ONLINE_DEFAULT_AVATAR);
+        onUpload(placeholderResolved);
       }
 
-      flash("success", "Η φωτογραφία προφίλ αφαιρέθηκε.");
+      flash("success", "Η εικόνα προφίλ αφαιρέθηκε.");
     } catch (err) {
       console.error("Σφάλμα διαγραφής φωτογραφίας προφίλ →", err);
       const msg = err?.message || "Αποτυχία διαγραφής.";
@@ -623,182 +628,198 @@ export default function AvatarArea({
     } finally {
       setUploading(false);
     }
-  }, [avatarUrl, bucket, flash, hasCustomAvatar, onUpload, removeOldAvatarVariants]);
+  }, [avatarUrl, bucket, flash, hasCustomAvatar, onUpload, placeholderResolved, removeOldAvatarVariants]);
 
-  const primaryLabel = uploading ? "Ανέβασμα…" : hasCustomAvatar ? "Αλλαγή" : "Επιλογή";
+  const primaryLabel = uploading
+    ? "Ανέβασμα…"
+    : hasCustomAvatar
+    ? "Αλλαγή εικόνας"
+    : "Επιλογή εικόνας";
 
   return (
-    <div className={["w-full", className].join(" ")}>
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-zinc-900/70 via-black/65 to-black/40 shadow-[0_28px_90px_rgba(0,0,0,.62)] ring-1 ring-zinc-800/70">
-          <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-zinc-400/[0.05] blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-28 -left-28 h-72 w-72 rounded-full bg-zinc-700/[0.04] blur-3xl" />
+    <div className={["w-full pb-4 sm:pb-0", className].join(" ")}>
+      <div
+        className={[
+          "relative overflow-hidden",
+          "-mx-4 pb-8 sm:mx-0 sm:pb-0",
+          "rounded-none border-0 ring-0 shadow-none bg-transparent",
+          "lg:rounded-[34px] lg:bg-black",
+          "lg:ring-1 lg:ring-white/10 lg:shadow-[0_30px_100px_rgba(0,0,0,.58)]",
+          "lg:backdrop-blur-xl",
+        ].join(" ")}
+      >
+        <div className="pointer-events-none absolute -top-24 -right-24 hidden h-64 w-64 rounded-full bg-white/[0.05] blur-3xl lg:block" />
+        <div className="pointer-events-none absolute -bottom-28 -left-28 hidden h-72 w-72 rounded-full bg-white/[0.03] blur-3xl lg:block" />
 
-          <div className="relative px-5 pt-5 sm:px-7 sm:pt-7">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
-                    {title}
-                  </h3>
+        <div className="relative border-b-0 sm:border-b sm:border-white/10 px-4 py-5 sm:px-6 lg:px-10 lg:py-7 xl:px-12">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold tracking-tight text-white sm:text-xl lg:text-2xl">
+                  {title}
+                </h3>
 
-                  {!hasCustomAvatar ? (
-                    <span
-                      className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-zinc-800 px-1.5 text-[11px] font-bold leading-none text-zinc-200 ring-1 ring-zinc-700/70"
-                      title="Δεν έχει ανέβει εικόνα"
-                      aria-label="Δεν έχει ανέβει εικόνα"
-                    >
-                      !
-                    </span>
-                  ) : null}
-                </div>
-
-                <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
+                {!hasCustomAvatar ? (
+                  <span
+                    className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white"
+                    title="Δεν έχει ανέβει εικόνα"
+                    aria-label="Δεν έχει ανέβει εικόνα"
+                  >
+                    !
+                  </span>
+                ) : null}
               </div>
 
-              <div className="flex items-center gap-2 self-start rounded-full bg-zinc-900/70 px-3 py-1.5 ring-1 ring-zinc-800/70">
-                <span className={["h-2.5 w-2.5 rounded-full", statusDotClass].join(" ")} />
-                <span className="text-xs text-zinc-400">{statusLabel}</span>
-              </div>
+              <p className="mt-1 max-w-3xl text-sm text-white/55 sm:text-base">
+                {subtitle}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2 self-start rounded-full bg-white/[0.05] px-3 py-1.5 ring-1 ring-white/10">
+              <span className={["h-2.5 w-2.5 rounded-full", statusDotClass].join(" ")} />
+              <span className="text-xs text-white/45">{statusLabel}</span>
             </div>
           </div>
+        </div>
 
-          <div className="relative px-5 pb-5 pt-6 sm:px-7 sm:pb-7 sm:pt-7">
-            <div className="grid gap-6 lg:grid-cols-[260px,1fr] lg:gap-8">
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[36px] bg-zinc-500/[0.06] blur-2xl" />
+        <div className="relative px-4 pt-8 sm:px-6 lg:min-h-[520px] lg:px-10 lg:pt-12 xl:px-12">
+          <div className="mx-auto flex w-full max-w-[760px] flex-col items-center text-center">
+            <div className="relative">
+              <img
+                src={imgSrc || placeholderResolved}
+                alt="Φωτογραφία Προφίλ"
+                onError={onImgError}
+                className="h-28 w-28 rounded-[28px] bg-white/5 object-cover shadow-[0_22px_60px_rgba(0,0,0,.45)] sm:h-32 sm:w-32 lg:h-40 lg:w-40"
+              />
+              <div className="pointer-events-none absolute -inset-5 -z-10 rounded-[38px] bg-white/[0.06] blur-2xl" />
+            </div>
 
-                  <div className="rounded-[30px] bg-gradient-to-b from-zinc-800/70 to-zinc-900/80 p-[1.5px] shadow-[0_18px_55px_rgba(0,0,0,.45)]">
-                    <div className="rounded-[28px] bg-black/65 p-2 sm:p-2.5">
-                      <img
-                        src={imgSrc || ONLINE_DEFAULT_AVATAR}
-                        alt="Φωτογραφία Προφίλ"
-                        onError={onImgError}
-                        className="h-32 w-32 rounded-3xl bg-zinc-900 object-cover sm:h-40 sm:w-40 lg:h-48 lg:w-48"
-                      />
-                    </div>
-                  </div>
+            <div className="mt-6 text-sm font-medium text-white/85 sm:text-base lg:text-[1.05rem]">
+              {hasCustomAvatar
+                ? "Η εικόνα προφίλ σου είναι έτοιμη."
+                : "Διάλεξε εικόνα ή τράβα φωτογραφία τώρα."}
+            </div>
 
-                  <div className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full border border-black/40 bg-emerald-400 shadow-lg shadow-emerald-500/30">
-                    <div className="h-2 w-2 rounded-full bg-emerald-100" />
-                  </div>
-                </div>
+            <div className="mt-2 text-xs text-white/45 sm:text-sm">
+              Αποδεκτοί τύποι αρχείων PNG / JPG / WEBP
+            </div>
 
-                <div className="mt-4 text-sm font-medium text-zinc-200">
-                  {hasCustomAvatar ? "Έτοιμο." : "PV default."}
-                </div>
+            {hasCustomAvatar ? (
+              <div className="mt-5">
+                <a
+                  href={avatarUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/85 hover:bg-white/[0.08]"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Άνοιγμα εικόνας
+                </a>
+              </div>
+            ) : null}
+
+            <div className="mt-8 w-full">
+              <div className="mx-auto flex w-full max-w-[760px] flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
+                <button
+                  type="button"
+                  onClick={() => openTips("file")}
+                  disabled={uploading}
+                  className={[
+                    "inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold",
+                    "bg-white text-black hover:bg-white/90",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                    "sm:w-auto sm:min-w-[210px]",
+                  ].join(" ")}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImageIcon className="h-4 w-4" />
+                  )}
+                  {primaryLabel}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openTips("camera")}
+                  disabled={uploading}
+                  className={[
+                    "inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold",
+                    "bg-white/10 text-white hover:bg-white/15",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                    "sm:w-auto sm:min-w-[210px]",
+                  ].join(" ")}
+                >
+                  <Camera className="h-4 w-4" />
+                  Τράβα φωτογραφία
+                </button>
+
+                {hasCustomAvatar ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmOpen(true)}
+                    disabled={uploading}
+                    className={[
+                      "inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold",
+                      "bg-white/10 text-rose-200 hover:bg-rose-500/10",
+                      "disabled:cursor-not-allowed disabled:opacity-60",
+                      "sm:w-auto sm:min-w-[190px]",
+                    ].join(" ")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Αφαίρεση
+                  </button>
+                ) : null}
               </div>
 
-              <div className="flex flex-col">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-zinc-900/45 p-4 ring-1 ring-zinc-800/70">
-                    <div className="mb-2 flex items-center gap-2 text-white">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                      <span className="text-sm font-semibold">Καθαρό look</span>
-                    </div>
-                    <p className="text-xs text-zinc-400 sm:text-sm">Πιο δυνατό προφίλ.</p>
-                  </div>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                onChange={uploadAvatar}
+                disabled={uploading}
+                className="hidden"
+              />
 
-                  <div className="rounded-2xl bg-zinc-900/45 p-4 ring-1 ring-zinc-800/70">
-                    <div className="mb-2 flex items-center gap-2 text-white">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                      <span className="text-sm font-semibold">Πιο επαγγελματικό</span>
-                    </div>
-                    <p className="text-xs text-zinc-400 sm:text-sm">Πιο καθαρή εικόνα.</p>
-                  </div>
-                </div>
+              <input
+                ref={cameraInput}
+                type="file"
+                accept="image/*"
+                capture="user"
+                onChange={uploadAvatar}
+                disabled={uploading}
+                className="hidden"
+              />
+            </div>
 
-                <div className="mt-4 rounded-3xl bg-black/30 p-4 ring-1 ring-zinc-800/70 sm:p-5">
-                  <div className="mb-4">
-                    <h4 className="text-sm font-semibold text-white sm:text-base">Διαχείριση</h4>
-                    <p className="mt-1 text-xs text-zinc-400 sm:text-sm">Upload ή διαγραφή.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => openTips("file")}
-                      disabled={uploading}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {uploading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ImageIcon className="h-4 w-4" />
-                      )}
-                      {primaryLabel}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => openTips("camera")}
-                      disabled={uploading}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-800/85 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-700/85 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Camera className="h-4 w-4" />
-                      Κάμερα
-                    </button>
-
-                    {hasCustomAvatar ? (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmOpen(true)}
-                        disabled={uploading}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-500/12 px-4 py-3 text-sm font-semibold text-rose-200 hover:bg-rose-500/18 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Διαγραφή
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <input
-                    ref={fileInput}
-                    type="file"
-                    accept="image/*"
-                    onChange={uploadAvatar}
-                    disabled={uploading}
-                    className="hidden"
-                  />
-
-                  <input
-                    ref={cameraInput}
-                    type="file"
-                    accept="image/*"
-                    capture="user"
-                    onChange={uploadAvatar}
-                    disabled={uploading}
-                    className="hidden"
-                  />
-                </div>
-
-                {(notice || error) && (
-                  <div className="mt-4">
-                    {notice ? (
-                      <div
-                        className={[
-                          "inline-flex w-full items-center gap-2 rounded-2xl px-4 py-3 text-sm",
-                          notice.type === "success"
-                            ? "bg-emerald-500/10 text-emerald-200"
-                            : "bg-rose-500/10 text-rose-200",
-                        ].join(" ")}
-                      >
-                        {notice.type === "success" ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0" />
-                        ) : (
-                          <AlertTriangle className="h-4 w-4 shrink-0" />
-                        )}
-                        <span className="truncate">{notice.text}</span>
-                      </div>
+            {(notice || error) && (
+              <div className="mt-6 flex w-full justify-center">
+                {notice ? (
+                  <div
+                    className={[
+                      "inline-flex w-full max-w-md items-center gap-2 rounded-2xl px-4 py-3 text-sm",
+                      notice.type === "success"
+                        ? "bg-emerald-500/10 text-emerald-200"
+                        : "bg-rose-500/10 text-rose-200",
+                    ].join(" ")}
+                  >
+                    {notice.type === "success" ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
                     ) : (
-                      <div className="w-full rounded-2xl bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                        {error}
-                      </div>
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
                     )}
+                    <span className="truncate">{notice.text}</span>
+                  </div>
+                ) : (
+                  <div className="w-full max-w-md rounded-2xl bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                    {error}
                   </div>
                 )}
               </div>
+            )}
+
+            <div className="mt-7 pb-2 text-[12px] text-white/35 lg:pb-10">
+              Tip: μία καθαρή τετραγωνισμένη φωτογραφία δείχνει καλύτερα στο προφίλ.
             </div>
           </div>
         </div>
@@ -806,9 +827,9 @@ export default function AvatarArea({
 
       <ConfirmModal
         open={confirmOpen}
-        title="Αφαίρεση εικόνας;"
-        description="Θα επιστρέψει η προεπιλεγμένη εικόνα PV."
-        confirmText="Ναι"
+        title="Αφαίρεση εικόνας προφίλ;"
+        description="Θα αφαιρεθεί η τρέχουσα εικόνα από το προφίλ σου."
+        confirmText="Ναι, αφαίρεση"
         cancelText="Άκυρο"
         loading={uploading}
         onClose={() => setConfirmOpen(false)}
