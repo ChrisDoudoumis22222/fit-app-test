@@ -8,6 +8,9 @@ import {
   Briefcase,
   Plus,
   Award,
+  Loader2,
+  AlertTriangle,
+  ArrowRight,
 } from "lucide-react";
 import FieldCard from "../FieldCard";
 import {
@@ -17,60 +20,25 @@ import {
   SPECIALTIES_BY_VALUE,
 } from "../trainerOnboarding.shared";
 import { cn, normalizeCategoryLabel } from "../trainerOnboarding.utils";
+import { supabase } from "../../../../supabaseClient";
 
 const MAX_SPECIALTIES = 4;
 
-function isNonEmptyString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function uniqueStrings(values) {
-  return [...new Set(values.filter(isNonEmptyString).map((v) => v.trim()))];
-}
-
-function normalizeToArray(value) {
-  if (Array.isArray(value)) {
-    return uniqueStrings(value);
-  }
-
-  if (isNonEmptyString(value)) {
-    const trimmed = value.trim();
-
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        return Array.isArray(parsed) ? uniqueStrings(parsed) : [trimmed];
-      } catch {
-        return [trimmed];
-      }
-    }
-
-    if (trimmed.includes(",")) {
-      return uniqueStrings(trimmed.split(","));
-    }
-
-    return [trimmed];
-  }
-
-  return [];
-}
-
-function arraysEqual(a = [], b = []) {
-  if (a.length !== b.length) return false;
-  return a.every((item, index) => item === b[index]);
-}
-
-export default function TrainerIdentityStep({ form, setField, setForm }) {
+export default function TrainerIdentityStep({
+  form,
+  setField,
+  setForm,
+  onContinue,
+}) {
   const [showAll, setShowAll] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const selectedCategories = useMemo(() => {
-    const fromSpecialties = normalizeToArray(form?.specialties);
-    const fromSpecialty = normalizeToArray(form?.specialty);
-
-    return uniqueStrings([...fromSpecialties, ...fromSpecialty]).slice(
-      0,
-      MAX_SPECIALTIES
-    );
+    if (Array.isArray(form?.specialties)) return form.specialties;
+    if (Array.isArray(form?.specialty)) return form.specialty;
+    if (form?.specialty) return [form.specialty];
+    return [];
   }, [form?.specialties, form?.specialty]);
 
   const selectedCategoryObjects = useMemo(() => {
@@ -84,18 +52,17 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
       categoryValue: category.value,
       categoryLabel: normalizeCategoryLabel(category),
       categoryIconKey: category.iconKey,
-      roles: uniqueStrings(SPECIALTIES_BY_VALUE?.[category.value] || []),
+      roles: [...new Set(SPECIALTIES_BY_VALUE?.[category.value] || [])],
     }));
   }, [selectedCategoryObjects]);
 
   const allowedRoles = useMemo(() => {
-    return uniqueStrings(rolesByCategory.flatMap((group) => group.roles));
+    return [...new Set(rolesByCategory.flatMap((group) => group.roles))];
   }, [rolesByCategory]);
 
   const currentRoles = useMemo(() => {
-    return normalizeToArray(form?.roles).filter((role) =>
-      allowedRoles.includes(role)
-    );
+    const roles = Array.isArray(form?.roles) ? form.roles : [];
+    return roles.filter((role) => allowedRoles.includes(role));
   }, [form?.roles, allowedRoles]);
 
   const specialtyIconByValue = useMemo(() => {
@@ -110,52 +77,27 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
 
   useEffect(() => {
     setForm((prev) => {
-      const prevSpecialties = normalizeToArray(prev?.specialties);
-      const prevSpecialty = isNonEmptyString(prev?.specialty)
-        ? prev.specialty.trim()
-        : null;
-      const prevRoles = normalizeToArray(prev?.roles);
+      const prevRoles = Array.isArray(prev?.roles) ? prev.roles : [];
+      const cleanedRoles = prevRoles.filter((role) => allowedRoles.includes(role));
 
-      const mergedSpecialties = uniqueStrings([
-        ...normalizeToArray(prev?.specialties),
-        ...normalizeToArray(prev?.specialty),
-      ]).slice(0, MAX_SPECIALTIES);
-
-      const mergedAllowedRoles = uniqueStrings(
-        mergedSpecialties.flatMap(
-          (categoryValue) => SPECIALTIES_BY_VALUE?.[categoryValue] || []
-        )
-      );
-
-      const cleanedRoles = prevRoles.filter((role) =>
-        mergedAllowedRoles.includes(role)
-      );
-
-      const primarySpecialty = mergedSpecialties[0] || null;
-
-      const specialtiesChanged = !arraysEqual(prevSpecialties, mergedSpecialties);
-      const rolesChanged = !arraysEqual(prevRoles, cleanedRoles);
-      const specialtyChanged = prevSpecialty !== primarySpecialty;
-
-      if (!specialtiesChanged && !rolesChanged && !specialtyChanged) {
-        return prev;
-      }
+      if (cleanedRoles.length === prevRoles.length) return prev;
 
       return {
         ...prev,
-        specialties: mergedSpecialties,
-        specialty: primarySpecialty,
         roles: cleanedRoles,
       };
     });
-  }, [setForm]);
+  }, [allowedRoles, setForm]);
 
   const toggleCategory = (value) => {
     setForm((prev) => {
-      const current = uniqueStrings([
-        ...normalizeToArray(prev?.specialties),
-        ...normalizeToArray(prev?.specialty),
-      ]).slice(0, MAX_SPECIALTIES);
+      const current = Array.isArray(prev?.specialties)
+        ? prev.specialties
+        : Array.isArray(prev?.specialty)
+        ? prev.specialty
+        : prev?.specialty
+        ? [prev.specialty]
+        : [];
 
       const exists = current.includes(value);
 
@@ -167,15 +109,14 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
         nextSpecialties = [...current, value];
       }
 
-      const rolesForRemainingCategories = uniqueStrings(
-        nextSpecialties.flatMap(
-          (categoryValue) => SPECIALTIES_BY_VALUE?.[categoryValue] || []
-        )
-      );
-
-      const nextRoles = normalizeToArray(prev?.roles).filter((role) =>
-        rolesForRemainingCategories.includes(role)
-      );
+      const nextRoles = Array.isArray(prev?.roles)
+        ? prev.roles.filter((role) => {
+            const rolesForRemainingCategories = nextSpecialties.flatMap(
+              (categoryValue) => SPECIALTIES_BY_VALUE?.[categoryValue] || []
+            );
+            return rolesForRemainingCategories.includes(role);
+          })
+        : [];
 
       return {
         ...prev,
@@ -188,18 +129,74 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
 
   const toggleRole = (roleName) => {
     setForm((prev) => {
-      const current = normalizeToArray(prev?.roles);
+      const current = Array.isArray(prev?.roles) ? prev.roles : [];
       const exists = current.includes(roleName);
-
-      const nextRoles = exists
-        ? current.filter((r) => r !== roleName)
-        : uniqueStrings([...current, roleName]);
 
       return {
         ...prev,
-        roles: nextRoles,
+        roles: exists
+          ? current.filter((r) => r !== roleName)
+          : [...current, roleName],
       };
     });
+  };
+
+  const handleContinue = async () => {
+    try {
+      setIsSaving(true);
+      setSaveError("");
+
+      const normalizedExperience =
+        form?.experience_years === "" ||
+        form?.experience_years === null ||
+        typeof form?.experience_years === "undefined"
+          ? null
+          : Number(form.experience_years);
+
+      const payload = {
+        full_name: form?.full_name?.trim() || null,
+        location: form?.location || null,
+        specialties: selectedCategories,
+        specialty: selectedCategories[0] || null,
+        roles: currentRoles,
+        experience_years:
+          Number.isFinite(normalizedExperience) && normalizedExperience >= 0
+            ? normalizedExperience
+            : null,
+        role: "trainer",
+        updated_at: new Date().toISOString(),
+      };
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+
+      let query = supabase.from("profiles").update(payload);
+
+      if (user?.id) {
+        query = query.eq("id", user.id);
+      } else if (form?.email) {
+        query = query.eq("email", form.email);
+      } else {
+        throw new Error("Δεν βρέθηκε χρήστης για αποθήκευση.");
+      }
+
+      const { error } = await query;
+
+      if (error) throw error;
+
+      if (typeof onContinue === "function") {
+        await onContinue();
+      }
+    } catch (err) {
+      console.error("TrainerIdentityStep save failed:", err);
+      setSaveError(err?.message || "Αποτυχία αποθήκευσης");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const visibleCategories = showAll
@@ -208,6 +205,13 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
 
   return (
     <div className="grid grid-cols-1 gap-5">
+      {saveError ? (
+        <div className="inline-flex items-center gap-2 rounded-full border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {saveError}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FieldCard
           icon={User2}
@@ -350,10 +354,7 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
             const GroupIcon = ICON_BY_KEY?.[group.categoryIconKey] || Briefcase;
 
             return (
-              <div
-                key={group.categoryValue}
-                className="-mx-4 px-4 md:mx-0 md:px-0"
-              >
+              <div key={group.categoryValue} className="-mx-4 px-4 md:mx-0 md:px-0">
                 <div className="md:rounded-2xl md:border md:border-zinc-800 md:bg-zinc-900/70 md:p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <GroupIcon className="h-4 w-4 text-white/80" />
@@ -371,9 +372,7 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
                       {group.roles.map((roleName) => {
                         const active = currentRoles.includes(roleName);
                         const RoleIcon =
-                          specialtyIconByValue?.[roleName] ||
-                          GroupIcon ||
-                          Briefcase;
+                          specialtyIconByValue?.[roleName] || GroupIcon || Briefcase;
 
                         return (
                           <button
@@ -434,6 +433,32 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
             />
           </div>
         </div>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button
+          type="button"
+          onClick={handleContinue}
+          disabled={isSaving}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all",
+            isSaving
+              ? "cursor-not-allowed bg-white/10 text-white/50"
+              : "bg-white text-black hover:bg-white/90"
+          )}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Αποθήκευση...
+            </>
+          ) : (
+            <>
+              Συνέχεια
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

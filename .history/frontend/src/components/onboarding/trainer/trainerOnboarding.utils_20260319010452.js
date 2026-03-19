@@ -78,25 +78,6 @@ export function createEmptySlot() {
   };
 }
 
-function resolveAvailabilityMode(source, rows = []) {
-  if (
-    source?.availability_mode === "online" ||
-    source?.availability_mode === "in_person"
-  ) {
-    return source.availability_mode;
-  }
-
-  if (Array.isArray(rows) && rows.some((row) => Boolean(row?.is_online))) {
-    return "online";
-  }
-
-  if (typeof source?.is_online === "boolean") {
-    return source.is_online ? "online" : "in_person";
-  }
-
-  return "in_person";
-}
-
 export function buildAvailabilityByDay(rows = []) {
   const initial = WEEKDAYS.reduce((acc, day) => {
     acc[day.value] = [];
@@ -129,14 +110,13 @@ export function buildInitialForm(profile) {
     ? profile.location
     : "Όλες οι πόλεις";
 
-  const trainerAvailability = Array.isArray(profile?.trainer_availability)
-    ? profile.trainer_availability
-    : [];
-
-  const availabilityMode = resolveAvailabilityMode(
-    profile,
-    trainerAvailability
-  );
+  const availabilityMode =
+    profile?.availability_mode === "online" ||
+    profile?.availability_mode === "in_person"
+      ? profile.availability_mode
+      : Boolean(profile?.is_online)
+      ? "online"
+      : "in_person";
 
   return {
     email: profile?.email || "",
@@ -167,12 +147,14 @@ export function buildInitialForm(profile) {
     diploma_file: null,
     diploma_ready: false,
 
-    is_online: availabilityMode === "online",
+    is_online: Boolean(profile?.is_online),
     availability_mode: availabilityMode,
     offline_location: profile?.offline_location || "",
     online_link: profile?.online_link || "",
 
-    availabilityByDay: buildAvailabilityByDay(trainerAvailability),
+    availabilityByDay: buildAvailabilityByDay(
+      profile?.trainer_availability || []
+    ),
 
     avatar_url: profile?.avatar_url || "",
     avatar_path: profile?.avatar_path || "",
@@ -232,8 +214,9 @@ export function buildSubmitData(form) {
 
   const roles = normalizeStringArray(form?.roles);
 
-  const availabilityRows = buildAvailabilityRows(form?.availabilityByDay);
-  const availabilityMode = resolveAvailabilityMode(form, availabilityRows);
+  const availabilityMode =
+    form?.availability_mode === "online" ? "online" : "in_person";
+
   const isOnline = availabilityMode === "online";
 
   return {
@@ -255,13 +238,14 @@ export function buildSubmitData(form) {
       diploma_url: safeDiplomaUrl || null,
 
       is_online: isOnline,
+      availability_mode: availabilityMode,
       offline_location: isOnline ? null : safeOfflineLocation || null,
       online_link: isOnline ? safeOnlineLink || null : null,
 
       avatar_url: safeAvatarUrl || null,
     },
 
-    availabilityRows,
+    availabilityRows: buildAvailabilityRows(form?.availabilityByDay),
 
     avatarMeta: {
       avatar_url: safeAvatarUrl || null,
@@ -316,7 +300,8 @@ export function validateWizardStep({ currentStep, form }) {
 
   if (currentStep.key === "availability") {
     const availabilityRows = buildAvailabilityRows(form?.availabilityByDay);
-    const availabilityMode = resolveAvailabilityMode(form, availabilityRows);
+    const availabilityMode =
+      form?.availability_mode === "online" ? "online" : "in_person";
     const offlineLocation = String(form?.offline_location || "").trim();
     const onlineLink = String(form?.online_link || "").trim();
 

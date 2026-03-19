@@ -136,7 +136,6 @@ const GlassTile = ({ className = "", children }) => (
   </div>
 );
 
-
 /* ---------- Simple color card ---------- */
 const ColorCard = memo(({ color = "red", className = "", children }) => {
   const gradientMap = {
@@ -746,9 +745,7 @@ function WeeklyScheduleGrid({
       </div>
 
       <div
-        className={
-          isMobile ? "overflow-x-auto -mx-1.5 px-1.5" : "overflow-x-auto"
-        }
+        className={isMobile ? "overflow-x-auto -mx-1.5 px-1.5" : "overflow-x-auto"}
       >
         <div
           className={
@@ -978,7 +975,6 @@ export default function TrainerBookingsPage() {
   };
 
   const openDetails = (bookingOrId) => {
-    setQuickDate(null);
     setSelected(bookingOrId);
 
     if (!isMobile) {
@@ -989,7 +985,6 @@ export default function TrainerBookingsPage() {
   const closeDetails = () => setSelected(null);
 
   const handleSelectDate = (dateStr) => {
-    setSelected(null);
     setQuickDate(dateStr);
     setTimeout(() => scrollTo(quickRef), 60);
   };
@@ -1000,7 +995,6 @@ export default function TrainerBookingsPage() {
   };
 
   const handleFab = () => {
-    setSelected(null);
     if (!quickDate) setQuickDate(toYMDLocal(new Date()));
     setTimeout(() => scrollTo(quickRef), 70);
   };
@@ -1171,7 +1165,7 @@ export default function TrainerBookingsPage() {
                       <div ref={detailsRef} className="h-0 scroll-mt-24" />
 
                       <AnimatePresence mode="wait">
-                        {selected && !quickDate && (
+                        {selected && (
                           <motion.div
                             key="details-panel"
                             initial={{ opacity: 0, y: isMobile ? 0 : -8 }}
@@ -1184,12 +1178,8 @@ export default function TrainerBookingsPage() {
                             className={isMobile ? "" : "min-h-0"}
                           >
                             <BookingDetailsDock
-                              booking={
-                                typeof selected === "object" ? selected : null
-                              }
-                              bookingId={
-                                typeof selected === "string" ? selected : null
-                              }
+                              booking={typeof selected === "object" ? selected : null}
+                              bookingId={typeof selected === "string" ? selected : null}
                               trainerId={resolvedTrainerId}
                               onDone={() => setRefreshKey((k) => k + 1)}
                               onClose={closeDetails}
@@ -1200,8 +1190,8 @@ export default function TrainerBookingsPage() {
 
                       <div ref={quickRef} className="scroll-mt-24" />
 
-                      <AnimatePresence mode="wait">
-                        {!selected && quickDate && (
+                      <AnimatePresence>
+                        {quickDate && (
                           <motion.div
                             key="quickbook"
                             initial={{
@@ -1217,7 +1207,7 @@ export default function TrainerBookingsPage() {
                             exit={{
                               opacity: 0,
                               y: -8,
-                              clipPath: "inset(0% 0% 100% 0% round 24px)",
+                              clipPath: "inset(0% 0% 100% 0%  round 24px)",
                             }}
                             transition={{
                               duration: 0.26,

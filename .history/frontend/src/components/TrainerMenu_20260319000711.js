@@ -1,11 +1,6 @@
-/* UserMenu.js – desktop rail + mobile nav + search overlay
-   Styled closer to TrainerMenu UI
-   - Folder / accordion groups
-   - Removed duplicate bookings button
-   - User badges for accepted bookings + new posts
-   - Added NavbarNewsCardForusers in TrainerMenu-like position
-   - Removed search ability from mobile drawer only
-   ------------------------------------------------------- */
+/* TrainerMenu.js – desktop rail + mobile nav + TrainerSearch overlay
+   with red "new" (posts) + "pending" (bookings) badges
+   ------------------------------------------------------------------ */
 
 "use client";
 
@@ -14,27 +9,33 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthProvider";
-import NavbarNewsCardForusers from "./news/NavbarNewsCardForusers";
+import TrainerSearch from "../components/TrainerSearch";
+import NavbarNewsCard from "../components/news/NavbarNewsCard";
 
 import {
+  FileText,
   Globe,
+  CalendarCheck,
+  History,
   User as UserIcon,
   ImagePlus,
-  Shield,
+  ShieldCheck,
   Settings,
-  CalendarCheck,
   LogOut,
   X,
   Home,
+  CalendarClock,
   CalendarDays,
-  MoreHorizontal,
+  Settings as SettingsIcon,
+  Search,
   Heart,
-  Search as SearchIcon,
+  MoreHorizontal,
+  FileBadge2,
   ChevronDown,
   ChevronRight,
   FolderKanban,
   Dumbbell,
-  Goal,
+  Target,
 } from "lucide-react";
 
 /* -------------------------------- Helpers -------------------------------- */
@@ -59,7 +60,7 @@ const isActiveBottom = (activePath, activeHash, href) => {
   if (!path) return false;
   if (normalizePath(activePath) !== path) return false;
   if (!hash) return activeHash === "";
-  if (path === "/user") return activeHash.startsWith("#");
+  if (path === "/trainer") return activeHash.startsWith("#");
   return activeHash === hash;
 };
 
@@ -78,9 +79,7 @@ const safeAvatar = (url, version) => {
 
   try {
     const base =
-      typeof window !== "undefined"
-        ? window.location.origin
-        : "http://localhost";
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
     const u = new URL(url, base);
     u.searchParams.set("v", String(version));
     return u.toString();
@@ -134,9 +133,9 @@ function RedBadge({ count, className = "" }) {
   );
 }
 
-/* ----------------------- Badges logic (accepted bookings + posts) ----------------------- */
+/* ----------------------- Badges logic (bookings + posts) ----------------------- */
 
-const LS_PREFIX = "pv_seen_user_";
+const LS_PREFIX = "pv_seen_";
 const hasWindow = typeof window !== "undefined";
 
 const getSeen = (key) => {
@@ -157,11 +156,11 @@ const setSeen = (key, ts = Date.now()) => {
   } catch {}
 };
 
-const isAcceptedBooking = (row = {}) =>
-  (row.status || "").toLowerCase() === "accepted";
+const isPendingBooking = (row = {}) =>
+  (row.status || "").toLowerCase() === "pending";
 
 function useNewCounters({ profile, activePath }) {
-  const userId = profile?.id;
+  const trainerId = profile?.id;
 
   const FALLBACK_DAYS = 7;
   const fallbackTs = useMemo(
@@ -172,14 +171,13 @@ function useNewCounters({ profile, activePath }) {
   const WATCHERS = useMemo(
     () => [
       {
-        key: "bookingsAccepted",
-        mode: "new",
-        route: "/user/bookings",
+        key: "bookings",
+        mode: "pending",
+        route: "/trainer/bookings",
         table: "trainer_bookings",
-        select: "id,status,user_id,created_at,updated_at",
-        tsField: "updated_at",
-        initialFilter: (q) => q.eq("user_id", userId).eq("status", "accepted"),
-        matchRow: (row) => row?.user_id === userId && isAcceptedBooking(row),
+        select: "id,status,trainer_id,created_at",
+        initialFilter: (q) => q.eq("trainer_id", trainerId).eq("status", "pending"),
+        matchRow: (row) => row?.trainer_id === trainerId,
       },
       {
         key: "posts",
@@ -187,12 +185,11 @@ function useNewCounters({ profile, activePath }) {
         route: "/posts",
         table: "posts",
         select: "id,created_at",
-        tsField: "created_at",
         initialFilter: (q) => q,
         matchRow: () => true,
       },
     ],
-    [userId]
+    [trainerId]
   );
 
   const [counts, setCounts] = useState(() =>
@@ -200,81 +197,53 @@ function useNewCounters({ profile, activePath }) {
   );
 
   useEffect(() => {
-    if (!userId) return;
-
     let canceled = false;
 
     async function loadCounts() {
       const updates = {};
 
       for (const w of WATCHERS) {
-        const lastSeen = getSeen(w.key) || fallbackTs;
+        if (w.mode === "pending") {
+          const { count, error } = await w.initialFilter(
+            supabase.from(w.table).select("id", { count: "exact", head: true })
+          );
+          updates[w.key] = error ? 0 : count || 0;
+        } else {
+          const lastSeen = getSeen(w.key) || fallbackTs;
 
-        const { data, error } = await w
-          .initialFilter(supabase.from(w.table).select(w.select))
-          .gt(w.tsField, new Date(lastSeen).toISOString())
-          .limit(500);
+          const { data, error } = await w
+            .initialFilter(supabase.from(w.table).select(w.select))
+            .gt("created_at", new Date(lastSeen).toISOString())
+            .limit(500);
 
-        updates[w.key] = error ? 0 : (data || []).filter(w.matchRow).length;
+          updates[w.key] = error ? 0 : data?.length || 0;
+        }
       }
 
       if (!canceled) setCounts((prev) => ({ ...prev, ...updates }));
     }
 
-    loadCounts();
-
+    if (trainerId) loadCounts();
     return () => {
       canceled = true;
     };
-  }, [WATCHERS, userId, fallbackTs]);
+  }, [WATCHERS, trainerId, fallbackTs]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!trainerId) return;
 
     const channels = WATCHERS.map((w) => {
-      const ch = supabase.channel(`rt-user-${w.key}-${userId}`);
+      const ch = supabase.channel(`rt-${w.key}-${trainerId}`);
 
-      if (w.key === "posts") {
+      if (w.mode === "pending") {
         ch.on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: w.table },
           (payload) => {
             const row = payload?.new || {};
             if (!w.matchRow(row)) return;
-
-            const lastSeen = getSeen(w.key) || fallbackTs;
-            const createdTs = row?.created_at
-              ? new Date(row.created_at).getTime()
-              : 0;
-
-            if (createdTs > lastSeen) {
-              setCounts((prev) => ({
-                ...prev,
-                [w.key]: (prev[w.key] || 0) + 1,
-              }));
-            }
-          }
-        );
-      } else if (w.key === "bookingsAccepted") {
-        ch.on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: w.table },
-          (payload) => {
-            const row = payload?.new || {};
-            if (!w.matchRow(row)) return;
-
-            const lastSeen = getSeen(w.key) || fallbackTs;
-            const t = row?.updated_at
-              ? new Date(row.updated_at).getTime()
-              : row?.created_at
-              ? new Date(row.created_at).getTime()
-              : 0;
-
-            if (t > lastSeen) {
-              setCounts((prev) => ({
-                ...prev,
-                [w.key]: (prev[w.key] || 0) + 1,
-              }));
+            if (isPendingBooking(row)) {
+              setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
             }
           }
         );
@@ -286,21 +255,34 @@ function useNewCounters({ profile, activePath }) {
             const oldRow = payload?.old || {};
             const newRow = payload?.new || {};
 
-            const wasAccepted = isAcceptedBooking(oldRow);
-            const isNowAccepted = isAcceptedBooking(newRow);
+            if (!w.matchRow(newRow)) return;
 
-            if (!wasAccepted && isNowAccepted && newRow.user_id === userId) {
-              const lastSeen = getSeen(w.key) || fallbackTs;
-              const t = newRow?.updated_at
-                ? new Date(newRow.updated_at).getTime()
-                : 0;
+            const was = isPendingBooking(oldRow);
+            const is = isPendingBooking(newRow);
 
-              if (t > lastSeen) {
-                setCounts((prev) => ({
-                  ...prev,
-                  [w.key]: (prev[w.key] || 0) + 1,
-                }));
-              }
+            if (was && !is) {
+              setCounts((prev) => ({
+                ...prev,
+                [w.key]: Math.max(0, (prev[w.key] || 0) - 1),
+              }));
+            } else if (!was && is) {
+              setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
+            }
+          }
+        );
+      } else {
+        ch.on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: w.table },
+          (payload) => {
+            const row = payload?.new || {};
+            if (!w.matchRow(row)) return;
+
+            const lastSeen = getSeen(w.key) || fallbackTs;
+            const createdTs = row?.created_at ? new Date(row.created_at).getTime() : 0;
+
+            if (createdTs > lastSeen) {
+              setCounts((prev) => ({ ...prev, [w.key]: (prev[w.key] || 0) + 1 }));
             }
           }
         );
@@ -317,7 +299,7 @@ function useNewCounters({ profile, activePath }) {
         } catch {}
       });
     };
-  }, [WATCHERS, userId, fallbackTs]);
+  }, [WATCHERS, trainerId, fallbackTs]);
 
   useEffect(() => {
     const watcher = WATCHERS.find(
@@ -326,8 +308,10 @@ function useNewCounters({ profile, activePath }) {
 
     if (!watcher) return;
 
-    setSeen(watcher.key, Date.now());
-    setCounts((prev) => ({ ...prev, [watcher.key]: 0 }));
+    if (watcher.mode === "new") {
+      setSeen(watcher.key, Date.now());
+      setCounts((prev) => ({ ...prev, [watcher.key]: 0 }));
+    }
   }, [activePath, WATCHERS]);
 
   const countForHref = (href) => {
@@ -347,6 +331,10 @@ const COLLAPSED = 72;
 const EXPANDED = 240;
 const LOGO_SRC =
   "https://peakvelocity.gr/wp-content/uploads/2024/03/Logo-chris-black-1.png";
+
+if (typeof document !== "undefined") {
+  document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
+}
 
 function useDropdownController(allItems, activePath, activeHash) {
   const activeGroupId = useMemo(() => {
@@ -381,81 +369,7 @@ function useDropdownController(allItems, activePath, activeHash) {
   };
 }
 
-/* ---------------------- Search overlay helpers ---------------------- */
-
-const stripCombining = (s) =>
-  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-const norm = (s = "") =>
-  stripCombining(String(s).toLowerCase()).replace(/ς/g, "σ").trim();
-
-function greeklishToGreek(input = "") {
-  let s = String(input).toLowerCase();
-
-  const digraphs = [
-    ["th", "θ"],
-    ["ch", "χ"],
-    ["ps", "ψ"],
-    ["ks", "ξ"],
-    ["ou", "ου"],
-    ["ai", "αι"],
-    ["ei", "ει"],
-    ["oi", "οι"],
-    ["gh", "γ"],
-    ["mp", "μπ"],
-    ["nt", "ντ"],
-    ["ts", "τσ"],
-    ["tz", "τζ"],
-  ];
-
-  for (const [g, gr] of digraphs) s = s.replaceAll(g, gr);
-
-  const map = {
-    a: "α",
-    b: "β",
-    c: "κ",
-    d: "δ",
-    e: "ε",
-    f: "φ",
-    g: "γ",
-    h: "η",
-    i: "ι",
-    j: "ζ",
-    k: "κ",
-    l: "λ",
-    m: "μ",
-    n: "ν",
-    o: "ο",
-    p: "π",
-    q: "κ",
-    r: "ρ",
-    s: "σ",
-    t: "τ",
-    u: "υ",
-    v: "β",
-    w: "ω",
-    x: "ξ",
-    y: "υ",
-    z: "ζ",
-    " ": " ",
-    "-": "-",
-  };
-
-  let out = "";
-  for (const ch of s) out += map[ch] ?? ch;
-
-  return out;
-}
-
-const normalizeQuery = (q) => {
-  const base = norm(q);
-  const gl = norm(greeklishToGreek(q));
-  return base.length >= gl.length ? base : gl;
-};
-
-/* ------------------------------------------------------------------ */
-
-export default function UserMenu() {
+export default function TrainerMenu() {
   const { profile, profileLoaded } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -470,12 +384,6 @@ export default function UserMenu() {
     const w = window.innerWidth >= 1024 ? (o ? EXPANDED : COLLAPSED) : 0;
     document.documentElement.style.setProperty("--side-w", `${w}px`);
   };
-
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.style.setProperty("--side-w", `${COLLAPSED}px`);
-    }
-  }, []);
 
   useEffect(() => syncVar(open), [open]);
 
@@ -497,45 +405,57 @@ export default function UserMenu() {
   const { countForHref } = useNewCounters({ profile, activePath });
   const avatarVersion = profile?.avatar_updated_at || profile?.updated_at || "";
 
+  if (!profileLoaded || !profile || profile.role !== "trainer") return null;
+
   const navMain = [
-    { id: "home", label: "Αρχική", href: "/user", icon: Home },
+    { id: "dash", label: "Αρχική", href: "/trainer", icon: Home },
     {
-      id: "services",
-      label: "Προπονητές",
-      href: "/services",
-      icon: Dumbbell,
-    },
-    {
-      id: "discover-group",
-      label: "Εξερεύνηση",
+      id: "bookings-group",
+      label: "Κρατήσεις",
       icon: FolderKanban,
       children: [
         {
-          id: "posts",
-          label: "Αναρτήσεις",
-          href: "/posts",
-          icon: Globe,
+          id: "schedule",
+          label: "Το Πρόγραμμά μου",
+          href: "/trainer/schedule",
+          icon: CalendarDays,
         },
         {
-          id: "likes",
-          label: "Αγαπημένα",
-          href: "/user/likes",
-          icon: Heart,
+          id: "books",
+          label: "Κρατήσεις μου",
+          href: "/trainer/bookings",
+          icon: CalendarCheck,
+        },
+        {
+          id: "pay",
+          label: "Ιστορικό Κρατήσεων",
+          href: "/trainer/payments",
+          icon: History,
         },
       ],
     },
     {
-      id: "goals",
-      label: "Στόχοι",
-      href: "/goals",
-      icon: Goal,
+      id: "posts-group",
+      label: "Αναρτήσεις",
+      icon: FileText,
+      children: [
+        {
+          id: "posts",
+          label: "Αναρτήσεις μου",
+          href: "/trainer/posts",
+          icon: FileText,
+        },
+        {
+          id: "allp",
+          label: "Όλες οι Αναρτήσεις",
+          href: "/posts",
+          icon: Globe,
+        },
+      ],
     },
-    {
-      id: "bookings",
-      label: "Κρατήσεις",
-      href: "/user/bookings",
-      icon: CalendarCheck,
-    },
+    { id: "mark", label: "Προπονητές", href: "/services", icon: Dumbbell },
+    { id: "likes", label: "Αγαπημένα", href: "/trainer/likes", icon: Heart },
+    { id: "goals", label: "Στόχοι", href: "/trainer/goals", icon: Target },
   ];
 
   const navSettings = [
@@ -544,68 +464,26 @@ export default function UserMenu() {
       label: "Ρυθμίσεις",
       icon: Settings,
       children: [
+        { id: "profile", label: "Πληροφορίες", href: "/trainer#profile", icon: UserIcon },
+        { id: "avatar", label: "Προφίλ", href: "/trainer#avatar", icon: ImagePlus },
         {
-          id: "profile",
-          label: "Πληροφορίες",
-          href: "/user#profile",
-          icon: UserIcon,
+          id: "credentials",
+          label: "Δικαιολογητικά",
+          href: "/trainer#credentials",
+          icon: FileBadge2,
         },
-        {
-          id: "avatar",
-          label: "Προφίλ",
-          href: "/user#avatar",
-          icon: ImagePlus,
-        },
-        {
-          id: "security",
-          label: "Ασφάλεια",
-          href: "/user#security",
-          icon: Shield,
-        },
+        { id: "security", label: "Ασφάλεια", href: "/trainer#security", icon: ShieldCheck },
       ],
     },
   ];
 
   const bottomNav = [
-    { href: "/user", label: "Αρχική", icon: Home },
-    { href: "/services", label: "Προπονητές", icon: Dumbbell },
-    { href: "/user/bookings", label: "Κρατήσεις", icon: CalendarDays },
-    { href: "/user#profile", label: "Ρυθμίσεις", icon: Settings },
+    { href: "/trainer", label: "Αρχική", icon: Home },
+    { href: "/trainer/schedule", label: "Πρόγραμμα", icon: CalendarClock },
+    { href: "/trainer/bookings", label: "Κρατήσεις", icon: CalendarDays },
+    { href: "/trainer#profile", label: "Ρυθμίσεις", icon: SettingsIcon },
     { href: "drawer", label: "Περισσότερα", icon: MoreHorizontal },
   ];
-
-  const searchItems = useMemo(() => {
-    const flat = [];
-
-    [...navMain, ...navSettings].forEach((item) => {
-      if (item.children?.length) {
-        item.children.forEach((child) => {
-          flat.push({
-            title: child.label,
-            href: child.href,
-            icon: child.icon,
-            keywords: `${item.label} ${child.label}`,
-          });
-        });
-      } else {
-        flat.push({
-          title: item.label,
-          href: item.href,
-          icon: item.icon,
-          keywords: item.label,
-        });
-      }
-    });
-
-    const seen = new Set();
-
-    return flat.filter((item) => {
-      const key = `${item.href}-${item.title}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [navMain, navSettings]);
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -613,8 +491,6 @@ export default function UserMenu() {
   };
 
   const openOverlay = () => setSearchOpen(true);
-
-  if (!profileLoaded || !profile) return null;
 
   return (
     <>
@@ -635,10 +511,7 @@ export default function UserMenu() {
 
       <motion.header
         initial={false}
-        animate={{
-          opacity: drawer ? 0 : 1,
-          pointerEvents: drawer ? "none" : "auto",
-        }}
+        animate={{ opacity: drawer ? 0 : 1, pointerEvents: drawer ? "none" : "auto" }}
         className="lg:hidden fixed inset-x-0 top-0 z-40 flex items-center
                    px-4 bg-black/60 backdrop-blur-xl ring-1 ring-white/10 transition-opacity"
         style={{
@@ -651,7 +524,7 @@ export default function UserMenu() {
           className="rounded-lg p-2 text-gray-300 hover:text-white hover:bg-white/10"
           aria-label="Αναζήτηση"
         >
-          <SearchIcon className="h-5 w-5" />
+          <Search className="h-5 w-5" />
         </button>
 
         <div className="flex-1 flex justify-center">
@@ -662,11 +535,7 @@ export default function UserMenu() {
           />
         </div>
 
-        <Avatar
-          url={profile.avatar_url}
-          version={avatarVersion}
-          className="h-9 w-9"
-        />
+        <Avatar url={profile.avatar_url} version={avatarVersion} className="h-9 w-9" />
       </motion.header>
 
       <div
@@ -674,11 +543,7 @@ export default function UserMenu() {
         style={{ height: "calc(4.75rem + env(safe-area-inset-top))" }}
       />
 
-      <SearchOverlay
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        items={searchItems}
-      />
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       <MobileDrawer
         open={drawer}
@@ -743,7 +608,7 @@ function DesktopRail({
                  overflow-hidden bg-gradient-to-b from-black/80 to-black/60 backdrop-blur-xl
                  ring-1 ring-white/10 shadow-2xl"
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <Brand open={open} />
         <DesktopSearch open={open} onOpen={onOpenSearch} />
 
@@ -794,7 +659,7 @@ const Brand = ({ open }) => (
           transition={{ duration: 0.3 }}
           className="max-w-[110px] truncate text-xl font-bold text-white"
         >
-          User<span className="font-light text-gray-400">Hub</span>
+          Trainer<span className="font-light text-gray-400">Hub</span>
         </motion.span>
       )}
     </AnimatePresence>
@@ -810,7 +675,7 @@ function DesktopSearch({ open, onOpen }) {
           className="p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           aria-label="Αναζήτηση"
         >
-          <SearchIcon className="h-5 w-5 text-white" />
+          <Search className="h-5 w-5 text-white" />
         </button>
       </div>
     );
@@ -823,7 +688,7 @@ function DesktopSearch({ open, onOpen }) {
         className="w-full flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 hover:bg-white/15 transition-colors text-left"
         aria-label="Άνοιγμα αναζήτησης"
       >
-        <SearchIcon className="h-5 w-5 text-gray-200" />
+        <Search className="h-5 w-5 text-gray-200" />
         <span className="text-sm text-gray-300">Ψάξε σελίδες…</span>
       </button>
     </div>
@@ -980,16 +845,12 @@ function FooterBlock({ open, profile, onLogout, avatarVersion }) {
     <div className="p-4">
       {open && (
         <div className="mb-4">
-          <NavbarNewsCardForusers />
+          <NavbarNewsCard />
         </div>
       )}
 
       <div className="flex items-center gap-3 rounded-2xl hover:bg-white/10 p-2 transition-colors">
-        <Avatar
-          url={profile.avatar_url}
-          version={avatarVersion}
-          className="h-9 w-9"
-        />
+        <Avatar url={profile.avatar_url} version={avatarVersion} className="h-9 w-9" />
 
         <AnimatePresence>
           {open && (
@@ -1000,7 +861,7 @@ function FooterBlock({ open, profile, onLogout, avatarVersion }) {
               transition={{ duration: 0.3 }}
               className="min-w-0 text-sm text-white"
             >
-              <p className="truncate font-medium">{profile.full_name || "Χρήστης"}</p>
+              <p className="truncate font-medium">{profile.full_name || "Trainer"}</p>
               <p className="truncate text-xs text-gray-400">{profile.email}</p>
             </motion.div>
           )}
@@ -1018,112 +879,55 @@ function FooterBlock({ open, profile, onLogout, avatarVersion }) {
 
 /* ----------------- Search Overlay ----------------- */
 
-function SearchOverlay({ open, onClose, items }) {
-  const [q, setQ] = useState("");
-  const [dq, setDq] = useState("");
+function SearchOverlay({ open, onClose }) {
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!open) {
-      setQ("");
-      setDq("");
-    }
-  }, [open]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDq(q), 120);
-    return () => clearTimeout(timer);
-  }, [q]);
-
-  const nq = normalizeQuery(dq);
-
-  const results = useMemo(() => {
-    if (!nq) return items.slice(0, 12);
-
-    return items
-      .filter((it) => {
-        const hay = norm(`${it.title} ${it.keywords || ""}`);
-        return hay.includes(nq);
-      })
-      .slice(0, 20);
-  }, [items, nq]);
+  if (!open) return null;
 
   return (
     <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            key="search-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
+      <motion.div
+        key="search-overlay"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      <motion.div
+        key="search-panel"
+        initial={{ y: -24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: -24, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 180, damping: 20 }}
+        className="fixed inset-x-3 top-[calc(8vh+env(safe-area-inset-top))] z-[61] mx-auto max-w-xl
+                   rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-gray-200">
+            <Search className="h-5 w-5" />
+            <span className="text-sm">Αναζήτηση σελίδων</span>
+          </div>
+
+          <button
             onClick={onClose}
-          />
-
-          <motion.div
-            key="search-panel"
-            initial={{ y: -24, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -24, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            className="fixed inset-x-3 top-[calc(8vh+env(safe-area-inset-top))] z-[61] mx-auto max-w-xl
-                       rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-4"
-            onClick={(e) => e.stopPropagation()}
+            className="rounded-md p-2 text-gray-400 hover:text-white hover:bg-white/10"
+            aria-label="Κλείσιμο"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-gray-200">
-                <SearchIcon className="h-5 w-5" />
-                <span className="text-sm">Αναζήτηση σελίδων</span>
-              </div>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-              <button
-                onClick={onClose}
-                className="rounded-md p-2 text-gray-400 hover:text-white hover:bg-white/10"
-                aria-label="Κλείσιμο"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="mb-3">
-              <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2">
-                <SearchIcon className="h-4 w-4 text-gray-300" />
-                <input
-                  autoFocus
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Ψάξε σελίδες…"
-                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-gray-400"
-                />
-              </div>
-            </div>
-
-            <div className="max-h-[48vh] overflow-y-auto pr-1">
-              {results.length > 0 ? (
-                <div className="space-y-1">
-                  {results.map((item) => (
-                    <Link
-                      key={`${item.href}-${item.title}`}
-                      to={item.href}
-                      onClick={onClose}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-200 hover:bg-white/10 transition-colors"
-                    >
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-                        <item.icon className="h-4 w-4" />
-                      </span>
-                      <span className="truncate">{item.title}</span>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl bg-white/5 px-4 py-5 text-center text-sm text-gray-300">
-                  Δεν βρέθηκαν αποτελέσματα.
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </>
-      )}
+        <TrainerSearch
+          ui="panel"
+          onSelectHref={(href) => {
+            onClose();
+            navigate(href);
+          }}
+        />
+      </motion.div>
     </AnimatePresence>
   );
 }
@@ -1220,21 +1024,20 @@ const Section = ({ children }) => (
 function DrawerHeader({ close }) {
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-800">
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-3">
         <img
           src={LOGO_SRC}
           alt="logo"
           className="h-10 w-10 rounded-xl bg-white object-contain p-1"
         />
-        <span className="truncate text-lg font-bold text-white">
-          User<span className="font-light text-gray-400">Hub</span>
+        <span className="text-lg font-bold text-white">
+          Trainer<span className="font-light text-gray-400">Hub</span>
         </span>
       </div>
 
       <button
         onClick={close}
         className="rounded-lg p-2 text-gray-400 hover:text-white hover:bg-white/10"
-        aria-label="Κλείσιμο"
       >
         <X className="h-5 w-5" />
       </button>
@@ -1361,18 +1164,13 @@ function DrawerLinks({
 function DrawerFooter({ profile, close, logout, avatarVersion }) {
   return (
     <div className="space-y-4 bg-gradient-to-t from-black/90 to-black/70 p-4 shadow-inner">
-      <NavbarNewsCardForusers />
+      <NavbarNewsCard />
 
       <div className="flex items-center gap-3">
-        <Avatar
-          url={profile.avatar_url}
-          version={avatarVersion}
-          className="h-11 w-11"
-          ring
-        />
+        <Avatar url={profile.avatar_url} version={avatarVersion} className="h-11 w-11" ring />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-white">
-            {profile.full_name || "Χρήστης"}
+            {profile.full_name || "Trainer"}
           </p>
           <p className="truncate text-xs text-gray-400">{profile.email}</p>
         </div>

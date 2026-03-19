@@ -23,12 +23,12 @@ export default function TrainerOnboardingSteps({
   const wrapperGap = mobile ? "gap-1.5" : "gap-2.5";
 
   return (
-    <div className={cn("w-full", mobile && "bg-transparent")}>
+    <div className="w-full">
       <div
         className={cn(
           "flex w-full items-center",
           wrapperGap,
-          mobile ? "px-1 bg-transparent" : "px-0"
+          mobile ? "px-1" : "px-0"
         )}
       >
         {steps.map((step, index) => {
@@ -52,14 +52,16 @@ export default function TrainerOnboardingSteps({
                 className={cn(
                   "relative shrink-0 rounded-full transition-all duration-300",
                   circleSize,
-                  done
+                  mobile
+                    ? done
+                      ? "bg-transparent text-emerald-400 ring-1 ring-emerald-400/50 shadow-none"
+                      : active
+                      ? "bg-transparent text-white ring-2 ring-emerald-400/70 shadow-none"
+                      : "bg-transparent text-zinc-500 ring-1 ring-zinc-700 shadow-none"
+                    : done
                     ? "bg-emerald-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.35),0_10px_24px_rgba(16,185,129,0.28)]"
                     : active
-                    ? mobile
-                      ? "bg-transparent text-white ring-2 ring-emerald-400/60 shadow-none"
-                      : "bg-zinc-800 text-white ring-2 ring-emerald-400/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
-                    : mobile
-                    ? "bg-transparent text-zinc-500 ring-1 ring-zinc-800 shadow-none"
+                    ? "bg-zinc-800 text-white ring-2 ring-emerald-400/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
                     : "bg-zinc-950 text-zinc-500 ring-1 ring-zinc-800"
                 )}
               >
@@ -70,7 +72,12 @@ export default function TrainerOnboardingSteps({
                 {active && !done ? (
                   <motion.div
                     layoutId="trainer-onboarding-active-step"
-                    className="absolute inset-0 rounded-full border border-emerald-400/50"
+                    className={cn(
+                      "absolute inset-0 rounded-full",
+                      mobile
+                        ? "border border-emerald-400/60"
+                        : "border border-emerald-400/50"
+                    )}
                   />
                 ) : null}
 
@@ -98,7 +105,12 @@ export default function TrainerOnboardingSteps({
                       repeat: Infinity,
                       ease: "easeOut",
                     }}
-                    className="pointer-events-none absolute inset-0 rounded-full border border-emerald-400/50"
+                    className={cn(
+                      "pointer-events-none absolute inset-0 rounded-full border",
+                      mobile
+                        ? "border-emerald-400/35"
+                        : "border-emerald-400/50"
+                    )}
                   />
                 ) : null}
               </motion.button>
@@ -107,8 +119,9 @@ export default function TrainerOnboardingSteps({
                 <div className="relative min-w-0 flex-1">
                   <div
                     className={cn(
-                      "w-full overflow-hidden rounded-full bg-zinc-800/90",
-                      lineHeight
+                      "w-full overflow-hidden rounded-full",
+                      lineHeight,
+                      mobile ? "bg-zinc-800/60" : "bg-zinc-800/90"
                     )}
                   >
                     <motion.div

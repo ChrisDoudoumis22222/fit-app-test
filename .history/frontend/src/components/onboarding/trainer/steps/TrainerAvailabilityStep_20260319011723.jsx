@@ -277,7 +277,7 @@ export default function TrainerAvailabilityStep({
                       type="button"
                       onClick={() => setEnabled(day.key, !row.enabled)}
                       className={cn(
-                        "relative order-2 mt-0.5 h-8 w-14 shrink-0 rounded-full transition-colors xl:order-1",
+                        "relative mt-0.5 h-8 w-14 shrink-0 rounded-full transition-colors order-2 xl:order-1",
                         row.enabled
                           ? "bg-emerald-500 md:bg-white"
                           : "bg-zinc-700"
@@ -295,7 +295,7 @@ export default function TrainerAvailabilityStep({
                       />
                     </button>
 
-                    <div className="order-1 min-w-0 flex-1 xl:order-2">
+                    <div className="min-w-0 flex-1 order-1 xl:order-2">
                       <p className="text-sm font-semibold text-white md:text-base">
                         {day.label}
                       </p>
@@ -393,7 +393,7 @@ export default function TrainerAvailabilityStep({
               className={cn(
                 "flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-medium transition border",
                 !globalIsOnline
-                  ? "border-white bg-white text-black"
+                  ? "border-white bg-transparent text-white md:bg-white md:text-black"
                   : "border-zinc-800 bg-transparent text-white hover:border-zinc-700 md:bg-zinc-900"
               )}
             >
@@ -407,7 +407,7 @@ export default function TrainerAvailabilityStep({
               className={cn(
                 "flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-medium transition border",
                 globalIsOnline
-                  ? "border-white bg-white text-black"
+                  ? "border-white bg-transparent text-white md:bg-white md:text-black"
                   : "border-zinc-800 bg-transparent text-white hover:border-zinc-700 md:bg-zinc-900"
               )}
             >

@@ -23,12 +23,12 @@ export default function TrainerOnboardingSteps({
   const wrapperGap = mobile ? "gap-1.5" : "gap-2.5";
 
   return (
-    <div className={cn("w-full", mobile && "bg-transparent")}>
+    <div className="w-full">
       <div
         className={cn(
           "flex w-full items-center",
           wrapperGap,
-          mobile ? "px-1 bg-transparent" : "px-0"
+          mobile ? "px-1" : "px-0"
         )}
       >
         {steps.map((step, index) => {
@@ -55,17 +55,11 @@ export default function TrainerOnboardingSteps({
                   done
                     ? "bg-emerald-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.35),0_10px_24px_rgba(16,185,129,0.28)]"
                     : active
-                    ? mobile
-                      ? "bg-transparent text-white ring-2 ring-emerald-400/60 shadow-none"
-                      : "bg-zinc-800 text-white ring-2 ring-emerald-400/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
-                    : mobile
-                    ? "bg-transparent text-zinc-500 ring-1 ring-zinc-800 shadow-none"
+                    ? "bg-zinc-800 text-white ring-2 ring-emerald-400/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
                     : "bg-zinc-950 text-zinc-500 ring-1 ring-zinc-800"
                 )}
               >
-                {!mobile ? (
-                  <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.14),transparent_45%)]" />
-                ) : null}
+                <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.14),transparent_45%)]" />
 
                 {active && !done ? (
                   <motion.div
@@ -115,7 +109,9 @@ export default function TrainerOnboardingSteps({
                       initial={false}
                       animate={{ width: connectorFilled ? "100%" : "0%" }}
                       transition={{ duration: 0.35, ease: "easeOut" }}
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                      className={cn(
+                        "h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                      )}
                     />
                   </div>
                 </div>

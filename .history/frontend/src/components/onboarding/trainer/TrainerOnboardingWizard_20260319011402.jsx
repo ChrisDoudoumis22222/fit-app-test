@@ -123,8 +123,6 @@ function StepRenderer({
     return (
       <TrainerAvailabilityStep
         form={form}
-        setField={setField}
-        setForm={setForm}
         addAvailabilitySlot={addAvailabilitySlot}
         removeAvailabilitySlot={removeAvailabilitySlot}
         updateAvailabilitySlot={updateAvailabilitySlot}

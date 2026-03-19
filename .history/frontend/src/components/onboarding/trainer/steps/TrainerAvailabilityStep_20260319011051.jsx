@@ -269,7 +269,7 @@ export default function TrainerAvailabilityStep({
             return (
               <div
                 key={day.key}
-                className="rounded-none border-y border-zinc-800 bg-transparent px-4 py-4 md:rounded-[26px] md:border md:bg-zinc-950/60 md:px-4 md:py-4"
+                className="rounded-none border-y border-zinc-800 bg-black/40 px-4 py-4 md:rounded-[26px] md:border md:px-4 md:py-4"
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div className="flex items-start justify-between gap-3 xl:min-w-[260px] xl:justify-start xl:gap-3">
@@ -277,7 +277,7 @@ export default function TrainerAvailabilityStep({
                       type="button"
                       onClick={() => setEnabled(day.key, !row.enabled)}
                       className={cn(
-                        "relative order-2 mt-0.5 h-8 w-14 shrink-0 rounded-full transition-colors xl:order-1",
+                        "relative mt-0.5 h-8 w-14 shrink-0 rounded-full transition-colors order-2 xl:order-1",
                         row.enabled
                           ? "bg-emerald-500 md:bg-white"
                           : "bg-zinc-700"
@@ -295,7 +295,7 @@ export default function TrainerAvailabilityStep({
                       />
                     </button>
 
-                    <div className="order-1 min-w-0 flex-1 xl:order-2">
+                    <div className="min-w-0 flex-1 order-1 xl:order-2">
                       <p className="text-sm font-semibold text-white md:text-base">
                         {day.label}
                       </p>
@@ -309,7 +309,7 @@ export default function TrainerAvailabilityStep({
 
                   {row.enabled ? (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:w-auto xl:min-w-[420px]">
-                      <div className="rounded-2xl border border-zinc-800 bg-transparent px-4 py-3 md:bg-zinc-900/80">
+                      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 py-3">
                         <label className="mb-2 block text-[11px] font-medium text-zinc-400">
                           Ώρα έναρξης
                         </label>
@@ -324,7 +324,7 @@ export default function TrainerAvailabilityStep({
                         />
                       </div>
 
-                      <div className="rounded-2xl border border-zinc-800 bg-transparent px-4 py-3 md:bg-zinc-900/80">
+                      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 py-3">
                         <label className="mb-2 block text-[11px] font-medium text-zinc-400">
                           Ώρα λήξης
                         </label>
@@ -359,9 +359,9 @@ export default function TrainerAvailabilityStep({
           })}
         </div>
 
-        <div className="mt-4 border-y border-zinc-800 bg-transparent px-4 py-4 md:rounded-[26px] md:border md:bg-zinc-950/60 md:p-5">
+        <div className="mt-4 border-y border-zinc-800 bg-black/40 px-4 py-4 md:rounded-[26px] md:border md:p-5">
           <div className="mb-4 flex items-start gap-3">
-            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-transparent text-white md:bg-zinc-900">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-white">
               {globalIsOnline ? (
                 <Laptop className="h-4 w-4" />
               ) : (
@@ -391,10 +391,10 @@ export default function TrainerAvailabilityStep({
               type="button"
               onClick={() => setGlobalMode(false)}
               className={cn(
-                "flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-medium transition border",
+                "flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-medium transition",
                 !globalIsOnline
-                  ? "border-white bg-white text-black"
-                  : "border-zinc-800 bg-transparent text-white hover:border-zinc-700 md:bg-zinc-900"
+                  ? "bg-white text-black"
+                  : "border border-zinc-800 bg-zinc-900 text-white hover:border-zinc-700"
               )}
             >
               <MapPin className="h-4 w-4" />
@@ -405,10 +405,10 @@ export default function TrainerAvailabilityStep({
               type="button"
               onClick={() => setGlobalMode(true)}
               className={cn(
-                "flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-medium transition border",
+                "flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-medium transition",
                 globalIsOnline
-                  ? "border-white bg-white text-black"
-                  : "border-zinc-800 bg-transparent text-white hover:border-zinc-700 md:bg-zinc-900"
+                  ? "bg-white text-black"
+                  : "border border-zinc-800 bg-zinc-900 text-white hover:border-zinc-700"
               )}
             >
               <Laptop className="h-4 w-4" />
@@ -418,7 +418,7 @@ export default function TrainerAvailabilityStep({
 
           <div className="mt-4">
             {!globalIsOnline ? (
-              <div className="rounded-2xl border border-zinc-800 bg-transparent px-4 py-3 md:bg-zinc-900/80">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 py-3">
                 <label className="mb-2 flex items-center gap-2 text-[11px] font-medium text-zinc-400">
                   <MapPin className="h-3.5 w-3.5" />
                   Τοποθεσία προπόνησης
@@ -431,7 +431,7 @@ export default function TrainerAvailabilityStep({
                     updatePlainField("offline_location", e.target.value)
                   }
                   placeholder="π.χ. Αμπελόκηποι, Αθήνα ή Οδός / Studio / Γυμναστήριο"
-                  className="w-full rounded-xl border border-zinc-800 bg-transparent px-3 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition focus:border-white/30 md:bg-black/50"
+                  className="w-full rounded-xl border border-zinc-800 bg-black/50 px-3 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition focus:border-white/30"
                 />
 
                 <p className="mt-2 text-xs leading-5 text-zinc-500">
@@ -440,7 +440,7 @@ export default function TrainerAvailabilityStep({
                 </p>
               </div>
             ) : (
-              <div className="rounded-2xl border border-zinc-800 bg-transparent px-4 py-3 md:bg-zinc-900/80">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 py-3">
                 <label className="mb-2 flex items-center gap-2 text-[11px] font-medium text-zinc-400">
                   <LinkIcon className="h-3.5 w-3.5" />
                   Σύνδεσμος online προπόνησης
@@ -453,7 +453,7 @@ export default function TrainerAvailabilityStep({
                     updatePlainField("online_link", e.target.value)
                   }
                   placeholder="π.χ. Zoom / Teams / Google Meet / Discord / WhatsApp link"
-                  className="w-full rounded-xl border border-zinc-800 bg-transparent px-3 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition focus:border-white/30 md:bg-black/50"
+                  className="w-full rounded-xl border border-zinc-800 bg-black/50 px-3 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition focus:border-white/30"
                 />
 
                 <p className="mt-2 text-xs leading-5 text-zinc-500">

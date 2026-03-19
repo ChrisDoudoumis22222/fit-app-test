@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Mail,
   User2,
@@ -8,6 +8,9 @@ import {
   Briefcase,
   Plus,
   Award,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import FieldCard from "../FieldCard";
 import {
@@ -17,61 +20,38 @@ import {
   SPECIALTIES_BY_VALUE,
 } from "../trainerOnboarding.shared";
 import { cn, normalizeCategoryLabel } from "../trainerOnboarding.utils";
+import { supabase } from "../../../../supabaseClient";
 
 const MAX_SPECIALTIES = 4;
 
-function isNonEmptyString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function uniqueStrings(values) {
-  return [...new Set(values.filter(isNonEmptyString).map((v) => v.trim()))];
-}
-
-function normalizeToArray(value) {
-  if (Array.isArray(value)) {
-    return uniqueStrings(value);
-  }
-
-  if (isNonEmptyString(value)) {
-    const trimmed = value.trim();
-
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        return Array.isArray(parsed) ? uniqueStrings(parsed) : [trimmed];
-      } catch {
-        return [trimmed];
-      }
-    }
-
-    if (trimmed.includes(",")) {
-      return uniqueStrings(trimmed.split(","));
-    }
-
-    return [trimmed];
-  }
-
-  return [];
-}
-
-function arraysEqual(a = [], b = []) {
-  if (a.length !== b.length) return false;
-  return a.every((item, index) => item === b[index]);
-}
-
 export default function TrainerIdentityStep({ form, setField, setForm }) {
   const [showAll, setShowAll] = useState(false);
+  const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
+  const [saveError, setSaveError] = useState("");
+
+  const saveTimeoutRef = useRef(null);
+  const lastSavedSnapshotRef = useRef("");
 
   const selectedCategories = useMemo(() => {
-    const fromSpecialties = normalizeToArray(form?.specialties);
-    const fromSpecialty = normalizeToArray(form?.specialty);
-
-    return uniqueStrings([...fromSpecialties, ...fromSpecialty]).slice(
-      0,
-      MAX_SPECIALTIES
-    );
+    if (Array.isArray(form?.specialties)) return form.specialties;
+    if (Array.isArray(form?.specialty)) return form.specialty;
+    if (form?.specialty) return [form.specialty];
+    return [];
   }, [form?.specialties, form?.specialty]);
+
+  const currentRoles = useMemo(() => {
+    return Array.isArray(form?.roles) ? form.roles : [];
+  }, [form?.roles]);
+
+  const specialtyIconByValue = useMemo(() => {
+    return Object.fromEntries(
+      TRAINER_CATEGORIES.flatMap((category) => {
+        const IconComp = ICON_BY_KEY?.[category.iconKey] || Briefcase;
+        const roles = SPECIALTIES_BY_VALUE?.[category.value] || [];
+        return roles.map((role) => [role, IconComp]);
+      })
+    );
+  }, []);
 
   const selectedCategoryObjects = useMemo(() => {
     return selectedCategories
@@ -84,78 +64,23 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
       categoryValue: category.value,
       categoryLabel: normalizeCategoryLabel(category),
       categoryIconKey: category.iconKey,
-      roles: uniqueStrings(SPECIALTIES_BY_VALUE?.[category.value] || []),
+      roles: [...new Set(SPECIALTIES_BY_VALUE?.[category.value] || [])],
     }));
   }, [selectedCategoryObjects]);
 
   const allowedRoles = useMemo(() => {
-    return uniqueStrings(rolesByCategory.flatMap((group) => group.roles));
+    return [...new Set(rolesByCategory.flatMap((group) => group.roles))];
   }, [rolesByCategory]);
-
-  const currentRoles = useMemo(() => {
-    return normalizeToArray(form?.roles).filter((role) =>
-      allowedRoles.includes(role)
-    );
-  }, [form?.roles, allowedRoles]);
-
-  const specialtyIconByValue = useMemo(() => {
-    return Object.fromEntries(
-      TRAINER_CATEGORIES.flatMap((category) => {
-        const IconComp = ICON_BY_KEY?.[category.iconKey] || Briefcase;
-        const roles = SPECIALTIES_BY_VALUE?.[category.value] || [];
-        return roles.map((role) => [role, IconComp]);
-      })
-    );
-  }, []);
-
-  useEffect(() => {
-    setForm((prev) => {
-      const prevSpecialties = normalizeToArray(prev?.specialties);
-      const prevSpecialty = isNonEmptyString(prev?.specialty)
-        ? prev.specialty.trim()
-        : null;
-      const prevRoles = normalizeToArray(prev?.roles);
-
-      const mergedSpecialties = uniqueStrings([
-        ...normalizeToArray(prev?.specialties),
-        ...normalizeToArray(prev?.specialty),
-      ]).slice(0, MAX_SPECIALTIES);
-
-      const mergedAllowedRoles = uniqueStrings(
-        mergedSpecialties.flatMap(
-          (categoryValue) => SPECIALTIES_BY_VALUE?.[categoryValue] || []
-        )
-      );
-
-      const cleanedRoles = prevRoles.filter((role) =>
-        mergedAllowedRoles.includes(role)
-      );
-
-      const primarySpecialty = mergedSpecialties[0] || null;
-
-      const specialtiesChanged = !arraysEqual(prevSpecialties, mergedSpecialties);
-      const rolesChanged = !arraysEqual(prevRoles, cleanedRoles);
-      const specialtyChanged = prevSpecialty !== primarySpecialty;
-
-      if (!specialtiesChanged && !rolesChanged && !specialtyChanged) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        specialties: mergedSpecialties,
-        specialty: primarySpecialty,
-        roles: cleanedRoles,
-      };
-    });
-  }, [setForm]);
 
   const toggleCategory = (value) => {
     setForm((prev) => {
-      const current = uniqueStrings([
-        ...normalizeToArray(prev?.specialties),
-        ...normalizeToArray(prev?.specialty),
-      ]).slice(0, MAX_SPECIALTIES);
+      const current = Array.isArray(prev?.specialties)
+        ? prev.specialties
+        : Array.isArray(prev?.specialty)
+        ? prev.specialty
+        : prev?.specialty
+        ? [prev.specialty]
+        : [];
 
       const exists = current.includes(value);
 
@@ -167,40 +92,129 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
         nextSpecialties = [...current, value];
       }
 
-      const rolesForRemainingCategories = uniqueStrings(
-        nextSpecialties.flatMap(
-          (categoryValue) => SPECIALTIES_BY_VALUE?.[categoryValue] || []
-        )
-      );
-
-      const nextRoles = normalizeToArray(prev?.roles).filter((role) =>
-        rolesForRemainingCategories.includes(role)
-      );
-
       return {
         ...prev,
         specialties: nextSpecialties,
         specialty: nextSpecialties[0] || null,
-        roles: nextRoles,
       };
     });
   };
 
   const toggleRole = (roleName) => {
     setForm((prev) => {
-      const current = normalizeToArray(prev?.roles);
+      const current = Array.isArray(prev?.roles) ? prev.roles : [];
       const exists = current.includes(roleName);
-
-      const nextRoles = exists
-        ? current.filter((r) => r !== roleName)
-        : uniqueStrings([...current, roleName]);
 
       return {
         ...prev,
-        roles: nextRoles,
+        roles: exists
+          ? current.filter((r) => r !== roleName)
+          : [...current, roleName],
       };
     });
   };
+
+  useEffect(() => {
+    setForm((prev) => {
+      const prevRoles = Array.isArray(prev?.roles) ? prev.roles : [];
+      const cleanedRoles = prevRoles.filter((role) => allowedRoles.includes(role));
+
+      if (cleanedRoles.length === prevRoles.length) return prev;
+
+      return {
+        ...prev,
+        roles: cleanedRoles,
+      };
+    });
+  }, [allowedRoles, setForm]);
+
+  useEffect(() => {
+    const normalizedExperience =
+      form?.experience_years === "" ||
+      form?.experience_years === null ||
+      typeof form?.experience_years === "undefined"
+        ? null
+        : Number(form.experience_years);
+
+    const payload = {
+      full_name: form?.full_name?.trim() || null,
+      location: form?.location || null,
+      specialties: selectedCategories,
+      specialty: selectedCategories[0] || null,
+      roles: currentRoles,
+      experience_years:
+        Number.isFinite(normalizedExperience) && normalizedExperience >= 0
+          ? normalizedExperience
+          : null,
+      role: "trainer",
+      updated_at: new Date().toISOString(),
+    };
+
+    const snapshot = JSON.stringify({
+      full_name: payload.full_name,
+      location: payload.location,
+      specialties: payload.specialties,
+      specialty: payload.specialty,
+      roles: payload.roles,
+      experience_years: payload.experience_years,
+      role: payload.role,
+    });
+
+    if (!form?.email) return;
+    if (snapshot === lastSavedSnapshotRef.current) return;
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        setSaveState("saving");
+        setSaveError("");
+
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) throw authError;
+
+        let query = supabase.from("profiles").update(payload);
+
+        if (user?.id) {
+          query = query.eq("id", user.id);
+        } else {
+          query = query.eq("email", form.email);
+        }
+
+        const { error } = await query;
+
+        if (error) throw error;
+
+        lastSavedSnapshotRef.current = snapshot;
+        setSaveState("saved");
+
+        setTimeout(() => {
+          setSaveState((prev) => (prev === "saved" ? "idle" : prev));
+        }, 1500);
+      } catch (err) {
+        console.error("Profile autosave failed:", err);
+        setSaveState("error");
+        setSaveError(err?.message || "Αποτυχία αποθήκευσης");
+      }
+    }, 700);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [
+    form?.email,
+    form?.full_name,
+    form?.location,
+    form?.experience_years,
+    selectedCategories,
+    currentRoles,
+  ]);
 
   const visibleCategories = showAll
     ? TRAINER_CATEGORIES
@@ -208,6 +222,29 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
 
   return (
     <div className="grid grid-cols-1 gap-5">
+      <div className="flex items-center justify-end">
+        {saveState === "saving" && (
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/75">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Αποθηκεύεται...
+          </div>
+        )}
+
+        {saveState === "saved" && (
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Αποθηκεύτηκε
+          </div>
+        )}
+
+        {saveState === "error" && (
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs text-red-300">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {saveError || "Σφάλμα αποθήκευσης"}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FieldCard
           icon={User2}
@@ -350,10 +387,7 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
             const GroupIcon = ICON_BY_KEY?.[group.categoryIconKey] || Briefcase;
 
             return (
-              <div
-                key={group.categoryValue}
-                className="-mx-4 px-4 md:mx-0 md:px-0"
-              >
+              <div key={group.categoryValue} className="-mx-4 px-4 md:mx-0 md:px-0">
                 <div className="md:rounded-2xl md:border md:border-zinc-800 md:bg-zinc-900/70 md:p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <GroupIcon className="h-4 w-4 text-white/80" />
@@ -371,9 +405,7 @@ export default function TrainerIdentityStep({ form, setField, setForm }) {
                       {group.roles.map((roleName) => {
                         const active = currentRoles.includes(roleName);
                         const RoleIcon =
-                          specialtyIconByValue?.[roleName] ||
-                          GroupIcon ||
-                          Briefcase;
+                          specialtyIconByValue?.[roleName] || GroupIcon || Briefcase;
 
                         return (
                           <button

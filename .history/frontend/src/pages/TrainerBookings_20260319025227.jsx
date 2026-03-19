@@ -134,8 +134,7 @@ const GlassTile = ({ className = "", children }) => (
     <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[.08] to-transparent opacity-30" />
     <div className="relative">{children}</div>
   </div>
-);
-
+));
 
 /* ---------- Simple color card ---------- */
 const ColorCard = memo(({ color = "red", className = "", children }) => {

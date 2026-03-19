@@ -1,13 +1,6 @@
 "use client";
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { createPortal } from "react-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   Clock3,
@@ -890,7 +883,6 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
 
   const id = useMemo(() => safeId(incomingBooking), [incomingBooking]);
 
-  const [mounted, setMounted] = useState(false);
   const [full, setFull] = useState(() => {
     if (incomingBooking && safeId(incomingBooking)) return incomingBooking;
     return null;
@@ -899,26 +891,6 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
   const [err, setErr] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return;
-
-    const prevOverflow = document.body.style.overflow;
-    const prevTouchAction = document.body.style.touchAction;
-
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouchAction;
-    };
-  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -1273,22 +1245,17 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
 
   if (!open) return null;
   if (!id && !loading) return null;
-  if (!mounted || typeof document === "undefined") return null;
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-[2147483647] isolate bg-black/70 p-3 backdrop-blur-sm sm:p-4"
-      role="dialog"
-      aria-modal="true"
-    >
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/70 p-3 backdrop-blur-sm">
       <div
         className="absolute inset-0"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="relative z-[1] mx-auto mt-4 max-w-2xl sm:mt-10">
-        <Glass className="max-h-[calc(100vh-2rem)] overflow-y-auto p-5 sm:max-h-[calc(100vh-5rem)] sm:p-6 subtle-scroll">
+      <div className="relative mx-auto mt-8 max-w-2xl sm:mt-12">
+        <Glass className="max-h-[calc(100vh-4rem)] overflow-y-auto p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">
               Λεπτομέρειες Κράτησης
@@ -1496,7 +1463,11 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
                         label="Τρόπος πληρωμής"
                         value={paymentMethod}
                       />
-                      <Li icon={Euro} label="Ποσό" value={priceLabel} />
+                      <Li
+                        icon={Euro}
+                        label="Ποσό"
+                        value={priceLabel}
+                      />
                       {!!full?.paid_at && (
                         <Li
                           icon={CheckCircle}
@@ -1554,8 +1525,6 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
       </div>
     </div>
   );
-
-  return createPortal(modalContent, document.body);
 }
 
 /* ---------------- MAIN COMPONENT ---------------- */
@@ -1937,10 +1906,10 @@ export default function UserNotificationsFeed({
             Δεν υπάρχουν ενημερώσεις ακόμη.
           </div>
         ) : (
-          <div
-            ref={scrollContainerRef}
-            className="flex gap-2 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 subtle-scroll -mx-4 px-4 sm:mx-0 sm:px-0"
-          >
+<div
+  ref={scrollContainerRef}
+  className="flex gap-2 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-3 subtle-scroll -mx-4 px-4 sm:mx-0 sm:px-0"
+>
             {items.map((item) => (
               <NotificationCard
                 key={`${item.type}-${item.id}`}
@@ -1965,56 +1934,94 @@ export default function UserNotificationsFeed({
           </div>
         )}
 
-        <style>{`
-          .subtle-scroll {
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(160, 160, 160, 0.22) transparent;
-          }
+<style>{`
+  .subtle-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) rgba(255, 255, 255, 0.05);
+  }
 
-          .subtle-scroll::-webkit-scrollbar {
-            width: 4px;
-            height: 4px;
-          }
+  .subtle-scroll::-webkit-scrollbar {
+    height: 6px;
+  }
 
-          .subtle-scroll::-webkit-scrollbar-track {
-            background: transparent;
-          }
+  .subtle-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 999px;
+  }
 
-          .subtle-scroll::-webkit-scrollbar-thumb {
-            background: rgba(160, 160, 160, 0.22);
-            border-radius: 999px;
-          }
+  .subtle-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background:
+      linear-gradient(
+        90deg,
+        rgba(16, 185, 129, 0.22) 0%,
+        rgba(255, 255, 255, 0.22) 50%,
+        rgba(59, 130, 246, 0.18) 100%
+      );
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 0 0 1px rgba(0, 0, 0, 0.08);
+  }
 
-          .subtle-scroll::-webkit-scrollbar-thumb:hover {
-            background: rgba(190, 190, 190, 0.32);
-          }
+  .subtle-scroll::-webkit-scrollbar-thumb:hover {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(16, 185, 129, 0.3) 0%,
+        rgba(255, 255, 255, 0.28) 50%,
+        rgba(59, 130, 246, 0.24) 100%
+      );
+  }
 
-          .skeleton-shimmer {
-            position: relative;
-            overflow: hidden;
-          }
+  .subtle-scroll::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 
-          .skeleton-shimmer::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            transform: translateX(-100%);
-            background: linear-gradient(
-              90deg,
-              transparent,
-              rgba(255, 255, 255, 0.08),
-              transparent
-            );
-            animation: skeleton-slide 1.15s ease-in-out infinite;
-          }
+  @media (max-width: 640px) {
+    .subtle-scroll::-webkit-scrollbar {
+      height: 4px;
+    }
 
-          @keyframes skeleton-slide {
-            100% {
-              transform: translateX(100%);
-            }
-          }
-        `}</style>
+    .subtle-scroll {
+      scrollbar-width: thin;
+    }
+  }
+
+  @media (min-width: 641px) {
+    .subtle-scroll::-webkit-scrollbar {
+      height: 7px;
+    }
+  }
+
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.08),
+      transparent
+    );
+    animation: skeleton-slide 1.15s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-slide {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+`}</style>
       </section>
 
       <BookingNotificationDetailsModal

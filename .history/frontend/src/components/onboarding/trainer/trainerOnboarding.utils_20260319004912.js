@@ -59,11 +59,6 @@ function normalizeStringArray(value) {
   return [];
 }
 
-function asNumber(value, fallback) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 export function normalizeTimeString(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -76,25 +71,6 @@ export function createEmptySlot() {
     end_time: "17:00",
     is_online: false,
   };
-}
-
-function resolveAvailabilityMode(source, rows = []) {
-  if (
-    source?.availability_mode === "online" ||
-    source?.availability_mode === "in_person"
-  ) {
-    return source.availability_mode;
-  }
-
-  if (Array.isArray(rows) && rows.some((row) => Boolean(row?.is_online))) {
-    return "online";
-  }
-
-  if (typeof source?.is_online === "boolean") {
-    return source.is_online ? "online" : "in_person";
-  }
-
-  return "in_person";
 }
 
 export function buildAvailabilityByDay(rows = []) {
@@ -129,15 +105,6 @@ export function buildInitialForm(profile) {
     ? profile.location
     : "Όλες οι πόλεις";
 
-  const trainerAvailability = Array.isArray(profile?.trainer_availability)
-    ? profile.trainer_availability
-    : [];
-
-  const availabilityMode = resolveAvailabilityMode(
-    profile,
-    trainerAvailability
-  );
-
   return {
     email: profile?.email || "",
     full_name: profile?.full_name || "",
@@ -145,8 +112,7 @@ export function buildInitialForm(profile) {
     phone: profile?.phone || "",
     bio: profile?.bio || "",
 
-    role: profile?.role || "trainer",
-
+    // legacy + multi-select support
     specialty: specialties[0] || "",
     specialties,
     roles,
@@ -162,29 +128,11 @@ export function buildInitialForm(profile) {
       : String(profile?.certifications || ""),
 
     diploma_url: profile?.diploma_url || "",
-    diploma_name: profile?.diploma_name || "",
-    diploma_preview_url: profile?.diploma_preview_url || "",
-    diploma_file: null,
-    diploma_ready: false,
+    is_online: Boolean(profile?.is_online),
 
-    is_online: availabilityMode === "online",
-    availability_mode: availabilityMode,
-    offline_location: profile?.offline_location || "",
-    online_link: profile?.online_link || "",
-
-    availabilityByDay: buildAvailabilityByDay(trainerAvailability),
-
-    avatar_url: profile?.avatar_url || "",
-    avatar_path: profile?.avatar_path || "",
-    avatar_preview_url: profile?.avatar_preview_url || profile?.avatar_url || "",
-    avatar_position_x: asNumber(profile?.avatar_position_x, 50),
-    avatar_position_y: asNumber(profile?.avatar_position_y, 50),
-    avatar_zoom: asNumber(profile?.avatar_zoom, 1),
-    avatar_file: null,
-    avatar_ready: Boolean(profile?.avatar_url),
-
-    onboarding_step: Number(profile?.onboarding_step || 1),
-    onboarding_completed: Boolean(profile?.onboarding_completed),
+    availabilityByDay: buildAvailabilityByDay(
+      profile?.trainer_availability || []
+    ),
   };
 }
 
@@ -221,9 +169,6 @@ export function buildSubmitData(form) {
   const safePhone = String(form?.phone || "").trim();
   const safeBio = String(form?.bio || "").trim();
   const safeDiplomaUrl = String(form?.diploma_url || "").trim();
-  const safeAvatarUrl = String(form?.avatar_url || "").trim();
-  const safeOfflineLocation = String(form?.offline_location || "").trim();
-  const safeOnlineLink = String(form?.online_link || "").trim();
 
   const specialties = uniqueStrings([
     ...normalizeStringArray(form?.specialties),
@@ -231,10 +176,6 @@ export function buildSubmitData(form) {
   ]);
 
   const roles = normalizeStringArray(form?.roles);
-
-  const availabilityRows = buildAvailabilityRows(form?.availabilityByDay);
-  const availabilityMode = resolveAvailabilityMode(form, availabilityRows);
-  const isOnline = availabilityMode === "online";
 
   return {
     profilePayload: {
@@ -244,33 +185,18 @@ export function buildSubmitData(form) {
       phone: safePhone || null,
       bio: safeBio || null,
 
-      role: "trainer",
-
+      // IMPORTANT
       specialty: specialties[0] || null,
       specialties,
       roles,
 
+      role: "trainer",
       experience_years: exp === "" ? null : Number(exp),
       certifications: normalizeCerts(form?.certifications_text),
       diploma_url: safeDiplomaUrl || null,
-
-      is_online: isOnline,
-      offline_location: isOnline ? null : safeOfflineLocation || null,
-      online_link: isOnline ? safeOnlineLink || null : null,
-
-      avatar_url: safeAvatarUrl || null,
+      is_online: Boolean(form?.is_online),
     },
-
-    availabilityRows,
-
-    avatarMeta: {
-      avatar_url: safeAvatarUrl || null,
-      avatar_path: form?.avatar_path || "",
-      avatar_preview_url: form?.avatar_preview_url || "",
-      avatar_position_x: asNumber(form?.avatar_position_x, 50),
-      avatar_position_y: asNumber(form?.avatar_position_y, 50),
-      avatar_zoom: asNumber(form?.avatar_zoom, 1),
-    },
+    availabilityRows: buildAvailabilityRows(form?.availabilityByDay),
   };
 }
 
@@ -316,9 +242,6 @@ export function validateWizardStep({ currentStep, form }) {
 
   if (currentStep.key === "availability") {
     const availabilityRows = buildAvailabilityRows(form?.availabilityByDay);
-    const availabilityMode = resolveAvailabilityMode(form, availabilityRows);
-    const offlineLocation = String(form?.offline_location || "").trim();
-    const onlineLink = String(form?.online_link || "").trim();
 
     if (availabilityRows.length === 0) {
       return "Πρόσθεσε τουλάχιστον ένα διαθέσιμο ωράριο.";
@@ -332,32 +255,6 @@ export function validateWizardStep({ currentStep, form }) {
       if (row.start_time >= row.end_time) {
         return "Η ώρα λήξης πρέπει να είναι μετά την ώρα έναρξης.";
       }
-    }
-
-    if (availabilityMode === "in_person" && !offlineLocation) {
-      return "Συμπλήρωσε την τοποθεσία για τα δια ζώσης μαθήματα.";
-    }
-
-    if (availabilityMode === "online" && !onlineLink) {
-      return "Συμπλήρωσε το online link για τα online μαθήματα.";
-    }
-
-    if (onlineLink && !/^https?:\/\//i.test(onlineLink)) {
-      return "Το online link πρέπει να ξεκινά με http:// ή https://";
-    }
-  }
-
-  if (currentStep.key === "photoProfile") {
-    const hasAvatar = Boolean(
-      form?.avatar_file ||
-        form?.avatar_ready ||
-        isNonEmptyString(form?.avatar_url) ||
-        isNonEmptyString(form?.avatar_preview_url) ||
-        isNonEmptyString(form?.avatar_path)
-    );
-
-    if (!hasAvatar) {
-      return "Ανέβασε φωτογραφία προφίλ για να συνεχίσεις.";
     }
   }
 

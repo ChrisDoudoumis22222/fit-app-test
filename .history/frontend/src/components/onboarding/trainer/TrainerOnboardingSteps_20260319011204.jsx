@@ -17,19 +17,20 @@ export default function TrainerOnboardingSteps({
   onGoToStep,
   mobile = false,
 }) {
-  const iconSize = mobile ? "h-4 w-4" : "h-4.5 w-4.5";
+  const iconSize = mobile ? "h-4 w-4" : "h-[18px] w-[18px]";
   const circleSize = mobile ? "h-10 w-10" : "h-12 w-12";
   const lineHeight = mobile ? "h-[3px]" : "h-1";
   const wrapperGap = mobile ? "gap-1.5" : "gap-2.5";
 
   return (
-    <div className={cn("w-full", mobile && "bg-transparent")}>
+    <div className="w-full bg-transparent">
       <div
         className={cn(
-          "flex w-full items-center",
+          "flex w-full items-center bg-transparent",
           wrapperGap,
-          mobile ? "px-1 bg-transparent" : "px-0"
+          mobile ? "px-1" : "px-0"
         )}
+        style={{ background: "transparent" }}
       >
         {steps.map((step, index) => {
           const Icon = step.icon;
@@ -49,17 +50,20 @@ export default function TrainerOnboardingSteps({
                 whileTap={clickable ? { scale: 0.96 } : undefined}
                 aria-label={step.navTitle || `Βήμα ${index + 1}`}
                 title={step.navTitle || `Βήμα ${index + 1}`}
+                style={{ background: "transparent" }}
                 className={cn(
                   "relative shrink-0 rounded-full transition-all duration-300",
                   circleSize,
-                  done
+                  mobile
+                    ? done
+                      ? "bg-emerald-500 text-white ring-1 ring-emerald-400/40 shadow-none"
+                      : active
+                      ? "bg-transparent text-white ring-2 ring-emerald-400/70 shadow-none"
+                      : "bg-transparent text-zinc-400 ring-1 ring-white/10 shadow-none"
+                    : done
                     ? "bg-emerald-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.35),0_10px_24px_rgba(16,185,129,0.28)]"
                     : active
-                    ? mobile
-                      ? "bg-transparent text-white ring-2 ring-emerald-400/60 shadow-none"
-                      : "bg-zinc-800 text-white ring-2 ring-emerald-400/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
-                    : mobile
-                    ? "bg-transparent text-zinc-500 ring-1 ring-zinc-800 shadow-none"
+                    ? "bg-zinc-800 text-white ring-2 ring-emerald-400/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
                     : "bg-zinc-950 text-zinc-500 ring-1 ring-zinc-800"
                 )}
               >
@@ -70,7 +74,12 @@ export default function TrainerOnboardingSteps({
                 {active && !done ? (
                   <motion.div
                     layoutId="trainer-onboarding-active-step"
-                    className="absolute inset-0 rounded-full border border-emerald-400/50"
+                    className={cn(
+                      "absolute inset-0 rounded-full border",
+                      mobile
+                        ? "border-emerald-400/60"
+                        : "border-emerald-400/50"
+                    )}
                   />
                 ) : null}
 
@@ -98,18 +107,30 @@ export default function TrainerOnboardingSteps({
                       repeat: Infinity,
                       ease: "easeOut",
                     }}
-                    className="pointer-events-none absolute inset-0 rounded-full border border-emerald-400/50"
+                    className={cn(
+                      "pointer-events-none absolute inset-0 rounded-full border",
+                      mobile
+                        ? "border-emerald-400/35"
+                        : "border-emerald-400/50"
+                    )}
                   />
                 ) : null}
               </motion.button>
 
               {index < steps.length - 1 ? (
-                <div className="relative min-w-0 flex-1">
+                <div
+                  className="relative min-w-0 flex-1 bg-transparent"
+                  style={{ background: "transparent" }}
+                >
                   <div
                     className={cn(
-                      "w-full overflow-hidden rounded-full bg-zinc-800/90",
-                      lineHeight
+                      "w-full overflow-hidden rounded-full",
+                      lineHeight,
+                      mobile ? "bg-transparent" : "bg-zinc-800/90"
                     )}
+                    style={{
+                      background: mobile ? "transparent" : undefined,
+                    }}
                   >
                     <motion.div
                       initial={false}

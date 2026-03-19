@@ -1,13 +1,6 @@
 "use client";
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { createPortal } from "react-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   Clock3,
@@ -890,7 +883,6 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
 
   const id = useMemo(() => safeId(incomingBooking), [incomingBooking]);
 
-  const [mounted, setMounted] = useState(false);
   const [full, setFull] = useState(() => {
     if (incomingBooking && safeId(incomingBooking)) return incomingBooking;
     return null;
@@ -899,26 +891,6 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
   const [err, setErr] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return;
-
-    const prevOverflow = document.body.style.overflow;
-    const prevTouchAction = document.body.style.touchAction;
-
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouchAction;
-    };
-  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -1273,22 +1245,17 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
 
   if (!open) return null;
   if (!id && !loading) return null;
-  if (!mounted || typeof document === "undefined") return null;
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-[2147483647] isolate bg-black/70 p-3 backdrop-blur-sm sm:p-4"
-      role="dialog"
-      aria-modal="true"
-    >
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/70 p-3 backdrop-blur-sm">
       <div
         className="absolute inset-0"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="relative z-[1] mx-auto mt-4 max-w-2xl sm:mt-10">
-        <Glass className="max-h-[calc(100vh-2rem)] overflow-y-auto p-5 sm:max-h-[calc(100vh-5rem)] sm:p-6 subtle-scroll">
+      <div className="relative mx-auto mt-8 max-w-2xl sm:mt-12">
+        <Glass className="max-h-[calc(100vh-4rem)] overflow-y-auto p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">
               Λεπτομέρειες Κράτησης
@@ -1496,7 +1463,11 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
                         label="Τρόπος πληρωμής"
                         value={paymentMethod}
                       />
-                      <Li icon={Euro} label="Ποσό" value={priceLabel} />
+                      <Li
+                        icon={Euro}
+                        label="Ποσό"
+                        value={priceLabel}
+                      />
                       {!!full?.paid_at && (
                         <Li
                           icon={CheckCircle}
@@ -1554,8 +1525,6 @@ function BookingNotificationDetailsModal({ open, booking, onClose }) {
       </div>
     </div>
   );
-
-  return createPortal(modalContent, document.body);
 }
 
 /* ---------------- MAIN COMPONENT ---------------- */
@@ -1966,14 +1935,7 @@ export default function UserNotificationsFeed({
         )}
 
         <style>{`
-          .subtle-scroll {
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(160, 160, 160, 0.22) transparent;
-          }
-
           .subtle-scroll::-webkit-scrollbar {
-            width: 4px;
             height: 4px;
           }
 

@@ -18,6 +18,7 @@ import NavbarNewsCardForusers from "./news/NavbarNewsCardForusers";
 
 import {
   Globe,
+  ShoppingBag,
   User as UserIcon,
   ImagePlus,
   Shield,
@@ -28,13 +29,12 @@ import {
   Home,
   CalendarDays,
   MoreHorizontal,
+  HelpCircle,
   Heart,
   Search as SearchIcon,
   ChevronDown,
   ChevronRight,
   FolderKanban,
-  Dumbbell,
-  Goal,
 } from "lucide-react";
 
 /* -------------------------------- Helpers -------------------------------- */
@@ -500,16 +500,16 @@ export default function UserMenu() {
   const navMain = [
     { id: "home", label: "Αρχική", href: "/user", icon: Home },
     {
-      id: "services",
-      label: "Προπονητές",
-      href: "/services",
-      icon: Dumbbell,
-    },
-    {
       id: "discover-group",
       label: "Εξερεύνηση",
       icon: FolderKanban,
       children: [
+        {
+          id: "services",
+          label: "Προπονητές",
+          href: "/services",
+          icon: ShoppingBag,
+        },
         {
           id: "posts",
           label: "Αναρτήσεις",
@@ -525,16 +525,16 @@ export default function UserMenu() {
       ],
     },
     {
-      id: "goals",
-      label: "Στόχοι",
-      href: "/goals",
-      icon: Goal,
-    },
-    {
       id: "bookings",
       label: "Κρατήσεις",
       href: "/user/bookings",
       icon: CalendarCheck,
+    },
+    {
+      id: "faq",
+      label: "FAQ",
+      href: "/faq/users",
+      icon: HelpCircle,
     },
   ];
 
@@ -568,7 +568,7 @@ export default function UserMenu() {
 
   const bottomNav = [
     { href: "/user", label: "Αρχική", icon: Home },
-    { href: "/services", label: "Προπονητές", icon: Dumbbell },
+    { href: "/services", label: "Προπονητές", icon: ShoppingBag },
     { href: "/user/bookings", label: "Κρατήσεις", icon: CalendarDays },
     { href: "/user#profile", label: "Ρυθμίσεις", icon: Settings },
     { href: "drawer", label: "Περισσότερα", icon: MoreHorizontal },
@@ -605,7 +605,7 @@ export default function UserMenu() {
       seen.add(key);
       return true;
     });
-  }, [navMain, navSettings]);
+  }, []);
 
   const logout = async () => {
     await supabase.auth.signOut();

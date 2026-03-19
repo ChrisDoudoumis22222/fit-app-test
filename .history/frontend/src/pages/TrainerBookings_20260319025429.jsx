@@ -135,8 +135,6 @@ const GlassTile = ({ className = "", children }) => (
     <div className="relative">{children}</div>
   </div>
 );
-
-
 /* ---------- Simple color card ---------- */
 const ColorCard = memo(({ color = "red", className = "", children }) => {
   const gradientMap = {

@@ -78,25 +78,6 @@ export function createEmptySlot() {
   };
 }
 
-function resolveAvailabilityMode(source, rows = []) {
-  if (
-    source?.availability_mode === "online" ||
-    source?.availability_mode === "in_person"
-  ) {
-    return source.availability_mode;
-  }
-
-  if (Array.isArray(rows) && rows.some((row) => Boolean(row?.is_online))) {
-    return "online";
-  }
-
-  if (typeof source?.is_online === "boolean") {
-    return source.is_online ? "online" : "in_person";
-  }
-
-  return "in_person";
-}
-
 export function buildAvailabilityByDay(rows = []) {
   const initial = WEEKDAYS.reduce((acc, day) => {
     acc[day.value] = [];
@@ -129,15 +110,6 @@ export function buildInitialForm(profile) {
     ? profile.location
     : "Όλες οι πόλεις";
 
-  const trainerAvailability = Array.isArray(profile?.trainer_availability)
-    ? profile.trainer_availability
-    : [];
-
-  const availabilityMode = resolveAvailabilityMode(
-    profile,
-    trainerAvailability
-  );
-
   return {
     email: profile?.email || "",
     full_name: profile?.full_name || "",
@@ -167,13 +139,13 @@ export function buildInitialForm(profile) {
     diploma_file: null,
     diploma_ready: false,
 
-    is_online: availabilityMode === "online",
-    availability_mode: availabilityMode,
-    offline_location: profile?.offline_location || "",
-    online_link: profile?.online_link || "",
+    is_online: Boolean(profile?.is_online),
 
-    availabilityByDay: buildAvailabilityByDay(trainerAvailability),
+    availabilityByDay: buildAvailabilityByDay(
+      profile?.trainer_availability || []
+    ),
 
+    // avatar support
     avatar_url: profile?.avatar_url || "",
     avatar_path: profile?.avatar_path || "",
     avatar_preview_url: profile?.avatar_preview_url || profile?.avatar_url || "",
@@ -222,8 +194,6 @@ export function buildSubmitData(form) {
   const safeBio = String(form?.bio || "").trim();
   const safeDiplomaUrl = String(form?.diploma_url || "").trim();
   const safeAvatarUrl = String(form?.avatar_url || "").trim();
-  const safeOfflineLocation = String(form?.offline_location || "").trim();
-  const safeOnlineLink = String(form?.online_link || "").trim();
 
   const specialties = uniqueStrings([
     ...normalizeStringArray(form?.specialties),
@@ -231,10 +201,6 @@ export function buildSubmitData(form) {
   ]);
 
   const roles = normalizeStringArray(form?.roles);
-
-  const availabilityRows = buildAvailabilityRows(form?.availabilityByDay);
-  const availabilityMode = resolveAvailabilityMode(form, availabilityRows);
-  const isOnline = availabilityMode === "online";
 
   return {
     profilePayload: {
@@ -253,16 +219,15 @@ export function buildSubmitData(form) {
       experience_years: exp === "" ? null : Number(exp),
       certifications: normalizeCerts(form?.certifications_text),
       diploma_url: safeDiplomaUrl || null,
+      is_online: Boolean(form?.is_online),
 
-      is_online: isOnline,
-      offline_location: isOnline ? null : safeOfflineLocation || null,
-      online_link: isOnline ? safeOnlineLink || null : null,
-
+      // avatar
       avatar_url: safeAvatarUrl || null,
     },
 
-    availabilityRows,
+    availabilityRows: buildAvailabilityRows(form?.availabilityByDay),
 
+    // local/ui-only extra state for onboarding flow
     avatarMeta: {
       avatar_url: safeAvatarUrl || null,
       avatar_path: form?.avatar_path || "",
@@ -316,9 +281,6 @@ export function validateWizardStep({ currentStep, form }) {
 
   if (currentStep.key === "availability") {
     const availabilityRows = buildAvailabilityRows(form?.availabilityByDay);
-    const availabilityMode = resolveAvailabilityMode(form, availabilityRows);
-    const offlineLocation = String(form?.offline_location || "").trim();
-    const onlineLink = String(form?.online_link || "").trim();
 
     if (availabilityRows.length === 0) {
       return "Πρόσθεσε τουλάχιστον ένα διαθέσιμο ωράριο.";
@@ -332,18 +294,6 @@ export function validateWizardStep({ currentStep, form }) {
       if (row.start_time >= row.end_time) {
         return "Η ώρα λήξης πρέπει να είναι μετά την ώρα έναρξης.";
       }
-    }
-
-    if (availabilityMode === "in_person" && !offlineLocation) {
-      return "Συμπλήρωσε την τοποθεσία για τα δια ζώσης μαθήματα.";
-    }
-
-    if (availabilityMode === "online" && !onlineLink) {
-      return "Συμπλήρωσε το online link για τα online μαθήματα.";
-    }
-
-    if (onlineLink && !/^https?:\/\//i.test(onlineLink)) {
-      return "Το online link πρέπει να ξεκινά με http:// ή https://";
     }
   }
 
